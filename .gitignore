@@ -1,0 +1,7 @@
+node_modules/
+.env
+.DS_Store
+*.log
+database/node_modules/
+mobile/node_modules/
+noor_offline.db
