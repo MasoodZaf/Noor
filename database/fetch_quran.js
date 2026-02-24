@@ -53,6 +53,7 @@ async function fetchSurahs(db) {
                     chapter.pages[0]
                 );
             });
+            stmt.finalize();
             db.run("COMMIT", (err) => {
                 if (err) {
                     console.error("Error committing transaction", err);
@@ -63,7 +64,6 @@ async function fetchSurahs(db) {
                 db.close();
             });
         });
-        stmt.finalize();
     } catch (error) {
         console.error('Error fetching Surahs:', error);
         db.close();

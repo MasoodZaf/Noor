@@ -28,7 +28,7 @@ CREATE TABLE ayahs (
 CREATE TABLE translations (
   ayah_id INTEGER NOT NULL,
   language_code TEXT NOT NULL,
-  translator_slug TEXT NOT NULL,           -- "saheeh_international", "jalanhri_urdu"
+  translator_slug TEXT NOT NULL,           -- "saheeh_international", "jalandhri_urdu"
   text TEXT NOT NULL,
   PRIMARY KEY (ayah_id, language_code, translator_slug)
 );
@@ -69,7 +69,8 @@ CREATE TABLE hadiths (
 );
 
 CREATE VIRTUAL TABLE hadiths_fts USING fts5(
-  hadith_id UNINDEXED,
+  collection_slug UNINDEXED,
+  hadith_number UNINDEXED,
   english_text,
   arabic_text,
   content=hadiths,
