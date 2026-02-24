@@ -15,14 +15,24 @@
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.noor.islamic",
+      "config": {
+        "googleMapsApiKey": "YOUR_GOOGLE_MAPS_API_KEY_IOS"
+      },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Noor needs your location to calculate accurate prayer times and Qibla direction."
+        "NSLocationWhenInUseUsageDescription": "Noor needs your location to calculate accurate prayer times, Qibla direction, and find nearby mosques."
       }
     },
     "android": {
+      "package": "com.noor.islamic",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0C0F0E"
+      },
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY_ANDROID"
+        }
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,

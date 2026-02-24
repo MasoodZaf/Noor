@@ -15,6 +15,14 @@ export default function RootLayout() {
                     }}
                 >
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    <Stack.Screen
+                        name="mosque-finder"
+                        options={{
+                            headerShown: false,
+                            presentation: 'fullScreenModal',
+                            animation: 'slide_from_bottom',
+                        }}
+                    />
                 </Stack>
             </View>
         </SafeAreaProvider>

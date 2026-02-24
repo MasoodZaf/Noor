@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { Coordinates, CalculationMethod, PrayerTimes, Prayer } from 'adhan';
 import moment from 'moment';
@@ -53,6 +54,7 @@ function formatHijriDate(date: Date): string {
 // ── Component ──────────────────────────────────────────────────────
 export default function HomeScreen() {
     const insets = useSafeAreaInsets();
+    const router = useRouter();
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const [loading, setLoading] = useState(true);
@@ -309,6 +311,26 @@ export default function HomeScreen() {
                     ))}
                 </View>
 
+                {/* Locate Me & Mosque Finder */}
+                <TouchableOpacity
+                    style={styles.locateCard}
+                    activeOpacity={0.7}
+                    onPress={() => router.push('/mosque-finder')}
+                >
+                    <View style={styles.locateIconContainer}>
+                        <Feather name="map-pin" size={22} color="#C9A84C" />
+                    </View>
+                    <View style={styles.locateTextGroup}>
+                        <Text style={styles.locateTitle}>Locate Me</Text>
+                        <Text style={styles.locateSubtitle}>
+                            {locationName
+                                ? `${locationName} · Find nearby mosques`
+                                : 'Find mosques near you on the map'}
+                        </Text>
+                    </View>
+                    <Feather name="chevron-right" size={20} color="#5E5C58" />
+                </TouchableOpacity>
+
             </ScrollView>
         </View>
     );
@@ -453,5 +475,38 @@ const styles = StyleSheet.create({
     prayerTimeActive: {
         color: '#E8E6E1',
         fontWeight: '600',
+    },
+    locateCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(31, 78, 61, 0.15)',
+        borderWidth: 1,
+        borderColor: 'rgba(201, 168, 76, 0.12)',
+        borderRadius: 16,
+        marginHorizontal: 24,
+        marginTop: 24,
+        padding: 18,
+        gap: 14,
+    },
+    locateIconContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(201, 168, 76, 0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    locateTextGroup: {
+        flex: 1,
+    },
+    locateTitle: {
+        color: '#E8E6E1',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    locateSubtitle: {
+        color: '#9A9590',
+        fontSize: 12,
+        marginTop: 3,
     },
 });
