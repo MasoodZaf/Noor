@@ -1,20 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, TouchableOpacity } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Coordinates, CalculationMethod, PrayerTimes } from 'adhan';
 import moment from 'moment';
+import { useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 
 export default function HomeScreen() {
     const insets = useSafeAreaInsets();
+    const router = useRouter();
 
     const [loading, setLoading] = useState(true);
     const [prayers, setPrayers] = useState<any[]>([]);
     const [nextPrayerName, setNextPrayerName] = useState('');
     const [countdown, setCountdown] = useState('');
     const [fillPercentage, setFillPercentage] = useState(0);
+
+    const [completedPrayers, setCompletedPrayers] = useState<string[]>([]);
+
+    const togglePrayer = (id: string) => {
+        setCompletedPrayers(prev =>
+            prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+        );
+    };
 
     useEffect(() => {
         (async () => {
@@ -49,6 +60,37 @@ export default function HomeScreen() {
             }));
 
             setPrayers(formattedList);
+
+            // Schedule Notifications
+            const scheduleAdhans = async () => {
+                // Clear old scheduled notifications
+                await Notifications.cancelAllScheduledNotificationsAsync();
+
+                const nowTime = new Date().getTime();
+
+                for (const prayer of list) {
+                    if (prayer.date.getTime() > nowTime) {
+                        try {
+                            await Notifications.scheduleNotificationAsync({
+                                content: {
+                                    title: `Time for ${prayer.name}`,
+                                    body: `It is currently time to pray ${prayer.name}. Come to prayer, come to success.`,
+                                    sound: true, // We will use default OS sound for now, but can bundle .wav later
+                                    color: '#C9A84C',
+                                },
+                                trigger: {
+                                    type: Notifications.SchedulableTriggerInputTypes.DATE,
+                                    date: prayer.date
+                                },
+                            });
+                        } catch (e) {
+                            console.error("Failed to schedule notification:", e);
+                        }
+                    }
+                }
+            };
+
+            scheduleAdhans();
 
             if (nextId !== 'none') {
                 setNextPrayerName(nextId.charAt(0).toUpperCase() + nextId.slice(1));
@@ -112,7 +154,12 @@ export default function HomeScreen() {
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <ScrollView
+                style={{ flex: 1 }}
+                showsVerticalScrollIndicator={false}
+                alwaysBounceVertical={true}
+                contentContainerStyle={styles.scrollContent}
+            >
 
                 {/* Header - Hijri Date */}
                 <View style={styles.header}>
@@ -120,8 +167,8 @@ export default function HomeScreen() {
                 </View>
 
                 {/* Circular Progress Countdown */}
-                <View style={styles.progressContainer}>
-                    <Svg width={300} height={300} viewBox="0 0 300 300">
+                <View style={styles.progressContainer} pointerEvents="box-none">
+                    <Svg width={300} height={300} viewBox="0 0 300 300" pointerEvents="none">
                         <Defs>
                             {/* Forest Green to Premium Gold */}
                             <LinearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -188,9 +235,54 @@ export default function HomeScreen() {
                                 <Text style={[styles.prayerTime, prayer.isNext && styles.prayerTimeActive]}>
                                     {prayer.time}
                                 </Text>
+                                <TouchableOpacity
+                                    onPress={() => togglePrayer(prayer.id)}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                    <Feather
+                                        name={completedPrayers.includes(prayer.id) ? "check-circle" : "circle"}
+                                        size={22}
+                                        color={completedPrayers.includes(prayer.id) ? "#C9A84C" : "#5E5C58"}
+                                        style={{ marginLeft: 12 }}
+                                    />
+                                </TouchableOpacity>
                             </View>
                         </View>
                     ))}
+                </View>
+
+                {/* Quick Tools */}
+                <View style={styles.toolsSection}>
+                    <Text style={styles.sectionTitle}>Quick Tools</Text>
+                    <View style={styles.toolsGrid}>
+                        <TouchableOpacity style={styles.toolCard} onPress={() => router.push('/tasbih')}>
+                            <View style={styles.toolIconContainer}>
+                                <Feather name="circle" size={24} color="#C9A84C" />
+                            </View>
+                            <Text style={styles.toolText}>Tasbih</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.toolCard} onPress={() => router.push('/zakat')}>
+                            <View style={styles.toolIconContainer}>
+                                <Feather name="pie-chart" size={24} color="#C9A84C" />
+                            </View>
+                            <Text style={styles.toolText}>Zakat</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.toolCard} onPress={() => router.push('/duas')}>
+                            <View style={styles.toolIconContainer}>
+                                <Feather name="book-open" size={24} color="#C9A84C" />
+                            </View>
+                            <Text style={styles.toolText}>Duas</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.toolCard} onPress={() => router.push('/calendar')}>
+                            <View style={styles.toolIconContainer}>
+                                <Feather name="calendar" size={24} color="#C9A84C" />
+                            </View>
+                            <Text style={styles.toolText}>Calendar</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
             </ScrollView>
@@ -204,12 +296,13 @@ const styles = StyleSheet.create({
         backgroundColor: '#0C0F0E', // Dark Slate from PRD
     },
     scrollContent: {
-        paddingBottom: 40,
+        flexGrow: 1,
+        paddingBottom: 250,
     },
     header: {
         alignItems: 'center',
-        marginTop: 20,
-        marginBottom: 40,
+        marginTop: 10,
+        marginBottom: 30,
     },
     dateText: {
         color: '#9A9590', // Secondary text
@@ -299,5 +392,44 @@ const styles = StyleSheet.create({
     prayerTimeActive: {
         color: '#E8E6E1',
         fontWeight: '600',
+    },
+    toolsSection: {
+        marginTop: 40,
+        paddingHorizontal: 24,
+    },
+    sectionTitle: {
+        color: '#E8E6E1',
+        fontSize: 18,
+        fontWeight: '500',
+        letterSpacing: 0.5,
+        marginBottom: 16,
+    },
+    toolsGrid: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 12,
+    },
+    toolCard: {
+        flex: 1,
+        alignItems: 'center',
+        padding: 16,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    toolIconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: 'rgba(201, 168, 76, 0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 12,
+    },
+    toolText: {
+        color: '#E8E6E1',
+        fontSize: 13,
+        fontWeight: '500',
     },
 });

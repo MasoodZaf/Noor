@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Magnetometer } from 'expo-sensors';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 
 const { width } = Dimensions.get('window');
 
+import { Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+
 export default function DiscoverScreen() {
     const insets = useSafeAreaInsets();
+    const router = useRouter();
     const [heading, setHeading] = useState(0);
 
     useEffect(() => {
@@ -31,52 +35,92 @@ export default function DiscoverScreen() {
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-            {/* Top Text Segment */}
-            <View style={styles.header}>
-                <Text style={styles.titleText}>Makkah al-Mukarramah</Text>
-                <Text style={styles.subtitleText}>4,520 km</Text>
-            </View>
-
-            {/* Premium Swiss-watch style Compass */}
-            <View style={styles.compassWrapper}>
-                <View style={[styles.compassDial, { transform: [{ rotate: `${compassRotation}deg` }] }]}>
-                    <Svg width={width * 0.8} height={width * 0.8} viewBox="0 0 200 200">
-                        {/* Outer sleek border */}
-                        <Circle cx="100" cy="100" r="95" stroke="rgba(255, 255, 255, 0.05)" strokeWidth="2" fill="transparent" />
-
-                        {/* North Indicator */}
-                        <Text style={[styles.northText, { top: -20 }]}>N</Text>
-
-                        {/* Qibla Needle (Gold) */}
-                        <View style={{
-                            position: 'absolute',
-                            width: '100%',
-                            height: '100%',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transform: [{ rotate: `${qiblaBearing}deg` }]
-                        }}>
-                            <View style={styles.qiblaNeedle} />
-                            {/* Small Kaaba representation */}
-                            <View style={styles.kaabaIcon} />
-                        </View>
-
-                    </Svg>
+                {/* Top Text Segment */}
+                <View style={styles.header}>
+                    <Text style={styles.titleText}>Makkah al-Mukarramah</Text>
+                    <Text style={styles.subtitleText}>4,520 km</Text>
                 </View>
 
-                {/* Fixed Center Pin */}
-                <View style={styles.centerPin} />
-            </View>
+                {/* Premium Swiss-watch style Compass */}
+                <View style={[styles.compassWrapper, { height: width, marginVertical: 20 }]}>
+                    <View style={[styles.compassDial, { transform: [{ rotate: `${compassRotation}deg` }] }]}>
+                        <Svg width={width * 0.8} height={width * 0.8} viewBox="0 0 200 200">
+                            {/* Outer sleek border */}
+                            <Circle cx="100" cy="100" r="95" stroke="rgba(255, 255, 255, 0.05)" strokeWidth="2" fill="transparent" />
 
-            {/* Bottom Degrees reading */}
-            <View style={styles.readingContainer}>
-                <Text style={styles.degreesText}>{heading}°</Text>
-                <Text style={styles.directionText}>
-                    {getDirectionLetter(heading)}
-                </Text>
-            </View>
+                            {/* North Indicator */}
+                            <Text style={[styles.northText, { top: -20 }]}>N</Text>
 
+                            {/* Qibla Needle (Gold) */}
+                            <View style={{
+                                position: 'absolute',
+                                width: '100%',
+                                height: '100%',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transform: [{ rotate: `${qiblaBearing}deg` }]
+                            }}>
+                                <View style={styles.qiblaNeedle} />
+                                {/* Small Kaaba representation */}
+                                <View style={styles.kaabaIcon} />
+                            </View>
+
+                        </Svg>
+                    </View>
+
+                    {/* Fixed Center Pin */}
+                    <View style={styles.centerPin} />
+                </View>
+
+                {/* Bottom Degrees reading */}
+                <View style={styles.readingContainer}>
+                    <Text style={styles.degreesText}>{heading}°</Text>
+                    <Text style={styles.directionText}>
+                        {getDirectionLetter(heading)}
+                    </Text>
+                </View>
+
+                {/* Explore Features Segment */}
+                <View style={styles.exploreSection}>
+                    <Text style={styles.sectionTitle}>Explore</Text>
+
+                    <TouchableOpacity style={styles.exploreCard} onPress={() => router.push('/ask')}>
+                        <View style={styles.exploreIconContainer}>
+                            <Feather name="message-circle" size={24} color="#C9A84C" />
+                        </View>
+                        <View style={styles.exploreContent}>
+                            <Text style={styles.exploreTitle}>Ask AiDeen</Text>
+                            <Text style={styles.exploreSubtitle}>AI-powered Islamic Q&A companion</Text>
+                        </View>
+                        <Feather name="chevron-right" size={20} color="#5E5C58" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.exploreCard} onPress={() => router.push('/halal')}>
+                        <View style={styles.exploreIconContainer}>
+                            <Feather name="map-pin" size={24} color="#C9A84C" />
+                        </View>
+                        <View style={styles.exploreContent}>
+                            <Text style={styles.exploreTitle}>Halal Places</Text>
+                            <Text style={styles.exploreSubtitle}>Find restaurants & mosques near you</Text>
+                        </View>
+                        <Feather name="chevron-right" size={20} color="#5E5C58" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.exploreCard} onPress={() => router.push('/live')}>
+                        <View style={styles.exploreIconContainer}>
+                            <Feather name="video" size={24} color="#C9A84C" />
+                        </View>
+                        <View style={styles.exploreContent}>
+                            <Text style={styles.exploreTitle}>Makkah Live</Text>
+                            <Text style={styles.exploreSubtitle}>Watch live streams from the Holy Sites</Text>
+                        </View>
+                        <Feather name="chevron-right" size={20} color="#5E5C58" />
+                    </TouchableOpacity>
+                </View>
+
+            </ScrollView>
         </View>
     );
 }
@@ -99,6 +143,10 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#0C0F0E',
         alignItems: 'center',
+    },
+    scrollContent: {
+        paddingBottom: 40,
+        width: '100%',
     },
     header: {
         marginTop: 40,
@@ -177,5 +225,48 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         letterSpacing: 2,
         marginTop: 4,
+    },
+    exploreSection: {
+        paddingHorizontal: 24,
+        marginTop: 20,
+    },
+    sectionTitle: {
+        color: '#E8E6E1',
+        fontSize: 18,
+        fontWeight: '500',
+        letterSpacing: 0.5,
+        marginBottom: 16,
+    },
+    exploreCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    exploreIconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: 'rgba(201, 168, 76, 0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 16,
+    },
+    exploreContent: {
+        flex: 1,
+    },
+    exploreTitle: {
+        color: '#E8E6E1',
+        fontSize: 16,
+        fontWeight: '500',
+        marginBottom: 4,
+    },
+    exploreSubtitle: {
+        color: '#9A9590',
+        fontSize: 13,
     }
 });
