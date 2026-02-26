@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, ActivityIndicator, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Magnetometer } from 'expo-sensors';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -49,10 +48,7 @@ export default function QiblaScreen() {
     };
 
     useEffect(() => {
-        let sub: any = null;
-        let currentHeading = 0;
-        // Low pass filter constant. Lower is smoother but slower.
-        const LPF_ALPHA = 0.15;
+        let headingSub: Location.LocationSubscription | null = null;
 
         (async () => {
             let { status } = await Location.requestForegroundPermissionsAsync();
@@ -68,31 +64,17 @@ export default function QiblaScreen() {
             setDistance(Math.round(calculateDistance(latitude, longitude)));
             setLocationReady(true);
 
-            Magnetometer.setUpdateInterval(40); // 25fps fluid
-            sub = Magnetometer.addListener((data) => {
-                // Determine Raw Magnetometer Vector
-                let rawAngle = Math.atan2(data.y, data.x) * (180 / Math.PI);
-                rawAngle = rawAngle >= 0 ? rawAngle : rawAngle + 360;
-
-                // Hardware offset alignment
-                let phoneHeading = Platform.OS === 'ios' ? (rawAngle + 90) % 360 : rawAngle;
-
-                // Lemaire Low Pass Filter across 0/360 boundary to kill jitter
-                let diff = phoneHeading - currentHeading;
-                if (diff < -180) diff += 360;
-                if (diff > 180) diff -= 360;
-
-                currentHeading = (currentHeading + LPF_ALPHA * diff);
-                if (currentHeading < 0) currentHeading += 360;
-                if (currentHeading >= 360) currentHeading -= 360;
-
-                setHeading(currentHeading);
+            headingSub = await Location.watchHeadingAsync((headingData) => {
+                // Native OS sensor-fusion via CoreLocation. Handles Tilt/Yaw perfectly natively!
+                // Using un-rounded decimal degrees ensures silky smooth sub-degree rotation on SVG frame
+                const rawAngle = headingData.trueHeading >= 0 ? headingData.trueHeading : headingData.magHeading;
+                setHeading(rawAngle);
             });
         })();
 
         return () => {
-            if (sub) {
-                sub.remove();
+            if (headingSub) {
+                headingSub.remove();
             }
         };
     }, []);
