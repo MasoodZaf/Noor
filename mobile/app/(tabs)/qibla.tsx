@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, ActivityIndicator, Image, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ActivityIndicator, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Magnetometer } from 'expo-sensors';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Circle, Line, Rect, G, Text as SvgText, Path } from 'react-native-svg';
 
 const { width } = Dimensions.get('window');
 
@@ -19,10 +21,6 @@ export default function QiblaScreen() {
     const [distance, setDistance] = useState(0);
     const [errorMsg, setErrorMsg] = useState('');
 
-    // Magnetometer Animation bindings
-    const [compassRingAnim] = useState(new Animated.Value(0));
-
-    // Great Circle formula to calculate exact bearing vs Mecca
     const calculateQibla = (lat1: number, lon1: number) => {
         const toRad = (val: number) => (val * Math.PI) / 180;
         const toDeg = (val: number) => (val * 180) / Math.PI;
@@ -51,6 +49,11 @@ export default function QiblaScreen() {
     };
 
     useEffect(() => {
+        let sub: any = null;
+        let currentHeading = 0;
+        // Low pass filter constant. Lower is smoother but slower.
+        const LPF_ALPHA = 0.15;
+
         (async () => {
             let { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
@@ -61,42 +64,38 @@ export default function QiblaScreen() {
             let location = await Location.getCurrentPositionAsync({});
             const { latitude, longitude } = location.coords;
 
-            const qiblaAngle = calculateQibla(latitude, longitude);
-            setQiblaDirection(qiblaAngle);
+            setQiblaDirection(calculateQibla(latitude, longitude));
             setDistance(Math.round(calculateDistance(latitude, longitude)));
             setLocationReady(true);
+
+            Magnetometer.setUpdateInterval(40); // 25fps fluid
+            sub = Magnetometer.addListener((data) => {
+                // Determine Raw Magnetometer Vector
+                let rawAngle = Math.atan2(data.y, data.x) * (180 / Math.PI);
+                rawAngle = rawAngle >= 0 ? rawAngle : rawAngle + 360;
+
+                // Hardware offset alignment
+                let phoneHeading = Platform.OS === 'ios' ? (rawAngle + 90) % 360 : rawAngle;
+
+                // Lemaire Low Pass Filter across 0/360 boundary to kill jitter
+                let diff = phoneHeading - currentHeading;
+                if (diff < -180) diff += 360;
+                if (diff > 180) diff -= 360;
+
+                currentHeading = (currentHeading + LPF_ALPHA * diff);
+                if (currentHeading < 0) currentHeading += 360;
+                if (currentHeading >= 360) currentHeading -= 360;
+
+                setHeading(currentHeading);
+            });
         })();
 
-        let headingSub: Location.LocationSubscription | null = null;
-
-        const startHeading = async () => {
-            headingSub = await Location.watchHeadingAsync((headingData) => {
-                // Native OS sensor-fusion (avoids the extreme jitter of raw Magnetometer polling)
-                const rawAngle = headingData.trueHeading >= 0 ? headingData.trueHeading : headingData.magHeading;
-                setHeading(Math.round(rawAngle));
-            });
-        };
-        startHeading();
-
         return () => {
-            if (headingSub) {
-                headingSub.remove();
+            if (sub) {
+                sub.remove();
             }
         };
     }, []);
-
-    // Compass visual smoothing calculation vs the magnetic pole
-    let compassRotation = 360 - heading;
-    // Map overlay to point absolute exactly at the computed Qibla target relative to phone rotation
-    let qiblaArrowRotation = qiblaDirection - heading;
-
-    // Soft smoothing visual
-    Animated.timing(compassRingAnim, {
-        toValue: compassRotation,
-        duration: 200, // micro tick
-        easing: Easing.linear,
-        useNativeDriver: true,
-    }).start();
 
     if (errorMsg) {
         return (
@@ -116,8 +115,7 @@ export default function QiblaScreen() {
         );
     }
 
-    // Determine correctness "snap" effect
-    // If the device's North alignment roughly equals Qibla within 2 degrees leeway
+    // Is the phone actively pointing at Kaaba?
     const dif = Math.abs((heading - qiblaDirection) % 360);
     const isAligned = dif < 3 || dif > 357;
 
@@ -128,56 +126,72 @@ export default function QiblaScreen() {
                 <Text style={styles.headerSubtitle}>Locate the Kaaba instantly anywhere.</Text>
             </View>
 
-            <View style={styles.compassWrapper}>
-                {/* Visual Radar Ring Underlay */}
-                <Animated.View style={[
-                    styles.radarAura,
-                    isAligned && { backgroundColor: 'rgba(201, 168, 76, 0.2)' }
-                ]} />
+            <View style={styles.compassContainer}>
+                {/* SVG implementation ensures flawless geometry rendering and zero clipping */}
+                <Svg width={width * 0.9} height={width * 0.9} viewBox="0 0 400 400">
 
-                <View style={styles.compassCenter}>
-                    {/* Primary Compass Ring (Points North Always natively) */}
-                    <Animated.View
-                        style={[
-                            styles.compassRing,
-                            { transform: [{ rotate: `${compassRotation}deg` }] }
-                        ]}
-                    >
-                        <View style={styles.northIndicator} />
-                        {/* Dial marks */}
-                        <View style={styles.dialMarks}>
-                            <Text style={[styles.dialText, { top: -25, left: -6 }]}>N</Text>
-                            <Text style={[styles.dialText, { bottom: -25, left: -6 }]}>S</Text>
-                            <Text style={[styles.dialText, { top: 125, left: 153 }]}>E</Text>
-                            <Text style={[styles.dialText, { top: 125, left: -160 }]}>W</Text>
-                        </View>
-                    </Animated.View>
-
-                    {/* Qibla Direction True Arrow overlay mapped on top of rotation ring */}
-                    <Animated.View style={[
-                        styles.qiblaNeedleContainer,
-                        { transform: [{ rotate: `${qiblaArrowRotation}deg` }] }
-                    ]}>
-                        <LinearGradient
-                            colors={isAligned ? ['#C9A84C', '#FFD700'] : ['#E8E6E1', '#9A9590']}
-                            style={styles.qiblaNeedleStem}
-                        />
-                        <View style={[styles.qiblaNeedleHead, isAligned && { borderBottomColor: '#C9A84C' }]} />
-
-                        {/* Little Kaaba Box representing the target */}
-                        <View style={styles.kaabaOrb}>
-                            <View style={styles.kaabaBox}>
-                                <View style={styles.kaabaDoor} />
-                            </View>
-                        </View>
-                    </Animated.View>
-
-                    {/* Locking Feedback glow ring */}
+                    {/* Glow Effect behind compass if aligned */}
                     {isAligned && (
-                        <View style={styles.lockedGlow} />
+                        <Circle cx="200" cy="200" r="190" fill="rgba(201, 168, 76, 0.15)" />
                     )}
-                </View>
 
+                    {/* Outer frame */}
+                    <Circle cx="200" cy="200" r="180" stroke="rgba(255, 255, 255, 0.05)" strokeWidth="2" fill="rgba(255, 255, 255, 0.01)" />
+                    {isAligned && (
+                        <Circle cx="200" cy="200" r="180" stroke="#C9A84C" strokeWidth="4" fill="transparent" />
+                    )}
+
+                    {/* Rotation wrapper to orient compass housing so North is strictly "up" (inverse of phone heading) */}
+                    <G transform={`rotate(${-heading}, 200, 200)`}>
+
+                        {/* Dial Marks */}
+                        {Array.from({ length: 72 }).map((_, i) => {
+                            const angle = i * 5;
+                            const isMajor = i % 18 === 0;
+                            const isMedium = i % 6 === 0;
+
+                            return (
+                                <Line
+                                    key={i}
+                                    x1="200" y1={isMedium ? 30 : 35}
+                                    x2="200" y2="45"
+                                    stroke={isMajor ? "#E53E3E" : isMedium ? "rgba(201, 168, 76, 0.5)" : "rgba(255, 255, 255, 0.15)"}
+                                    strokeWidth={isMajor ? 4 : isMedium ? 2 : 1}
+                                    transform={`rotate(${angle} 200 200)`}
+                                />
+                            );
+                        })}
+
+                        {/* Exact Cardinal Letters anchored perfectly */}
+                        <SvgText x="200" y="22" fill="#E53E3E" fontSize="20" fontWeight="700" textAnchor="middle">N</SvgText>
+                        <SvgText x="385" y="206" fill="#9A9590" fontSize="18" fontWeight="600" textAnchor="middle">E</SvgText>
+                        <SvgText x="200" y="394" fill="#9A9590" fontSize="18" fontWeight="600" textAnchor="middle">S</SvgText>
+                        <SvgText x="15" y="206" fill="#9A9590" fontSize="18" fontWeight="600" textAnchor="middle">W</SvgText>
+
+                        {/* Qibla Indicator Arrow rotated exactly relative to true North */}
+                        <G transform={`rotate(${qiblaDirection}, 200, 200)`}>
+
+                            {/* Gold stem track */}
+                            <Line x1="200" y1="200" x2="200" y2="80" stroke={isAligned ? "#C9A84C" : "rgba(255,255,255,0.15)"} strokeWidth="3" strokeDasharray="3,3" />
+
+                            {/* Pointer Head */}
+                            <Path d="M190 85 L200 65 L210 85 Z" fill={isAligned ? "#C9A84C" : "#E8E6E1"} />
+
+                            {/* Kaaba floating icon at target bounds */}
+                            <G transform="translate(186, 30)">
+                                <Rect width="28" height="32" fill="#0C0F0E" stroke={isAligned ? "#C9A84C" : "#9A9590"} strokeWidth="1.5" rx="2" />
+                                <Line x1="0" y1="10" x2="28" y2="10" stroke={isAligned ? "#C9A84C" : "#9A9590"} strokeWidth="2" />
+                            </G>
+                        </G>
+                    </G>
+
+                    {/* Central Anchor Pin (Fixed relative to the screen, does not rotate) */}
+                    <G transform="translate(200, 200)">
+                        <Circle cx="0" cy="0" r="10" fill="#0C0F0E" stroke="rgba(201, 168, 76, 0.5)" strokeWidth="2" />
+                        <Circle cx="0" cy="0" r="4" fill={isAligned ? "#C9A84C" : "#E8E6E1"} />
+                        <Line x1="0" y1="-2" x2="0" y2="-120" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                    </G>
+                </Svg>
             </View>
 
             <View style={styles.infoWrapper}>
@@ -191,9 +205,9 @@ export default function QiblaScreen() {
                     </View>
                     <View style={styles.divider} />
                     <View style={styles.infoBlock}>
-                        <Text style={styles.infoLabel}>Degrees</Text>
+                        <Text style={styles.infoLabel}>Heading</Text>
                         <Text style={[styles.infoData, isAligned && { color: '#C9A84C' }]}>
-                            {Math.round(qiblaDirection)}°
+                            {Math.round(heading)}°
                         </Text>
                     </View>
                 </LinearGradient>
@@ -201,7 +215,7 @@ export default function QiblaScreen() {
                 <View style={[styles.statusPill, isAligned && styles.statusPillAligned]}>
                     <Feather name={isAligned ? "check-circle" : "compass"} size={16} color={isAligned ? "#0C0F0E" : "#C9A84C"} style={{ marginRight: 8 }} />
                     <Text style={[styles.statusText, isAligned && styles.statusTextAligned]}>
-                        {isAligned ? 'Qibla found. You are aligned.' : 'Rotate Phone to align arrow.'}
+                        {isAligned ? 'Qibla found. You are aligned.' : 'Rotate Phone to point at Kaaba.'}
                     </Text>
                 </View>
             </View>
@@ -213,29 +227,16 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#0C0F0E' },
     locatingText: { color: '#9A9590', fontSize: 16, marginTop: 20 },
     errorText: { color: '#E53E3E', fontSize: 16, marginTop: 10, textAlign: 'center', paddingHorizontal: 40 },
-    header: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 20 },
+    header: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 10 },
     headerTitle: { color: '#E8E6E1', fontSize: 32, fontWeight: '300', letterSpacing: 0.5 },
     headerSubtitle: { color: '#9A9590', fontSize: 15, marginTop: 4 },
-    compassWrapper: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    radarAura: { position: 'absolute', width: width * 0.9, height: width * 0.9, borderRadius: width * 0.45, backgroundColor: 'rgba(255,255,255,0.02)' },
-    compassCenter: { width: 300, height: 300, alignItems: 'center', justifyContent: 'center' },
-    compassRing: { position: 'absolute', width: 280, height: 280, borderRadius: 140, borderWidth: 2, borderColor: 'rgba(201, 168, 76, 0.3)', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255, 0.02)' },
-    northIndicator: { position: 'absolute', top: 0, width: 4, height: 20, backgroundColor: '#E53E3E', borderRadius: 2 },
-    dialMarks: { ...StyleSheet.absoluteFillObject },
-    dialText: { position: 'absolute', color: '#9A9590', fontSize: 18, fontWeight: 'bold' },
-    qiblaNeedleContainer: { position: 'absolute', width: 300, height: 300, alignItems: 'center', justifyContent: 'center' },
-    qiblaNeedleStem: { position: 'absolute', top: 150, width: 4, height: 120, borderRadius: 2 },
-    qiblaNeedleHead: { position: 'absolute', top: 30, width: 0, height: 0, backgroundColor: 'transparent', borderStyle: 'solid', borderLeftWidth: 10, borderRightWidth: 10, borderBottomWidth: 20, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#E8E6E1' },
-    kaabaOrb: { position: 'absolute', top: 0, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.5)', borderWidth: 1, borderColor: '#C9A84C', alignItems: 'center', justifyContent: 'center' },
-    kaabaBox: { width: 16, height: 16, backgroundColor: '#000', borderWidth: 1, borderColor: '#C9A84C' },
-    kaabaDoor: { position: 'absolute', bottom: 0, left: 6, width: 4, height: 8, backgroundColor: '#C9A84C' },
-    lockedGlow: { position: 'absolute', width: 320, height: 320, borderRadius: 160, borderWidth: 4, borderColor: 'rgba(201, 168, 76, 0.5)' },
+    compassContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     infoWrapper: { paddingHorizontal: 24, paddingBottom: 50 },
     infoCard: { flexDirection: 'row', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', marginBottom: 20 },
     infoBlock: { flex: 1, alignItems: 'center' },
     divider: { width: 1, backgroundColor: 'rgba(255,255,255,0.1)' },
     infoLabel: { color: '#9A9590', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
-    infoData: { color: '#E8E6E1', fontSize: 28, fontWeight: '300' },
+    infoData: { color: '#E8E6E1', fontSize: 28, fontWeight: '300', fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-light' },
     smTxt: { fontSize: 14, color: '#9A9590' },
     statusPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 30, backgroundColor: 'rgba(201, 168, 76, 0.1)', borderWidth: 1, borderColor: 'rgba(201, 168, 76, 0.3)' },
     statusText: { color: '#C9A84C', fontSize: 15, fontWeight: '600' },
