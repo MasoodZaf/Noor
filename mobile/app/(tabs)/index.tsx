@@ -9,6 +9,7 @@ import moment from 'moment';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Localization from 'expo-localization';
 
 export default function HomeScreen() {
     const insets = useSafeAreaInsets();
@@ -83,9 +84,20 @@ export default function HomeScreen() {
             }
 
             const coordinates = new Coordinates(location.coords.latitude, location.coords.longitude);
-            const params = CalculationMethod.MuslimWorldLeague();
-            const date = new Date();
 
+            // Smarter Calculation Parameters using automatic geographic heuristics.
+            let params = CalculationMethod.MuslimWorldLeague();
+            if (locationName.toLowerCase().includes('karachi') || locationName.toLowerCase().includes('pakistan')) {
+                params = CalculationMethod.Karachi();
+            } else if (locationName.toLowerCase().includes('egypt') || locationName.toLowerCase().includes('cairo')) {
+                params = CalculationMethod.Egyptian();
+            } else if (locationName.toLowerCase().includes('dubai') || locationName.toLowerCase().includes('gulf')) {
+                params = CalculationMethod.Dubai();
+            } else if (locationName.toLowerCase().includes('america') || locationName.toLowerCase().includes('usa')) {
+                params = CalculationMethod.NorthAmerica();
+            }
+
+            const date = new Date(); // Automatically inherits devices accurate local time-zone
             const prayerTimes = new PrayerTimes(coordinates, date, params);
 
             const list = [
@@ -237,10 +249,9 @@ export default function HomeScreen() {
                     ]}>
                         <LinearGradient
                             colors={['rgba(201,168,76, 0.4)', 'rgba(31,78,61, 0.1)']}
-                            style={StyleSheet.absoluteFill}
+                            style={[StyleSheet.absoluteFill, { borderRadius: 150 }]}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
-                            borderRadius={150}
                         />
                     </Animated.View>
 
