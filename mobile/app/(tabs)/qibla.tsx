@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, ActivityIndicator, Image, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Magnetometer } from 'expo-sensors';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -68,19 +67,21 @@ export default function QiblaScreen() {
             setLocationReady(true);
         })();
 
-        // Hardware Magnetometer listening loop for absolute smooth 60fps pointing
-        Magnetometer.setUpdateInterval(50);
-        const subscription = Magnetometer.addListener((data) => {
-            // Need to convert x,y raw coordinates to Heading Deg (0-360)
-            let rawAngle = Math.atan2(data.y, data.x) * (180 / Math.PI);
-            rawAngle = rawAngle >= 0 ? rawAngle : rawAngle + 360;
-            // Native Sensor offset heuristics depending on typical iOS rotation axes
-            const deviceHeading = Math.round(rawAngle);
-            setHeading(deviceHeading);
-        });
+        let headingSub: Location.LocationSubscription | null = null;
+
+        const startHeading = async () => {
+            headingSub = await Location.watchHeadingAsync((headingData) => {
+                // Native OS sensor-fusion (avoids the extreme jitter of raw Magnetometer polling)
+                const rawAngle = headingData.trueHeading >= 0 ? headingData.trueHeading : headingData.magHeading;
+                setHeading(Math.round(rawAngle));
+            });
+        };
+        startHeading();
 
         return () => {
-            subscription.remove();
+            if (headingSub) {
+                headingSub.remove();
+            }
         };
     }, []);
 
