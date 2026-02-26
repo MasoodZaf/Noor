@@ -146,47 +146,52 @@ export default function HomeScreen() {
             };
             scheduleAdhans();
 
-            if (nextId !== 'none') {
-                setNextPrayerName(nextId.charAt(0).toUpperCase() + nextId.slice(1));
+            let activeNextId = nextId;
+            let activeNextTime = prayerTimes.timeForPrayer(nextId as any) as Date;
 
-                const nextPrayerTimeObj = prayerTimes.timeForPrayer(nextId) as Date;
-                let previousPrayerTimeObj;
-
-                if (currentId === 'none') {
-                    // Between Isha and Fajr gap
-                    previousPrayerTimeObj = new Date(date).setHours(0, 0, 0, 0);
-                } else {
-                    previousPrayerTimeObj = prayerTimes.timeForPrayer(currentId) as Date;
-                }
-
-                const totalDuration = nextPrayerTimeObj.getTime() - new Date(previousPrayerTimeObj).getTime();
-
-                const updateTimer = () => {
-                    const now = new Date().getTime();
-                    const diff = nextPrayerTimeObj.getTime() - now;
-
-                    if (diff <= 0) {
-                        setCountdown('0h 0m');
-                        setFillPercentage(1);
-                    } else {
-                        const d = moment.duration(diff);
-                        setCountdown(`${Math.floor(d.asHours())}h ${d.minutes()}m`);
-
-                        const elapsed = now - new Date(previousPrayerTimeObj).getTime();
-                        const percentage = Math.max(0, Math.min(1, elapsed / totalDuration));
-                        setFillPercentage(percentage);
-                    }
-                };
-
-                updateTimer();
-                const interval = setInterval(updateTimer, 60000);
-                setLoading(false);
-                return () => clearInterval(interval);
+            // Handle After-Isha Edge Case (Next prayer is tomorrow's Fajr)
+            if (!activeNextId || activeNextId === 'none') {
+                activeNextId = 'fajr';
+                const tomorrow = new Date(date);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                const tomorrowPrayerTimes = new PrayerTimes(coordinates, tomorrow, params);
+                activeNextTime = tomorrowPrayerTimes.fajr;
+                setNextPrayerName('Fajr');
             } else {
-                setNextPrayerName('None');
-                setCountdown('--');
-                setLoading(false);
+                setNextPrayerName(activeNextId.charAt(0).toUpperCase() + activeNextId.slice(1));
             }
+
+            let previousPrayerTimeObj;
+            if (currentId === 'none') {
+                // Between tomorrow's Fajr and Today's Isha or start of day
+                previousPrayerTimeObj = new Date(date).setHours(0, 0, 0, 0);
+            } else {
+                previousPrayerTimeObj = prayerTimes.timeForPrayer(currentId as any) as Date;
+            }
+
+            const totalDuration = activeNextTime.getTime() - new Date(previousPrayerTimeObj).getTime();
+
+            const updateTimer = () => {
+                const now = new Date().getTime();
+                const diff = activeNextTime.getTime() - now;
+
+                if (diff <= 0) {
+                    setCountdown('0h 0m');
+                    setFillPercentage(1);
+                } else {
+                    const d = moment.duration(diff);
+                    setCountdown(`${Math.floor(d.asHours())}h ${d.minutes()}m`);
+
+                    const elapsed = now - new Date(previousPrayerTimeObj).getTime();
+                    const percentage = Math.max(0, Math.min(1, elapsed / totalDuration));
+                    setFillPercentage(percentage);
+                }
+            };
+
+            updateTimer();
+            const interval = setInterval(updateTimer, 60000);
+            setLoading(false);
+            return () => clearInterval(interval);
         })();
     }, []);
 
