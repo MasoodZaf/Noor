@@ -74,6 +74,15 @@ export default function TabLayout() {
                 options={{
                     title: 'Discover',
                     tabBarIcon: ({ color, size }) => (
+                        <Feather name="globe" size={22} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="qibla"
+                options={{
+                    title: 'Qibla',
+                    tabBarIcon: ({ color, size }) => (
                         <Feather name="compass" size={22} color={color} />
                     ),
                 }}
