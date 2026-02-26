@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, Platform } from 'react-native';
 import { DatabaseProvider } from '../context/DatabaseContext';
+import { LanguageProvider } from '../context/LanguageContext';
 import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
 
@@ -48,19 +49,21 @@ export default function RootLayout() {
 
     return (
         <SafeAreaProvider>
-            <DatabaseProvider>
-                <View style={{ flex: 1, backgroundColor: '#0C0F0E' }}>
-                    <StatusBar style="light" />
-                    <Stack
-                        screenOptions={{
-                            headerShown: false,
-                            contentStyle: { backgroundColor: '#0C0F0E' },
-                        }}
-                    >
-                        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    </Stack>
-                </View>
-            </DatabaseProvider>
+            <LanguageProvider>
+                <DatabaseProvider>
+                    <View style={{ flex: 1, backgroundColor: '#0C0F0E' }}>
+                        <StatusBar style="light" />
+                        <Stack
+                            screenOptions={{
+                                headerShown: false,
+                                contentStyle: { backgroundColor: '#0C0F0E' },
+                            }}
+                        >
+                            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                        </Stack>
+                    </View>
+                </DatabaseProvider>
+            </LanguageProvider>
         </SafeAreaProvider>
     );
 }

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, TouchableOpacity } from 'react-native';
-import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, TouchableOpacity, Animated, Easing } from 'react-native';
+import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Stop, Path, Rect, G } from 'react-native-svg';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -8,6 +8,7 @@ import { Coordinates, CalculationMethod, PrayerTimes } from 'adhan';
 import moment from 'moment';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function HomeScreen() {
     const insets = useSafeAreaInsets();
@@ -18,6 +19,11 @@ export default function HomeScreen() {
     const [nextPrayerName, setNextPrayerName] = useState('');
     const [countdown, setCountdown] = useState('');
     const [fillPercentage, setFillPercentage] = useState(0);
+    const [locationName, setLocationName] = useState('Locating...');
+    const [greeting, setGreeting] = useState('As-salamu alaykum');
+
+    // Core animation value for the pulsing time ring
+    const pulseAnim = useRef(new Animated.Value(0)).current;
 
     const [completedPrayers, setCompletedPrayers] = useState<string[]>([]);
 
@@ -27,15 +33,54 @@ export default function HomeScreen() {
         );
     };
 
+    // Calculate dynamic greeting based on time of day
+    const getGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'Good Morning';
+        if (hour < 17) return 'Good Afternoon';
+        return 'Good Evening';
+    };
+
     useEffect(() => {
+        setGreeting(getGreeting());
+
+        // Start infinite pulsing animation
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(pulseAnim, {
+                    toValue: 1,
+                    duration: 2000,
+                    easing: Easing.out(Easing.ease),
+                    useNativeDriver: true,
+                }),
+                Animated.timing(pulseAnim, {
+                    toValue: 0,
+                    duration: 2000,
+                    easing: Easing.in(Easing.ease),
+                    useNativeDriver: true,
+                })
+            ])
+        ).start();
+
         (async () => {
             let { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
-                console.error('Permission to access location was denied');
+                setLocationName('Location Denied');
                 return;
             }
 
             let location = await Location.getCurrentPositionAsync({});
+
+            // Try reverse geocoding to get City name
+            try {
+                let p = await Location.reverseGeocodeAsync(location.coords);
+                if (p.length > 0) {
+                    if (p[0].city) setLocationName(p[0].city);
+                    else if (p[0].region) setLocationName(p[0].region);
+                }
+            } catch (e) {
+                // Ignore fallback to 'Locating...'
+            }
 
             const coordinates = new Coordinates(location.coords.latitude, location.coords.longitude);
             const params = CalculationMethod.MuslimWorldLeague();
@@ -63,9 +108,7 @@ export default function HomeScreen() {
 
             // Schedule Notifications
             const scheduleAdhans = async () => {
-                // Clear old scheduled notifications
                 await Notifications.cancelAllScheduledNotificationsAsync();
-
                 const nowTime = new Date().getTime();
 
                 for (const prayer of list) {
@@ -75,7 +118,7 @@ export default function HomeScreen() {
                                 content: {
                                     title: `Time for ${prayer.name}`,
                                     body: `It is currently time to pray ${prayer.name}. Come to prayer, come to success.`,
-                                    sound: true, // We will use default OS sound for now, but can bundle .wav later
+                                    sound: true,
                                     color: '#C9A84C',
                                 },
                                 trigger: {
@@ -89,7 +132,6 @@ export default function HomeScreen() {
                     }
                 }
             };
-
             scheduleAdhans();
 
             if (nextId !== 'none') {
@@ -136,9 +178,20 @@ export default function HomeScreen() {
         })();
     }, []);
 
-    // SVG Circular progress variables
-    const radius = 110;
-    const strokeWidth = 6;
+    // Outer Glow Scaling Animation mapped from 1 to 1.15
+    const animatedScale = pulseAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 1.12]
+    });
+
+    // Outer Glow Opacity mapped from bold to invisible
+    const animatedOpacity = pulseAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.35, 0]
+    });
+
+    const radius = 120;
+    const strokeWidth = 3;
     const cx = 150;
     const cy = 150;
     const circumference = 2 * Math.PI * radius;
@@ -161,38 +214,55 @@ export default function HomeScreen() {
                 contentContainerStyle={styles.scrollContent}
             >
 
-                {/* Header - Hijri Date */}
-                <View style={styles.header}>
-                    <Text style={styles.dateText}>14 Ramadan 1447 AH</Text>
+                {/* Ambient Dynamic Header */}
+                <View style={styles.headerRow}>
+                    <View>
+                        <Text style={styles.greetingText}>{greeting}</Text>
+                        <Text style={styles.locationText}>{locationName}</Text>
+                    </View>
+                    <View style={styles.dateBadge}>
+                        <Text style={styles.dateText}>14 Ramadan</Text>
+                    </View>
                 </View>
 
-                {/* Circular Progress Countdown */}
-                <View style={styles.progressContainer} pointerEvents="box-none">
-                    <Svg width={300} height={300} viewBox="0 0 300 300" pointerEvents="none">
+                {/* Innovative Pulsing Timer Orb */}
+                <View style={styles.progressContainer}>
+                    {/* Underlying animated glow aura */}
+                    <Animated.View style={[
+                        styles.auraLayer,
+                        {
+                            transform: [{ scale: animatedScale }],
+                            opacity: animatedOpacity
+                        }
+                    ]}>
+                        <LinearGradient
+                            colors={['rgba(201,168,76, 0.4)', 'rgba(31,78,61, 0.1)']}
+                            style={StyleSheet.absoluteFill}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            borderRadius={150}
+                        />
+                    </Animated.View>
+
+                    {/* True foreground tracking ring */}
+                    <Svg width={300} height={300} viewBox="0 0 300 300">
                         <Defs>
-                            {/* Forest Green to Premium Gold */}
-                            <LinearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <Stop offset="0%" stopColor="#1F4E3D" />
-                                <Stop offset="100%" stopColor="#C9A84C" />
-                            </LinearGradient>
+                            <SvgLinearGradient id="gradientActive" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <Stop offset="0%" stopColor="#C9A84C" />
+                                <Stop offset="100%" stopColor="#1F4E3D" />
+                            </SvgLinearGradient>
                         </Defs>
 
-                        {/* Background Track */}
+                        {/* Background subtle ring */}
+                        <Circle cx={cx} cy={cy} r={radius} stroke="rgba(255, 255, 255, 0.03)" strokeWidth={strokeWidth} fill="none" />
+
+                        {/* Fill Ring */}
                         <Circle
                             cx={cx}
                             cy={cy}
                             r={radius}
-                            stroke="rgba(255, 255, 255, 0.05)"
-                            strokeWidth={strokeWidth}
-                            fill="none"
-                        />
-                        {/* Active Progress Ring */}
-                        <Circle
-                            cx={cx}
-                            cy={cy}
-                            r={radius}
-                            stroke="url(#gradient)"
-                            strokeWidth={strokeWidth}
+                            stroke="url(#gradientActive)"
+                            strokeWidth={strokeWidth * 1.5}
                             fill="none"
                             strokeDasharray={circumference}
                             strokeDashoffset={strokeDashoffset}
@@ -202,85 +272,96 @@ export default function HomeScreen() {
                     </Svg>
 
                     <View style={styles.countdownCenter}>
-                        <Text style={styles.countdownTime}>{countdown}</Text>
-                        <Text style={styles.countdownLabel}>until {nextPrayerName}</Text>
+                        <Text style={styles.tillText}>Time to</Text>
+                        <Text style={styles.prayerHeroText}>{nextPrayerName}</Text>
+                        <View style={styles.countdownBadge}>
+                            <Text style={styles.countdownTime}>{countdown}</Text>
+                        </View>
                     </View>
                 </View>
 
-                {/* Prayers List */}
+                {/* Prayer Timeline List with Floating Glassmorphic Effect */}
                 <View style={styles.prayersList}>
-                    {prayers.map((prayer, index) => (
-                        <View
-                            key={prayer.name}
-                            style={[
-                                styles.prayerCard,
-                                prayer.isNext && styles.prayerCardActive
-                            ]}
-                        >
-                            <View style={styles.prayerLeft}>
-                                <Feather
-                                    name={prayer.icon as any}
-                                    size={20}
-                                    color={prayer.isNext ? '#C9A84C' : '#5E5C58'}
-                                />
-                                <Text style={[styles.prayerName, prayer.isNext && styles.prayerNameActive]}>
-                                    {prayer.name}
-                                </Text>
-                            </View>
+                    {prayers.map((prayer) => {
+                        const isNext = prayer.isNext;
+                        const isCompleted = completedPrayers.includes(prayer.id);
 
-                            <View style={styles.prayerRight}>
-                                {prayer.isNext && (
-                                    <Text style={styles.nextBadge}>Next</Text>
-                                )}
-                                <Text style={[styles.prayerTime, prayer.isNext && styles.prayerTimeActive]}>
-                                    {prayer.time}
-                                </Text>
-                                <TouchableOpacity
-                                    onPress={() => togglePrayer(prayer.id)}
-                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        return (
+                            <TouchableOpacity
+                                key={prayer.name}
+                                activeOpacity={0.8}
+                                onPress={() => togglePrayer(prayer.id)}
+                            >
+                                <LinearGradient
+                                    colors={
+                                        isNext
+                                            ? ['rgba(201, 168, 76, 0.15)', 'rgba(31, 78, 61, 0.05)'] // Gold-Green aura for NEXT
+                                            : ['rgba(255, 255, 255, 0.03)', 'rgba(255, 255, 255, 0.01)'] // Inactive stealth
+                                    }
+                                    style={[styles.prayerCard, isNext && styles.prayerCardNext]}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
                                 >
-                                    <Feather
-                                        name={completedPrayers.includes(prayer.id) ? "check-circle" : "circle"}
-                                        size={22}
-                                        color={completedPrayers.includes(prayer.id) ? "#C9A84C" : "#5E5C58"}
-                                        style={{ marginLeft: 12 }}
-                                    />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    ))}
+                                    <View style={styles.prayerLeft}>
+                                        <View style={[styles.iconOrb, isNext && styles.iconOrbNext]}>
+                                            <Feather name={prayer.icon as any} size={18} color={isNext ? '#0C0F0E' : '#9A9590'} />
+                                        </View>
+                                        <View>
+                                            <Text style={[styles.prayerName, isNext && styles.prayerNameNext]}>{prayer.name}</Text>
+                                            {isNext && <Text style={styles.nextSubtitle}>Next Prayer</Text>}
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.prayerRight}>
+                                        <Text style={[styles.prayerTime, isNext && styles.prayerTimeNext]}>{prayer.time}</Text>
+                                        <View style={styles.checkCircle}>
+                                            {isCompleted && <View style={styles.checkFill} />}
+                                        </View>
+                                    </View>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
 
-                {/* Quick Tools */}
+                {/* High-end Quick Tools */}
                 <View style={styles.toolsSection}>
-                    <Text style={styles.sectionTitle}>Quick Tools</Text>
+                    <Text style={styles.sectionTitle}>Library</Text>
                     <View style={styles.toolsGrid}>
                         <TouchableOpacity style={styles.toolCard} onPress={() => router.push('/tasbih')}>
-                            <View style={styles.toolIconContainer}>
-                                <Feather name="circle" size={24} color="#C9A84C" />
-                            </View>
-                            <Text style={styles.toolText}>Tasbih</Text>
+                            <LinearGradient colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.01)']} style={styles.toolGradient}>
+                                {/* Custom Hand-drawn Inline SVG for Tasbih */}
+                                <Svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <Circle cx="12" cy="10" r="8" strokeDasharray="2 3" />
+                                    <Path d="M12 18 V23 M10 21 h4" />
+                                    <Circle cx="12" cy="18" r="1.5" fill="#C9A84C" />
+                                </Svg>
+                                <Text style={styles.toolText}>Tasbih</Text>
+                            </LinearGradient>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.toolCard} onPress={() => router.push('/zakat')}>
-                            <View style={styles.toolIconContainer}>
-                                <Feather name="pie-chart" size={24} color="#C9A84C" />
-                            </View>
-                            <Text style={styles.toolText}>Zakat</Text>
+                            <LinearGradient colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.01)']} style={styles.toolGradient}>
+                                {/* Custom Gold Coin & Crescent for Zakat */}
+                                <Svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <Circle cx="12" cy="12" r="10" />
+                                    <Path d="M10 8 A 4 4 0 1 0 14 16 A 5 5 0 0 1 10 8 Z" fill="#C9A84C" />
+                                </Svg>
+                                <Text style={styles.toolText}>Zakat</Text>
+                            </LinearGradient>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.toolCard} onPress={() => router.push('/duas')}>
-                            <View style={styles.toolIconContainer}>
-                                <Feather name="book-open" size={24} color="#C9A84C" />
-                            </View>
-                            <Text style={styles.toolText}>Duas</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.toolCard} onPress={() => router.push('/calendar')}>
-                            <View style={styles.toolIconContainer}>
-                                <Feather name="calendar" size={24} color="#C9A84C" />
-                            </View>
-                            <Text style={styles.toolText}>Calendar</Text>
+                            <LinearGradient colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.01)']} style={styles.toolGradient}>
+                                {/* Custom Praying Hands SVG */}
+                                <Svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <Path d="M7 11C7 11 5 15 5 18C5 19.5 6.5 21 8 21C9.5 21 11 19 11 19C11 19 13 21 14.5 21C16 21 17.5 19.5 17.5 18C17.5 15 15.5 11 15.5 11" />
+                                    <Path d="M11 19V10C11 8.5 10 7 8 7C6.5 7 5 8.5 5 10" />
+                                    <Path d="M14.5 19V10C14.5 8.5 15.5 7 17.5 7C19 7 20.5 8.5 20.5 10" />
+                                    <Path d="M11 13H14.5" />
+                                </Svg>
+                                <Text style={styles.toolText}>Duas</Text>
+                            </LinearGradient>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -293,105 +374,180 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0C0F0E', // Dark Slate from PRD
+        backgroundColor: '#0C0F0E',
     },
     scrollContent: {
         flexGrow: 1,
         paddingBottom: 250,
     },
-    header: {
+    headerRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
+        paddingHorizontal: 24,
         marginTop: 10,
-        marginBottom: 30,
+        marginBottom: 20,
+    },
+    greetingText: {
+        color: '#E8E6E1',
+        fontSize: 22,
+        fontWeight: '300',
+        letterSpacing: 0.5,
+    },
+    locationText: {
+        color: '#C9A84C',
+        fontSize: 14,
+        fontWeight: '500',
+        marginTop: 2,
+        letterSpacing: 0.5,
+    },
+    dateBadge: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
     },
     dateText: {
-        color: '#9A9590', // Secondary text
-        fontSize: 14,
-        letterSpacing: 1.5,
+        color: '#E8E6E1',
+        fontSize: 12,
+        fontWeight: '600',
+        letterSpacing: 0.5,
         textTransform: 'uppercase',
-        fontWeight: '500',
     },
     progressContainer: {
         alignItems: 'center',
         justifyContent: 'center',
-        marginVertical: 10,
-        position: 'relative',
+        marginVertical: 20,
         height: 300,
+        width: '100%',
+    },
+    auraLayer: {
+        position: 'absolute',
+        width: 250,
+        height: 250,
+        borderRadius: 125,
     },
     countdownCenter: {
         position: 'absolute',
         alignItems: 'center',
         justifyContent: 'center',
     },
-    countdownTime: {
-        color: '#E8E6E1',
-        fontSize: 48,
-        fontWeight: '300',
-        letterSpacing: -1,
-        marginBottom: 4,
-    },
-    countdownLabel: {
+    tillText: {
         color: '#9A9590',
         fontSize: 14,
-        fontWeight: '400',
-        letterSpacing: 0.5,
+        textTransform: 'uppercase',
+        letterSpacing: 2,
+    },
+    prayerHeroText: {
+        color: '#E8E6E1',
+        fontSize: 52,
+        fontWeight: '200',
+        letterSpacing: -1.5,
+        lineHeight: 60,
+    },
+    countdownBadge: {
+        marginTop: 8,
+        backgroundColor: 'rgba(201, 168, 76, 0.15)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(201, 168, 76, 0.3)',
+    },
+    countdownTime: {
+        color: '#C9A84C',
+        fontSize: 16,
+        fontWeight: '700',
+        letterSpacing: 1,
     },
     prayersList: {
-        paddingHorizontal: 24,
-        marginTop: 30,
+        paddingHorizontal: 20,
+        marginTop: 10,
         gap: 12,
     },
     prayerCard: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
-        borderRadius: 16,
-        paddingVertical: 18,
+        borderRadius: 20,
+        paddingVertical: 16,
         paddingHorizontal: 20,
         borderWidth: 1,
-        borderColor: 'transparent',
+        borderColor: 'rgba(255, 255, 255, 0.05)',
     },
-    prayerCardActive: {
-        backgroundColor: 'rgba(31, 78, 61, 0.15)', // Very subtle deep green tint
-        borderColor: 'rgba(201, 168, 76, 0.2)',    // Soft gold border
+    prayerCardNext: {
+        borderColor: 'rgba(201, 168, 76, 0.3)',
+        transform: [{ scale: 1.02 }],
+        shadowColor: '#C9A84C',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
     },
     prayerLeft: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 14,
+        gap: 16,
+    },
+    iconOrb: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    iconOrbNext: {
+        backgroundColor: '#C9A84C',
     },
     prayerName: {
         color: '#E8E6E1',
         fontSize: 17,
-        fontWeight: '500',
-        letterSpacing: 0.3,
+        fontWeight: '400',
+        letterSpacing: 0.5,
     },
-    prayerNameActive: {
-        color: '#C9A84C', // Gold highlight
+    prayerNameNext: {
+        color: '#C9A84C',
         fontWeight: '600',
+        fontSize: 18,
+    },
+    nextSubtitle: {
+        color: '#9A9590',
+        fontSize: 11,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginTop: 2,
     },
     prayerRight: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
-    },
-    nextBadge: {
-        color: '#C9A84C',
-        fontSize: 11,
-        fontWeight: '700',
-        textTransform: 'uppercase',
-        letterSpacing: 1,
+        gap: 16,
     },
     prayerTime: {
-        color: '#9A9590',
-        fontSize: 16,
-        fontWeight: '400',
-        letterSpacing: 0.5,
-    },
-    prayerTimeActive: {
         color: '#E8E6E1',
-        fontWeight: '600',
+        fontSize: 15,
+        letterSpacing: 0.5,
+        fontWeight: '500',
+    },
+    prayerTimeNext: {
+        color: '#C9A84C',
+        fontWeight: '700',
+    },
+    checkCircle: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        borderWidth: 1.5,
+        borderColor: 'rgba(255,255,255,0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    checkFill: {
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        backgroundColor: '#C9A84C',
     },
     toolsSection: {
         marginTop: 40,
@@ -400,7 +556,7 @@ const styles = StyleSheet.create({
     sectionTitle: {
         color: '#E8E6E1',
         fontSize: 18,
-        fontWeight: '500',
+        fontWeight: '600',
         letterSpacing: 0.5,
         marginBottom: 16,
     },
@@ -411,25 +567,19 @@ const styles = StyleSheet.create({
     },
     toolCard: {
         flex: 1,
-        alignItems: 'center',
-        padding: 16,
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 20,
+        overflow: 'hidden',
     },
-    toolIconContainer: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: 'rgba(201, 168, 76, 0.1)',
+    toolGradient: {
         alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 12,
+        paddingVertical: 20,
+        paddingHorizontal: 12,
     },
     toolText: {
         color: '#E8E6E1',
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: '500',
+        marginTop: 12,
+        letterSpacing: 0.5,
     },
 });

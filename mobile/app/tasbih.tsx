@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Animated, Easing } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
@@ -22,6 +22,21 @@ export default function TasbihScreen() {
     const [count, setCount] = useState(0);
     const [activePreset, setActivePreset] = useState(PRESETS[0]);
 
+    // Animations
+    const scaleAnim = useRef(new Animated.Value(1)).current;
+    const progressAnim = useRef(new Animated.Value(0)).current;
+
+    // Smoothly animate the ring when count changes
+    useEffect(() => {
+        const progress = Math.min(count / activePreset.target, 1);
+        Animated.timing(progressAnim, {
+            toValue: progress,
+            duration: 300,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true, // For strokeDashoffset, useNativeDriver might not work perfectly with SVGs but we map it through state or setNativeProps if needed, actually we might need a listener or just let React re-render. Since it's SVG, we can't use native driver for strokeDashoffset directly without createAnimatedComponent.
+        }).start();
+    }, [count, activePreset]);
+
     const handlePress = () => {
         // Haptic feedback
         if (Platform.OS !== 'web') {
@@ -34,6 +49,15 @@ export default function TasbihScreen() {
         }
 
         setCount(prev => prev + 1);
+
+        // Pulse animation
+        scaleAnim.setValue(0.95);
+        Animated.spring(scaleAnim, {
+            toValue: 1,
+            friction: 4,
+            tension: 50,
+            useNativeDriver: true,
+        }).start();
     };
 
     const handleReset = () => {
@@ -49,48 +73,50 @@ export default function TasbihScreen() {
     };
 
     const radius = width * 0.35;
-    const strokeWidth = 8;
+    const strokeWidth = 10;
     const circumference = 2 * Math.PI * radius;
-    // Calculate progress based on target, or unlimited if custom (mod 100 maybe? Let's treat target as cycle)
     const progress = Math.min(count / activePreset.target, 1);
     const strokeDashoffset = circumference - (progress * circumference);
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
-            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Feather name="chevron-left" size={28} color="#E8E6E1" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Tasbih</Text>
-                <View style={{ width: 40 }} /> {/* Placeholder for balance */}
+                <View style={{ width: 40 }} />
             </View>
 
-            {/* Content */}
             <View style={styles.content}>
-
-                {/* Active Arabic Text */}
                 <View style={styles.arabicContainer}>
                     <Text style={styles.arabicText}>{activePreset.arabic}</Text>
                     <Text style={styles.translationText}>{activePreset.label}</Text>
                 </View>
 
-                {/* Circular Counter */}
-                <View style={styles.counterWrapper}>
+                <Animated.View style={[styles.counterWrapper, { transform: [{ scale: scaleAnim }] }]}>
                     <Svg width={width} height={width} viewBox={`0 0 ${width} ${width}`}>
+                        <Defs>
+                            <LinearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <Stop offset="0%" stopColor="#C9A84C" />
+                                <Stop offset="100%" stopColor="#8A7030" />
+                            </LinearGradient>
+                        </Defs>
+
                         <Circle
                             cx={width / 2}
                             cy={width / 2}
                             r={radius}
-                            stroke="rgba(255, 255, 255, 0.05)"
+                            stroke="rgba(255, 255, 255, 0.03)"
                             strokeWidth={strokeWidth}
                             fill="none"
                         />
+
                         <Circle
                             cx={width / 2}
                             cy={width / 2}
                             r={radius}
-                            stroke="#C9A84C"
+                            stroke="url(#goldGradient)"
                             strokeWidth={strokeWidth}
                             fill="none"
                             strokeDasharray={circumference}
@@ -102,20 +128,20 @@ export default function TasbihScreen() {
 
                     <TouchableOpacity
                         style={styles.tapArea}
-                        activeOpacity={0.7}
+                        activeOpacity={0.8}
                         onPress={handlePress}
                     >
-                        <Text style={styles.countText}>{count}</Text>
-                        <Text style={styles.targetText}>/ {activePreset.target}</Text>
+                        <View style={styles.tapInner}>
+                            <Text style={styles.countText}>{count}</Text>
+                            <Text style={styles.targetText}>/ {activePreset.target}</Text>
+                        </View>
                     </TouchableOpacity>
-                </View>
+                </Animated.View>
 
-                {/* Reset Button */}
                 <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
                     <Feather name="refresh-ccw" size={20} color="#9A9590" />
                 </TouchableOpacity>
 
-                {/* Presets Grid */}
                 <View style={styles.presetsContainer}>
                     {PRESETS.map((preset) => (
                         <TouchableOpacity
@@ -184,9 +210,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     arabicText: {
-        color: '#E8E6E1',
-        fontSize: 36,
-        fontWeight: 'bold',
+        color: '#C9A84C',
+        fontSize: 42,
+        fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
         marginBottom: 8,
     },
     translationText: {
@@ -203,32 +229,41 @@ const styles = StyleSheet.create({
     },
     tapArea: {
         position: 'absolute',
-        width: width * 0.5,
-        height: width * 0.5,
-        borderRadius: width * 0.25,
-        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        width: width * 0.55,
+        height: width * 0.55,
+        borderRadius: width * 0.275,
+        backgroundColor: 'rgba(201, 168, 76, 0.02)',
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: 'rgba(201, 168, 76, 0.1)',
+        shadowColor: '#C9A84C',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.1,
+        shadowRadius: 20,
+    },
+    tapInner: {
+        alignItems: 'center',
     },
     countText: {
         color: '#E8E6E1',
-        fontSize: 64,
+        fontSize: 72,
         fontWeight: '200',
         letterSpacing: -2,
     },
     targetText: {
         color: '#C9A84C',
         fontSize: 18,
-        fontWeight: '500',
+        fontWeight: '600',
         marginTop: -5,
     },
     resetButton: {
-        marginTop: -20,
+        marginTop: -10,
         padding: 15,
         borderRadius: 30,
         backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
     },
     presetsContainer: {
         flexDirection: 'row',
@@ -239,31 +274,40 @@ const styles = StyleSheet.create({
         marginTop: 40,
     },
     presetCard: {
-        width: (width - 60) / 2, // 2 columns
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
-        borderRadius: 12,
+        width: (width - 60) / 2,
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: 16,
         padding: 16,
         borderWidth: 1,
-        borderColor: 'transparent',
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+        alignItems: 'center',
     },
     presetCardActive: {
-        backgroundColor: 'rgba(31, 78, 61, 0.2)',
+        backgroundColor: 'rgba(31, 78, 61, 0.15)',
         borderColor: 'rgba(201, 168, 76, 0.3)',
+        transform: [{ scale: 1.02 }],
+        shadowColor: '#C9A84C',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
     },
     presetLabel: {
         color: '#E8E6E1',
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: '500',
-        marginBottom: 4,
+        marginBottom: 6,
     },
     presetLabelActive: {
         color: '#C9A84C',
+        fontWeight: '600',
     },
     presetTarget: {
         color: '#9A9590',
         fontSize: 12,
+        fontWeight: '600',
+        letterSpacing: 1,
     },
     presetTargetActive: {
-        color: 'rgba(201, 168, 76, 0.7)',
+        color: '#E8E6E1',
     },
 });

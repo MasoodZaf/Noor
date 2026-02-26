@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, Dimensions, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Magnetometer } from 'expo-sensors';
-import Svg, { Circle, Line, Path } from 'react-native-svg';
+import * as Location from 'expo-location';
+import Svg, { Circle, Line, Rect, G, Text as SvgText, Path } from 'react-native-svg';
 
 const { width } = Dimensions.get('window');
 
@@ -15,14 +15,21 @@ export default function DiscoverScreen() {
     const [heading, setHeading] = useState(0);
 
     useEffect(() => {
-        Magnetometer.setUpdateInterval(50);
-        const subscription = Magnetometer.addListener((data) => {
-            let angle = Math.atan2(data.y, data.x) * (180 / Math.PI);
-            angle = Math.round((angle + 360) % 360);
-            setHeading(angle);
-        });
+        let subscription: Location.LocationSubscription;
 
-        return () => subscription && subscription.remove();
+        (async () => {
+            let { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') return;
+
+            subscription = await Location.watchHeadingAsync((headingData) => {
+                const newHeading = headingData.trueHeading >= 0 ? headingData.trueHeading : headingData.magHeading;
+                setHeading(newHeading);
+            });
+        })();
+
+        return () => {
+            if (subscription) subscription.remove();
+        };
     }, []);
 
     // Placeholder Makkah bearing for UI demonstration (e.g. 247 deg from Pakistan)
@@ -43,40 +50,75 @@ export default function DiscoverScreen() {
                     <Text style={styles.subtitleText}>4,520 km</Text>
                 </View>
 
-                {/* Premium Swiss-watch style Compass */}
-                <View style={[styles.compassWrapper, { height: width, marginVertical: 20 }]}>
-                    <View style={[styles.compassDial, { transform: [{ rotate: `${compassRotation}deg` }] }]}>
-                        <Svg width={width * 0.8} height={width * 0.8} viewBox="0 0 200 200">
-                            {/* Outer sleek border */}
-                            <Circle cx="100" cy="100" r="95" stroke="rgba(255, 255, 255, 0.05)" strokeWidth="2" fill="transparent" />
+                {/* Noor Inspired Premium Islamic Compass */}
+                <View style={[styles.compassWrapper, { height: width }]}>
+                    <View style={[styles.compassDial, { transform: [{ rotate: `-${heading}deg` }] }]}>
+                        <Svg width={width * 0.9} height={width * 0.9} viewBox="0 0 400 400">
+                            {/* Outer sleek ring */}
+                            <Circle cx="200" cy="200" r="180" stroke="rgba(255, 255, 255, 0.05)" strokeWidth="2" fill="rgba(201, 168, 76, 0.02)" />
 
-                            {/* North Indicator */}
-                            <Text style={[styles.northText, { top: -20 }]}>N</Text>
+                            {/* Inner geometric ring */}
+                            <Circle cx="200" cy="200" r="110" stroke="rgba(255, 255, 255, 0.03)" strokeWidth="1" fill="transparent" />
 
-                            {/* Qibla Needle (Gold) */}
-                            <View style={{
-                                position: 'absolute',
-                                width: '100%',
-                                height: '100%',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                transform: [{ rotate: `${qiblaBearing}deg` }]
-                            }}>
-                                <View style={styles.qiblaNeedle} />
-                                {/* Small Kaaba representation */}
-                                <View style={styles.kaabaIcon} />
-                            </View>
+                            {/* Tick Marks for 360 degrees */}
+                            {Array.from({ length: 72 }).map((_, i) => {
+                                const angle = i * 5;
+                                const isMajor = i % 18 === 0; // N, E, S, W
+                                const isMedium = i % 6 === 0; // Every 30 deg
 
+                                if (isMajor) return null; // Skip where letters go
+
+                                return (
+                                    <Line
+                                        key={i}
+                                        x1="200" y1={isMedium ? 25 : 30}
+                                        x2="200" y2="40"
+                                        stroke={isMedium ? "rgba(201, 168, 76, 0.5)" : "rgba(255, 255, 255, 0.15)"}
+                                        strokeWidth={isMedium ? 2 : 1}
+                                        transform={`rotate(${angle} 200 200)`}
+                                    />
+                                );
+                            })}
+
+                            {/* Cardinal Directions */}
+                            <SvgText x="200" y="38" fill="#C9A84C" fontSize="24" fontWeight="600" textAnchor="middle">N</SvgText>
+                            <SvgText x="372" y="208" fill="#9A9590" fontSize="18" fontWeight="500" textAnchor="middle">E</SvgText>
+                            <SvgText x="200" y="378" fill="#9A9590" fontSize="18" fontWeight="500" textAnchor="middle">S</SvgText>
+                            <SvgText x="28" y="208" fill="#9A9590" fontSize="18" fontWeight="500" textAnchor="middle">W</SvgText>
+
+                            {/* Qibla Needle */}
+                            <G transform={`rotate(${qiblaBearing}, 200, 200)`}>
+                                {/* Dashed Needle Line */}
+                                <Line x1="200" y1="190" x2="200" y2="85" stroke="#C9A84C" strokeWidth="2" strokeDasharray="6,6" opacity="0.8" />
+
+                                {/* Arrow pointing to Kaaba */}
+                                <Path d="M194 95 L200 85 L206 95 Z" fill="#C9A84C" />
+
+                                {/* Kaaba Icon */}
+                                <G transform="translate(188, 55)">
+                                    {/* Base Kaaba */}
+                                    <Rect width="24" height="28" fill="#0C0F0E" stroke="#C9A84C" strokeWidth="1.5" rx="2" />
+                                    {/* Golden band (Kiswah detail) */}
+                                    <Line x1="0" y1="8" x2="24" y2="8" stroke="#C9A84C" strokeWidth="2" />
+                                    <Line x1="0" y1="13" x2="24" y2="13" stroke="#C9A84C" strokeWidth="1" />
+                                    {/* Door approximation */}
+                                    <Rect x="14" y="15" width="6" height="13" fill="#C9A84C" rx="1" />
+                                </G>
+                            </G>
+
+                            {/* Center Pin: Rub el Hizb (8-pointed star) */}
+                            <G transform="translate(200, 200)">
+                                <Rect x="-8" y="-8" width="16" height="16" fill="#1F4E3D" stroke="#C9A84C" strokeWidth="1.5" transform="rotate(0)" />
+                                <Rect x="-8" y="-8" width="16" height="16" fill="#1F4E3D" stroke="#C9A84C" strokeWidth="1.5" transform="rotate(45)" />
+                                <Circle cx="0" cy="0" r="3" fill="#C9A84C" />
+                            </G>
                         </Svg>
                     </View>
-
-                    {/* Fixed Center Pin */}
-                    <View style={styles.centerPin} />
                 </View>
 
                 {/* Bottom Degrees reading */}
                 <View style={styles.readingContainer}>
-                    <Text style={styles.degreesText}>{heading}°</Text>
+                    <Text style={styles.degreesText}>{Math.round(heading)}°</Text>
                     <Text style={styles.directionText}>
                         {getDirectionLetter(heading)}
                     </Text>
@@ -165,49 +207,16 @@ const styles = StyleSheet.create({
         marginTop: 6,
     },
     compassWrapper: {
-        flex: 1,
+        marginTop: 40,
+        marginBottom: 20,
         justifyContent: 'center',
         alignItems: 'center',
         width: '100%',
+        overflow: 'hidden',
     },
     compassDial: {
-        width: width * 0.8,
-        height: width * 0.8,
-        borderRadius: width * 0.4,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.02)',
-    },
-    northText: {
-        position: 'absolute',
-        color: '#9A9590',
-        fontSize: 16,
-        fontWeight: '500',
-        alignSelf: 'center',
-    },
-    qiblaNeedle: {
-        position: 'absolute',
-        top: 20,
-        width: 2,
-        height: width * 0.4 - 20,
-        backgroundColor: '#C9A84C', // Gold
-    },
-    kaabaIcon: {
-        position: 'absolute',
-        top: 10,
-        width: 14,
-        height: 16,
-        backgroundColor: '#C9A84C',
-        borderRadius: 2,
-    },
-    centerPin: {
-        position: 'absolute',
-        width: 16,
-        height: 16,
-        borderRadius: 8,
-        backgroundColor: '#1F4E3D', // Forest Green
-        borderWidth: 2,
-        borderColor: '#C9A84C',
     },
     readingContainer: {
         marginBottom: 60,
@@ -215,14 +224,15 @@ const styles = StyleSheet.create({
     },
     degreesText: {
         color: '#E8E6E1',
-        fontSize: 56,
+        fontSize: 64,
         fontWeight: '200',
-        letterSpacing: -1,
+        letterSpacing: -1.5,
+        fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-light',
     },
     directionText: {
         color: '#C9A84C',
-        fontSize: 18,
-        fontWeight: '600',
+        fontSize: 20,
+        fontWeight: '500',
         letterSpacing: 2,
         marginTop: 4,
     },

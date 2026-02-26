@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useDatabase } from '../../context/DatabaseContext';
 
 const COLLECTIONS = [
@@ -12,6 +13,7 @@ const COLLECTIONS = [
 ];
 
 export default function HadithScreen() {
+    const router = useRouter();
     const insets = useSafeAreaInsets();
     const { db } = useDatabase();
 
@@ -144,6 +146,7 @@ export default function HadithScreen() {
                                 <TouchableOpacity
                                     key={col.id}
                                     style={[styles.collectionCard, { borderTopColor: col.color }]}
+                                    onPress={() => router.push(`/hadith/${col.id}`)}
                                 >
                                     <Feather name="book" size={28} color={col.color} style={{ marginBottom: 12 }} />
                                     <Text style={styles.colTitle}>{col.title}</Text>
