@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle, Line, Rect, G, Text as SvgText, Path } from 'react-native-svg';
+import Svg, { Circle, Line, Rect, G, Text as SvgText, Path, Defs, LinearGradient as SvgLinearGradient, Stop, RadialGradient } from 'react-native-svg';
 
 const { width } = Dimensions.get('window');
 
@@ -112,15 +112,39 @@ export default function QiblaScreen() {
                 {/* SVG implementation ensures flawless geometry rendering and zero clipping */}
                 <Svg width={width * 0.9} height={width * 0.9} viewBox="0 0 400 400">
 
+                    {/* Central Gradient Definitions */}
+                    <Defs>
+                        <RadialGradient id="glowG" cx="50%" cy="50%" rx="50%" ry="50%">
+                            <Stop offset="0%" stopColor="#C9A84C" stopOpacity="0.3" />
+                            <Stop offset="100%" stopColor="#C9A84C" stopOpacity="0" />
+                        </RadialGradient>
+                        <SvgLinearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="1">
+                            <Stop offset="0" stopColor="#FFD700" />
+                            <Stop offset="1" stopColor="#C9A84C" />
+                        </SvgLinearGradient>
+                        <SvgLinearGradient id="emeraldGrad" x1="0" y1="0" x2="1" y2="1">
+                            <Stop offset="0" stopColor="#0F9A5A" />
+                            <Stop offset="1" stopColor="#1F4E3D" />
+                        </SvgLinearGradient>
+                        <SvgLinearGradient id="redGrad" x1="0" y1="0" x2="0" y2="1">
+                            <Stop offset="0" stopColor="#FF5A5F" />
+                            <Stop offset="1" stopColor="#E53E3E" />
+                        </SvgLinearGradient>
+                    </Defs>
+
                     {/* Glow Effect behind compass if aligned */}
                     {isAligned && (
-                        <Circle cx="200" cy="200" r="190" fill="rgba(201, 168, 76, 0.15)" />
+                        <Circle cx="200" cy="200" r="200" fill="url(#glowG)" />
                     )}
 
                     {/* Outer frame */}
-                    <Circle cx="200" cy="200" r="180" stroke="rgba(255, 255, 255, 0.05)" strokeWidth="2" fill="rgba(255, 255, 255, 0.01)" />
+                    <Circle cx="200" cy="200" r="180" stroke="rgba(255, 255, 255, 0.08)" strokeWidth="2" fill="url(#emeraldGrad)" fillOpacity="0.05" />
+
+                    {/* Inner Track */}
+                    <Circle cx="200" cy="200" r="140" stroke="rgba(201, 168, 76, 0.1)" strokeWidth="1" fill="transparent" />
+
                     {isAligned && (
-                        <Circle cx="200" cy="200" r="180" stroke="#C9A84C" strokeWidth="4" fill="transparent" />
+                        <Circle cx="200" cy="200" r="180" stroke="url(#goldGrad)" strokeWidth="4" fill="transparent" />
                     )}
 
                     {/* Rotation wrapper to orient compass housing so North is strictly "up" (inverse of phone heading) */}
@@ -145,33 +169,36 @@ export default function QiblaScreen() {
                         })}
 
                         {/* Exact Cardinal Letters anchored perfectly */}
-                        <SvgText x="200" y="22" fill="#E53E3E" fontSize="20" fontWeight="700" textAnchor="middle">N</SvgText>
-                        <SvgText x="385" y="206" fill="#9A9590" fontSize="18" fontWeight="600" textAnchor="middle">E</SvgText>
-                        <SvgText x="200" y="394" fill="#9A9590" fontSize="18" fontWeight="600" textAnchor="middle">S</SvgText>
-                        <SvgText x="15" y="206" fill="#9A9590" fontSize="18" fontWeight="600" textAnchor="middle">W</SvgText>
+                        <SvgText x="199" y="25" fill="url(#redGrad)" fontSize="24" fontWeight="800" textAnchor="middle">N</SvgText>
+                        <SvgText x="382" y="206" fill="#E8E6E1" fontSize="18" fontWeight="600" textAnchor="middle">E</SvgText>
+                        <SvgText x="200" y="394" fill="#E8E6E1" fontSize="18" fontWeight="600" textAnchor="middle">S</SvgText>
+                        <SvgText x="18" y="206" fill="#E8E6E1" fontSize="18" fontWeight="600" textAnchor="middle">W</SvgText>
 
                         {/* Qibla Indicator Arrow rotated exactly relative to true North */}
                         <G transform={`rotate(${qiblaDirection}, 200, 200)`}>
 
-                            {/* Gold stem track */}
-                            <Line x1="200" y1="200" x2="200" y2="80" stroke={isAligned ? "#C9A84C" : "rgba(255,255,255,0.15)"} strokeWidth="3" strokeDasharray="3,3" />
+                            {/* Target Ray Line */}
+                            <Line x1="200" y1="200" x2="200" y2="80" stroke={isAligned ? "url(#goldGrad)" : "rgba(201, 168, 76, 0.3)"} strokeWidth="3" strokeDasharray="4,4" />
 
                             {/* Pointer Head */}
-                            <Path d="M190 85 L200 65 L210 85 Z" fill={isAligned ? "#C9A84C" : "#E8E6E1"} />
+                            <Path d="M188 85 L200 60 L212 85 Z" fill={isAligned ? "url(#goldGrad)" : "#E8E6E1"} />
 
                             {/* Kaaba floating icon at target bounds */}
-                            <G transform="translate(186, 30)">
-                                <Rect width="28" height="32" fill="#0C0F0E" stroke={isAligned ? "#C9A84C" : "#9A9590"} strokeWidth="1.5" rx="2" />
-                                <Line x1="0" y1="10" x2="28" y2="10" stroke={isAligned ? "#C9A84C" : "#9A9590"} strokeWidth="2" />
+                            <G transform="translate(186, 25)">
+                                <Rect width="28" height="30" fill="#0C0F0E" stroke={isAligned ? "url(#goldGrad)" : "rgba(255,255,255,0.7)"} strokeWidth="2" rx="3" />
+                                {/* Kiswah Gold lines */}
+                                <Line x1="0" y1="8" x2="28" y2="8" stroke={isAligned ? "url(#goldGrad)" : "rgba(255,255,255,0.7)"} strokeWidth="2" />
+                                <Line x1="0" y1="12" x2="28" y2="12" stroke={isAligned ? "url(#goldGrad)" : "rgba(255,255,255,0.5)"} strokeWidth="1" />
                             </G>
                         </G>
                     </G>
 
                     {/* Central Anchor Pin (Fixed relative to the screen, does not rotate) */}
                     <G transform="translate(200, 200)">
-                        <Circle cx="0" cy="0" r="10" fill="#0C0F0E" stroke="rgba(201, 168, 76, 0.5)" strokeWidth="2" />
-                        <Circle cx="0" cy="0" r="4" fill={isAligned ? "#C9A84C" : "#E8E6E1"} />
-                        <Line x1="0" y1="-2" x2="0" y2="-120" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                        <Circle cx="0" cy="0" r="14" fill="#1F4E3D" stroke="url(#goldGrad)" strokeWidth="2" />
+                        <Circle cx="0" cy="0" r="5" fill="#FFD700" />
+                        <Line x1="0" y1="-8" x2="0" y2="-120" stroke="url(#goldGrad)" strokeWidth="1" opacity="0.8" />
+                        <Path d="M-6 -120 L0 -130 L6 -120 Z" fill="url(#goldGrad)" opacity="0.8" />
                     </G>
                 </Svg>
             </View>
