@@ -159,6 +159,27 @@ export default function ProfileScreen() {
                             </TouchableOpacity>
                         </View>
                     )}
+
+                    {/* About & Legal Section - Unobtrusive (Unauthenticated view) */}
+                    <View style={{ marginTop: 40 }}>
+                        <Text style={styles.sectionTitle}>About</Text>
+                        <View style={styles.menuGroup}>
+                            <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert("About Noor", "Version 1.0.0\n\nDesigned to elevate your daily spiritual connection with a premium, seamless interface.")}>
+                                <View style={styles.menuItemLeft}>
+                                    <View style={styles.menuIconBox}><Feather name="info" size={18} color="#E8E6E1" /></View>
+                                    <Text style={styles.menuItemText}>About Noor</Text>
+                                </View>
+                                <Feather name="chevron-right" size={20} color="#5E5C58" />
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.menuItem}>
+                                <View style={styles.menuItemLeft}>
+                                    <View style={styles.menuIconBox}><Feather name="shield" size={18} color="#E8E6E1" /></View>
+                                    <Text style={styles.menuItemText}>Privacy Policy</Text>
+                                </View>
+                                <Feather name="chevron-right" size={20} color="#5E5C58" />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
                 </ScrollView>
             </View>
         );
