@@ -80,6 +80,18 @@ export default function QiblaScreen() {
         };
     }, []);
 
+    // Is the phone actively pointing at Kaaba?
+    const dif = Math.abs((heading - qiblaDirection) % 360);
+    // Suppress vibration triggers until location is fully acquired
+    const isAligned = locationReady && (dif < 3 || dif > 357);
+
+    // Physical locking mechanism haptic feedback
+    useEffect(() => {
+        if (isAligned) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        }
+    }, [isAligned]);
+
     if (errorMsg) {
         return (
             <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
@@ -97,18 +109,6 @@ export default function QiblaScreen() {
             </View>
         );
     }
-
-    // Is the phone actively pointing at Kaaba?
-    const dif = Math.abs((heading - qiblaDirection) % 360);
-    const isAligned = dif < 3 || dif > 357;
-
-    // Physical locking mechanism haptic feedback
-    useEffect(() => {
-        if (isAligned) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-        }
-    }, [isAligned]);
-
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <View style={styles.header}>
