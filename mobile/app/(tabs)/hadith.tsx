@@ -34,11 +34,16 @@ export default function HadithScreen() {
                 // We append * wildcard for partial matching on words
                 const safeQuery = searchQuery.replace(/"/g, '""'); // sanitize basic injection
 
-                const results = await db.getAllAsync(`
+                const results = await db?.getAllAsync(`
                     SELECT 
-                        book_slug, hadith_number, text_arabic, text_english, narrator,
-                        snippet(hadiths_fts, 3, '<b>', '</b>', '...', 10) as highlight
-                    FROM hadiths_fts 
+                        h.collection_slug as book_slug, 
+                        h.hadith_number, 
+                        h.arabic_text as text_arabic, 
+                        h.english_text as text_english, 
+                        h.narrator_chain as narrator,
+                        snippet(hadiths_fts, 1, '<b>', '</b>', '...', 10) as highlight
+                    FROM hadiths_fts fts
+                    JOIN hadiths h ON h.id = fts.rowid
                     WHERE hadiths_fts MATCH '"${safeQuery}" *'
                     LIMIT 20
                 `);
@@ -49,9 +54,15 @@ export default function HadithScreen() {
 
                 // Fallback basic LIKE search if MATCH fails due to syntax
                 try {
-                    const fallback = await db.getAllAsync(`
-                        SELECT * FROM hadiths_fts 
-                        WHERE text_english LIKE '%${searchQuery.replace(/'/g, "''")}%'
+                    const fallback = await db?.getAllAsync(`
+                        SELECT 
+                            collection_slug as book_slug, 
+                            hadith_number, 
+                            arabic_text as text_arabic, 
+                            english_text as text_english, 
+                            narrator_chain as narrator
+                        FROM hadiths 
+                        WHERE english_text LIKE '%${searchQuery.replace(/'/g, "''")}%'
                         LIMIT 20
                     `);
                     setSearchResults(fallback as any[]);

@@ -72,23 +72,23 @@ export default function JuzReaderScreen() {
                 }
 
                 // Load surahs for mapping names
-                const surahsData: any[] = await db.getAllAsync('SELECT id, name_english FROM surahs WHERE id >= ? AND id <= ?', [boundary.start.surah, boundary.end.surah]);
+                const surahsData: any[] = await db.getAllAsync('SELECT number, name_english FROM surahs WHERE number >= ? AND number <= ?', [boundary.start.surah, boundary.end.surah]);
                 const map: Record<number, string> = {};
                 surahsData.forEach(s => {
-                    map[s.id] = s.name_english;
+                    map[s.number] = s.name_english;
                 });
                 setSurahMap(map);
 
                 // Load ayahs in the boundary
                 const allAyahs: any[] = await db.getAllAsync(
-                    'SELECT * FROM ayahs WHERE surah_id >= ? AND surah_id <= ? ORDER BY surah_id ASC, ayah_number ASC',
+                    'SELECT * FROM ayahs WHERE surah_number >= ? AND surah_number <= ? ORDER BY surah_number ASC, ayah_number ASC',
                     [boundary.start.surah, boundary.end.surah]
                 );
 
                 // Filter the edge surah ayahs
                 const filtered = allAyahs.filter(a => {
-                    if (a.surah_id === boundary.start.surah && a.ayah_number < boundary.start.ayah) return false;
-                    if (a.surah_id === boundary.end.surah && a.ayah_number > boundary.end.ayah) return false;
+                    if (a.surah_number === boundary.start.surah && a.ayah_number < boundary.start.ayah) return false;
+                    if (a.surah_number === boundary.end.surah && a.ayah_number > boundary.end.ayah) return false;
                     return true;
                 });
 
@@ -141,8 +141,8 @@ export default function JuzReaderScreen() {
                             {/* Surah Header if it's the beginning of a Surah within this Juz */}
                             {isFirstInSurah && (
                                 <View style={styles.surahDivider}>
-                                    <Text style={styles.surahDividerText}>Surah {surahMap[ayah.surah_id]}</Text>
-                                    {ayah.surah_id !== 1 && ayah.surah_id !== 9 && (
+                                    <Text style={styles.surahDividerText}>Surah {surahMap[ayah.surah_number]}</Text>
+                                    {ayah.surah_number !== 1 && ayah.surah_number !== 9 && (
                                         <Text style={[styles.bismillahText, { fontFamily: selectedFont.family }]}>
                                             بِسْمِ ٱللَّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
                                         </Text>
@@ -156,7 +156,7 @@ export default function JuzReaderScreen() {
                                         <Text style={styles.ayahNumberText}>{ayah.ayah_number}</Text>
                                     </View>
                                     <View style={styles.ayahActions}>
-                                        <Text style={styles.ayahSurahOrigin}>{surahMap[ayah.surah_id]}</Text>
+                                        <Text style={styles.ayahSurahOrigin}>{surahMap[ayah.surah_number]}</Text>
                                     </View>
                                 </View>
 

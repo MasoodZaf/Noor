@@ -29,7 +29,7 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
 
         const initDb = async () => {
             try {
-                const dbName = 'noor_v5.db';
+                const dbName = 'noor_v12.db';
                 const sqliteDir = `${FileSystem.documentDirectory}SQLite`;
                 const dbFilePath = `${sqliteDir}/${dbName}`;
 

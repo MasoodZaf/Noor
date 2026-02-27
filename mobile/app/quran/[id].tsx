@@ -42,11 +42,11 @@ export default function QuranReaderScreen() {
         const loadSurah = async () => {
             try {
                 // Fetch Surah Info
-                const surah = await db.getFirstAsync('SELECT * FROM surahs WHERE id = ?', [Number(id)]);
+                const surah = await db.getFirstAsync('SELECT * FROM surahs WHERE number = ?', [Number(id)]);
                 setSurahInfo(surah);
 
                 // Fetch its Ayahs
-                const a = await db.getAllAsync('SELECT * FROM ayahs WHERE surah_id = ? ORDER BY ayah_number ASC', [Number(id)]);
+                const a = await db.getAllAsync('SELECT * FROM ayahs WHERE surah_number = ? ORDER BY ayah_number ASC', [Number(id)]);
                 setAyahs(a as any[]);
             } catch (error) {
                 console.error("Error fetching Quran data:", error);
@@ -90,7 +90,7 @@ export default function QuranReaderScreen() {
                 }
             } else {
                 // Determine Surah zero-padded ID for Mishary file
-                const numStr = String(surahInfo.id).padStart(3, '0');
+                const numStr = String(surahInfo.number).padStart(3, '0');
                 const url = `https://server8.mp3quran.net/afs/${numStr}.mp3`;
 
                 await Audio.setAudioModeAsync({
@@ -146,7 +146,7 @@ export default function QuranReaderScreen() {
                 contentContainerStyle={styles.contentArea}
             >
                 {/* Bismillah Header (if not Al-Fatihah where it is An Ayah) */}
-                {surahInfo?.id !== 1 && surahInfo?.id !== 9 && (
+                {surahInfo?.number !== 1 && surahInfo?.number !== 9 && (
                     <Text style={[styles.bismillahText, { fontFamily: selectedFont.family }]}>
                         بِسْمِ ٱللَّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
                     </Text>

@@ -3,19 +3,47 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from '
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useDatabase } from '../../context/DatabaseContext';
 
-const DUA_CATEGORIES = [
-    { id: 'morning', title: 'Morning & Evening', count: 24, icon: 'sun' },
-    { id: 'prayer', title: 'Prayer & Wudu', count: 18, icon: 'droplet' },
-    { id: 'daily', title: 'Daily Life', count: 35, icon: 'coffee' },
-    { id: 'travel', title: 'Travel', count: 12, icon: 'navigation' },
-    { id: 'family', title: 'Home & Family', count: 15, icon: 'home' },
-    { id: 'hardship', title: 'Hardship & Relief', count: 10, icon: 'shield' },
-];
+type Category = {
+    id: number;
+    title: string;
+    count: number;
+    icon: string;
+};
 
 export default function DuasScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { db } = useDatabase();
+    const [categories, setCategories] = useState<Category[]>([]);
+
+    React.useEffect(() => {
+        if (!db) return;
+
+        async function loadCategories() {
+            try {
+                // Fetch categories along with their dua counts
+                const results = await db?.getAllAsync(`
+                    SELECT 
+                        c.id, 
+                        c.name_english as title, 
+                        c.icon,
+                        COUNT(d.id) as count
+                    FROM dua_categories c
+                    LEFT JOIN duas d ON d.category_id = c.id
+                    GROUP BY c.id
+                    ORDER BY c.sort_order ASC
+                `);
+
+                setCategories(results as Category[]);
+            } catch (error) {
+                console.error("Error loading categories:", error);
+            }
+        }
+
+        loadCategories();
+    }, [db]);
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -38,7 +66,7 @@ export default function DuasScreen() {
 
                 {/* Categories Grid or List */}
                 <View style={styles.categoriesList}>
-                    {DUA_CATEGORIES.map((category) => (
+                    {categories.map((category) => (
                         <TouchableOpacity
                             key={category.id}
                             style={styles.categoryCard}

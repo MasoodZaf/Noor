@@ -1,7 +1,7 @@
 -- SQLite Schema for Noor App (Offline Mobile Database)
 
 -- Quran
-CREATE TABLE surahs (
+CREATE TABLE IF NOT EXISTS surahs (
   number INTEGER PRIMARY KEY,
   name_arabic TEXT NOT NULL,
   name_english TEXT NOT NULL,
@@ -13,19 +13,20 @@ CREATE TABLE surahs (
   audio_duration_seconds INTEGER
 );
 
-CREATE TABLE ayahs (
+CREATE TABLE IF NOT EXISTS ayahs (
   id INTEGER PRIMARY KEY,                  -- composite: surah*1000 + ayah
   surah_number INTEGER NOT NULL,
   ayah_number INTEGER NOT NULL,
-  text_uthmani TEXT NOT NULL,              -- full Uthmani Arabic text
-  text_simple TEXT,                        -- simplified Arabic for search
+  text_arabic TEXT NOT NULL,               -- full Uthmani Arabic text
+  text_english TEXT,
+  text_urdu TEXT,
   juz_number INTEGER,
   page_number INTEGER,
   sajda_type TEXT,                         -- "obligatory" | "recommended" | NULL
   FOREIGN KEY (surah_number) REFERENCES surahs(number)
 );
 
-CREATE TABLE translations (
+CREATE TABLE IF NOT EXISTS translations (
   ayah_id INTEGER NOT NULL,
   language_code TEXT NOT NULL,
   translator_slug TEXT NOT NULL,           -- "saheeh_international", "jalanhri_urdu"
@@ -33,7 +34,7 @@ CREATE TABLE translations (
   PRIMARY KEY (ayah_id, language_code, translator_slug)
 );
 
-CREATE TABLE word_translations (
+CREATE TABLE IF NOT EXISTS word_translations (
   ayah_id INTEGER NOT NULL,
   word_position INTEGER NOT NULL,
   arabic_text TEXT NOT NULL,
@@ -45,14 +46,14 @@ CREATE TABLE word_translations (
 );
 
 -- Hadith
-CREATE TABLE hadith_collections (
+CREATE TABLE IF NOT EXISTS hadith_collections (
   slug TEXT PRIMARY KEY,
   name_english TEXT NOT NULL,
   name_arabic TEXT NOT NULL,
   total_hadiths INTEGER
 );
 
-CREATE TABLE hadiths (
+CREATE TABLE IF NOT EXISTS hadiths (
   id INTEGER PRIMARY KEY,
   collection_slug TEXT NOT NULL,
   hadith_number TEXT NOT NULL,
@@ -68,8 +69,7 @@ CREATE TABLE hadiths (
   FOREIGN KEY (collection_slug) REFERENCES hadith_collections(slug)
 );
 
-CREATE VIRTUAL TABLE hadiths_fts USING fts5(
-  hadith_id UNINDEXED,
+CREATE VIRTUAL TABLE IF NOT EXISTS hadiths_fts USING fts5(
   english_text,
   arabic_text,
   content=hadiths,
@@ -77,7 +77,7 @@ CREATE VIRTUAL TABLE hadiths_fts USING fts5(
 );
 
 -- Duas
-CREATE TABLE dua_categories (
+CREATE TABLE IF NOT EXISTS dua_categories (
   id INTEGER PRIMARY KEY,
   name_english TEXT NOT NULL,
   name_arabic TEXT,
@@ -85,7 +85,7 @@ CREATE TABLE dua_categories (
   sort_order INTEGER
 );
 
-CREATE TABLE duas (
+CREATE TABLE IF NOT EXISTS duas (
   id INTEGER PRIMARY KEY,
   category_id INTEGER NOT NULL,
   title TEXT,
@@ -100,12 +100,14 @@ CREATE TABLE duas (
 );
 
 -- 99 Names
-CREATE TABLE asma_ul_husna (
-  number INTEGER PRIMARY KEY,
-  arabic_name TEXT NOT NULL,
-  transliteration TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS asma_ul_husna (
+  id INTEGER PRIMARY KEY,
+  name_arabic TEXT NOT NULL,
+  name_transliteration TEXT NOT NULL,
   meaning_en TEXT NOT NULL,
   meaning_ur TEXT,
-  explanation TEXT,
-  quran_references TEXT                    -- JSON array of surah:ayah refs
+  description_en TEXT,
+  audio_url TEXT,
+  found_in_quran TEXT,                     -- e.g. "Al-Hashr 59:22"
+  sort_order INTEGER
 );

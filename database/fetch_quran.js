@@ -58,14 +58,70 @@ async function fetchSurahs(db) {
                     console.error("Error committing transaction", err);
                 } else {
                     console.log(`Successfully inserted ${data.chapters.length} Surahs.`);
-                    console.log('Database population script completed first phase!');
+                    fetchAyahs(db);
+                }
+            });
+        });
+        stmt.finalize();
+    } catch (error) {
+        console.error('Error fetching Surahs:', error);
+        db.close();
+    }
+}
+
+async function fetchAyahs(db) {
+    console.log('Fetching Ayahs from AlQuran.Cloud API...');
+    try {
+        const [arRes, enRes, urRes] = await Promise.all([
+            fetch('https://api.alquran.cloud/v1/quran/quran-uthmani'),
+            fetch('https://api.alquran.cloud/v1/quran/en.sahih'),
+            fetch('https://api.alquran.cloud/v1/quran/ur.jalandhry')
+        ]);
+
+        const arData = await arRes.json();
+        const enData = await enRes.json();
+        const urData = await urRes.json();
+
+        const stmt = db.prepare(`INSERT INTO ayahs 
+            (id, surah_number, ayah_number, text_arabic, text_english, text_urdu, juz_number, page_number) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
+
+        let count = 0;
+        db.serialize(() => {
+            db.run("BEGIN TRANSACTION");
+
+            arData.data.surahs.forEach((surah, sIdx) => {
+                surah.ayahs.forEach((ayah, aIdx) => {
+                    const enAyah = enData.data.surahs[sIdx].ayahs[aIdx];
+                    const urAyah = urData.data.surahs[sIdx].ayahs[aIdx];
+
+                    stmt.run(
+                        (surah.number * 1000) + ayah.numberInSurah, // Unique ID format
+                        surah.number,
+                        ayah.numberInSurah,
+                        ayah.text,
+                        enAyah.text,
+                        urAyah.text,
+                        ayah.juz,
+                        ayah.page
+                    );
+                    count++;
+                });
+            });
+
+            db.run("COMMIT", (err) => {
+                if (err) {
+                    console.error("Error committing ayahs transaction", err);
+                } else {
+                    console.log(`Successfully inserted ${count} Ayahs.`);
+                    console.log('Database population script completely finished!');
                 }
                 db.close();
             });
         });
         stmt.finalize();
     } catch (error) {
-        console.error('Error fetching Surahs:', error);
+        console.error('Error fetching Ayahs:', error);
         db.close();
     }
 }

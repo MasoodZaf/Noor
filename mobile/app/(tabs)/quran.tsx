@@ -28,7 +28,7 @@ export default function QuranIndexScreen() {
 
         const loadAllSurahs = async () => {
             try {
-                const results = await db.getAllAsync('SELECT * FROM surahs ORDER BY id ASC');
+                const results = await db?.getAllAsync('SELECT * FROM surahs ORDER BY number ASC');
                 setSurahs(results as any[]);
             } catch (error) {
                 console.error("Error fetching all Surahs:", error);
@@ -118,9 +118,9 @@ export default function QuranIndexScreen() {
                 {activeTab === 'surah' ? (
                     filteredSurahs.map((surah, index) => (
                         <TouchableOpacity
-                            key={surah.id}
+                            key={surah.number}
                             style={styles.listItem}
-                            onPress={() => router.push(`/quran/${surah.id}`)}
+                            onPress={() => router.push(`/quran/${surah.number}`)}
                         >
                             <View style={styles.itemLeft}>
                                 <View style={styles.numberOrb}>

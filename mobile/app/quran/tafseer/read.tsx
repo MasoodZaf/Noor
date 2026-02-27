@@ -40,19 +40,19 @@ export default function TafseerReadScreen() {
 
                 // Fetch Surah Metadata for Headers
                 const surahsData: any[] = await db.getAllAsync(
-                    'SELECT id, name_english FROM surahs WHERE id >= ? AND id <= ?',
+                    'SELECT number, name_english FROM surahs WHERE number >= ? AND number <= ?',
                     [startSurah, endSurah]
                 );
 
                 const map: Record<number, string> = {};
                 surahsData.forEach(s => {
-                    map[s.id] = s.name_english;
+                    map[s.number] = s.name_english;
                 });
                 setSurahMap(map);
 
                 // Fetch all Ayahs contained within this Volume's Surah range
                 const volumeAyahs: any[] = await db.getAllAsync(
-                    'SELECT * FROM ayahs WHERE surah_id >= ? AND surah_id <= ? ORDER BY surah_id ASC, ayah_number ASC',
+                    'SELECT * FROM ayahs WHERE surah_number >= ? AND surah_number <= ? ORDER BY surah_number ASC, ayah_number ASC',
                     [startSurah, endSurah]
                 );
 
@@ -76,7 +76,7 @@ export default function TafseerReadScreen() {
                 </TouchableOpacity>
                 <View style={{ alignItems: 'center' }}>
                     <Text style={styles.headerTitle}>{meta.title}</Text>
-                    <Text style={styles.headerSubtitle}>VOLUME {volumeIndex} • SURAH {ayahs[0]?.surah_id || 1}-{ayahs[ayahs.length - 1]?.surah_id || 1}</Text>
+                    <Text style={styles.headerSubtitle}>VOLUME {volumeIndex} • SURAH {ayahs[0]?.surah_number || 1}-{ayahs[ayahs.length - 1]?.surah_number || 1}</Text>
                 </View>
                 <TouchableOpacity style={styles.actionButton}>
                     <Feather name="bookmark" size={22} color="#E8E6E1" />
@@ -102,8 +102,8 @@ export default function TafseerReadScreen() {
                                 {/* Show Surah Heading when transitioning between chapters */}
                                 {isFirstInSurah && (
                                     <View style={styles.introHeader}>
-                                        <Text style={styles.introSurah}>Surah {surahMap[ayah.surah_id]}</Text>
-                                        <Text style={styles.introDesc}>Chapter {ayah.surah_id}</Text>
+                                        <Text style={styles.introSurah}>Surah {surahMap[ayah.surah_number]}</Text>
+                                        <Text style={styles.introDesc}>Chapter {ayah.surah_number}</Text>
                                     </View>
                                 )}
 
@@ -123,7 +123,7 @@ export default function TafseerReadScreen() {
                                     <View style={styles.quoteBar} />
                                     <Text style={styles.tafseerText}>
                                         <Text style={{ fontWeight: 'bold', color: '#C9A84C' }}>[{meta.author}] </Text>
-                                        The detailed exegesis and commentary for Surah {surahMap[ayah.surah_id]}, Ayah {ayah.ayah_number} will be seamlessly stream-loaded from the remote cloud database into this designated placeholder space during the final production build layout synchronization.
+                                        The detailed exegesis and commentary for Surah {surahMap[ayah.surah_number]}, Ayah {ayah.ayah_number} will be seamlessly stream-loaded from the remote cloud database into this designated placeholder space during the final production build layout synchronization.
                                     </Text>
                                 </View>
 

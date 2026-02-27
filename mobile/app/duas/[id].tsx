@@ -8,7 +8,9 @@ import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
 
-// Extended rich mock data for our premium showcase
+import { useDatabase } from '../../context/DatabaseContext';
+
+// Legacy Mock Data left intact for backward compatibility if needed, but overridden when db is active
 const DUA_DATABASE: Record<string, { title: string, icon: string, desc: string, items: any[] }> = {
     'morning': {
         title: 'Morning & Evening',
@@ -94,9 +96,46 @@ export default function DuaDetailScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
 
-    // Safely fallback if id not found
     const categoryId = typeof id === 'string' ? id : 'morning';
-    const data = DUA_DATABASE[categoryId] || DUA_DATABASE['morning'];
+    const { db } = useDatabase();
+
+    const [isLoading, setIsLoading] = useState(true);
+    const [dbData, setDbData] = useState<any>(null);
+
+    React.useEffect(() => {
+        if (!db) return;
+
+        async function loadCollection() {
+            setIsLoading(true);
+            try {
+                // Fetch Category 
+                const catRow: any = await db?.getFirstAsync('SELECT id, name_english as title, icon FROM dua_categories WHERE id = ?', [categoryId]);
+
+                if (catRow) {
+                    // Fetch nested Duas
+                    const duaRows = await db?.getAllAsync(`
+                        SELECT id, title as desc, arabic_text as arabic, transliteration, translation_en as translation, source as reference 
+                        FROM duas WHERE category_id = ? ORDER BY sort_order ASC
+                    `, [categoryId]);
+
+                    setDbData({
+                        title: catRow.title,
+                        icon: catRow.icon || 'sun',
+                        desc: 'Prophetic supplications to fortify your soul and protect your day.',
+                        items: duaRows || []
+                    });
+                }
+            } catch (error) {
+                console.error("DB Load Error:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+
+        loadCollection();
+    }, [db, categoryId]);
+
+    const data = dbData || DUA_DATABASE[categoryId] || DUA_DATABASE['morning'];
 
     // Animations for interactive scroll
     const scrollY = useRef(new Animated.Value(0)).current;
@@ -126,7 +165,6 @@ export default function DuaDetailScreen() {
                     colors={['rgba(201, 168, 76, 0.15)', 'rgba(31, 78, 61, 0.05)', 'transparent']}
                     style={StyleSheet.absoluteFill}
                 />
-                <View style={styles.ambientGlow} />
             </Animated.View>
 
             {/* Custom Fixed Header */}
@@ -163,7 +201,7 @@ export default function DuaDetailScreen() {
 
                 {/* Duas List */}
                 <View style={styles.listContainer}>
-                    {data.items.map((item, index) => {
+                    {data.items.map((item: any, index: number) => {
                         const isExpanded = expandedDua === item.id;
 
                         return (
@@ -243,17 +281,7 @@ const styles = StyleSheet.create({
         height: 350,
         overflow: 'hidden',
     },
-    ambientGlow: {
-        position: 'absolute',
-        top: -100,
-        right: -50,
-        width: 300,
-        height: 300,
-        borderRadius: 150,
-        backgroundColor: 'rgba(201, 168, 76, 0.1)',
-        transform: [{ scaleX: 1.5 }],
-        filter: 'blur(50px)', // Web fallback
-    },
+
     fixedNav: {
         position: 'absolute',
         top: 0,

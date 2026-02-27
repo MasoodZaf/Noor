@@ -34,10 +34,16 @@ export default function HadithCollectionScreen() {
     const loadData = useCallback(async (currentOffset: number) => {
         if (!db) return;
         try {
-            const results = await db.getAllAsync(
-                `SELECT book_slug, hadith_number, text_arabic, text_english, text_urdu, text_ind, text_fra, text_ben, text_tur, narrator 
-                 FROM hadiths_fts 
-                 WHERE book_slug = ?
+            const results = await db?.getAllAsync(
+                `SELECT 
+                    collection_slug as book_slug, 
+                    hadith_number, 
+                    arabic_text as text_arabic, 
+                    english_text as text_english, 
+                    urdu_text as text_urdu, 
+                    narrator_chain as narrator 
+                 FROM hadiths 
+                 WHERE collection_slug = ?
                  ORDER BY CAST(hadith_number AS INTEGER) ASC
                  LIMIT ? OFFSET ?`,
                 [collectionId, ITEMS_PER_PAGE, currentOffset]

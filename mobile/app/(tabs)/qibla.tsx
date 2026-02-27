@@ -126,17 +126,17 @@ export default function QiblaScreen() {
                             <Stop offset="0%" stopColor="#C9A84C" stopOpacity="0.3" />
                             <Stop offset="100%" stopColor="#C9A84C" stopOpacity="0" />
                         </RadialGradient>
-                        <SvgLinearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="1">
-                            <Stop offset="0" stopColor="#FFD700" />
-                            <Stop offset="1" stopColor="#C9A84C" />
+                        <SvgLinearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <Stop offset="0%" stopColor="#FFD700" />
+                            <Stop offset="100%" stopColor="#C9A84C" />
                         </SvgLinearGradient>
-                        <SvgLinearGradient id="emeraldGrad" x1="0" y1="0" x2="1" y2="1">
-                            <Stop offset="0" stopColor="#0F9A5A" />
-                            <Stop offset="1" stopColor="#1F4E3D" />
+                        <SvgLinearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <Stop offset="0%" stopColor="#0F9A5A" />
+                            <Stop offset="100%" stopColor="#1F4E3D" />
                         </SvgLinearGradient>
-                        <SvgLinearGradient id="redGrad" x1="0" y1="0" x2="0" y2="1">
-                            <Stop offset="0" stopColor="#FF5A5F" />
-                            <Stop offset="1" stopColor="#E53E3E" />
+                        <SvgLinearGradient id="redGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <Stop offset="0%" stopColor="#FF5A5F" />
+                            <Stop offset="100%" stopColor="#E53E3E" />
                         </SvgLinearGradient>
                     </Defs>
 
@@ -149,10 +149,10 @@ export default function QiblaScreen() {
                     <Circle cx="200" cy="200" r="180" stroke="rgba(255, 255, 255, 0.08)" strokeWidth="2" fill="url(#emeraldGrad)" fillOpacity="0.05" />
 
                     {/* Inner Track */}
-                    <Circle cx="200" cy="200" r="140" stroke="rgba(201, 168, 76, 0.1)" strokeWidth="1" fill="transparent" />
+                    <Circle cx="200" cy="200" r="140" stroke="rgba(201, 168, 76, 0.1)" strokeWidth="1" fill="none" />
 
                     {isAligned && (
-                        <Circle cx="200" cy="200" r="180" stroke="url(#goldGrad)" strokeWidth="4" fill="transparent" />
+                        <Circle cx="200" cy="200" r="180" stroke="url(#goldGrad)" strokeWidth="4" fill="none" />
                     )}
 
                     {/* Rotation wrapper to orient compass housing so North is strictly "up" (inverse of phone heading) */}

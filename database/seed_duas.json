@@ -1,0 +1,40 @@
+[
+  { "cat_id": 1, "title": "When waking up", "ar": "الْحَمْدُ للهِ الَّذِي أَحْيَانَا بَعْدَ مَا أَمَاتَنَا وَإِلَيْهِ النُّشُورُ", "trans": "Alhamdu lillahil-lathee ahyana...", "en": "All praise is to Allah, Who gave us life...", "source": "Al-Bukhari" },
+  { "cat_id": 1, "title": "When wearing a garment", "ar": "الْحَمْدُ للهِ الَّذِي كَسَانِي هَذَا (الثَّوْبَ) وَرَزَقَنِيهِ مِنْ غَيْرِ حَوْلٍ مِنِّي وَلَا قُوَّةٍ", "trans": "Alhamdu lillahil-lathee kasanee...", "en": "All Praise is to Allah Who has clothed me...", "source": "Abu Dawud" },
+  { "cat_id": 1, "title": "Before undressing", "ar": "بِسْمِ اللهِ", "trans": "Bismillah", "en": "In the Name of Allah.", "source": "At-Tirmidhi" },
+  { "cat_id": 1, "title": "When waking up at night", "ar": "لَا إِلَهَ إِلَّا اللهُ وَحْدَهُ لَا شَرِيكَ لَهُ...", "trans": "La ilaha illallahu wahdahu...", "en": "None has the right to be worshipped but Allah...", "source": "Al-Bukhari" },
+  { "cat_id": 1, "title": "Morning Supplication 1", "ar": "اللَّهُمَّ بِكَ أَصْبَحْنَا...", "trans": "Allahumma bika asbahna...", "en": "O Allah, by You we enter the morning...", "source": "At-Tirmidhi" },
+  { "cat_id": 1, "title": "Morning Supplication 2", "ar": "أَصْبَحْنَا عَلَى فِطْرَةِ الْإِسْلَامِ...", "trans": "Asbahna 'ala fitratil-Islam...", "en": "We have entered a new day upon the natural religion of Islam...", "source": "Ahmad" },
+  { "cat_id": 1, "title": "Evening Supplication 1", "ar": "أَمْسَيْنَا وَأَمْسَى الْمُلْكُ للهِ...", "trans": "Amsayna wa-amsal-mulku lillah...", "en": "We have reached the evening and at this very time...", "source": "Muslim" },
+  { "cat_id": 1, "title": "Evening Supplication 2", "ar": "اللَّهُمَّ بِكَ أَمْسَيْنَا...", "trans": "Allahumma bika amsayna...", "en": "O Allah, by You we enter the evening...", "source": "At-Tirmidhi" },
+
+  { "cat_id": 2, "title": "Before entering the toilet", "ar": "اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْخُبْثِ وَالْخَبَائِثِ", "trans": "Allahumma innee a'oozu bika...", "en": "O Allah, I seek refuge in You from all evil...", "source": "Al-Bukhari" },
+  { "cat_id": 2, "title": "After leaving the toilet", "ar": "غُفْرَانَكَ", "trans": "Ghufranaka", "en": "I ask You (Allah) for forgiveness.", "source": "Abu Dawud" },
+  { "cat_id": 2, "title": "Before Wudu", "ar": "بِسْمِ اللهِ", "trans": "Bismillah", "en": "In the Name of Allah.", "source": "Abu Dawud" },
+  { "cat_id": 2, "title": "After Wudu", "ar": "أَشْهَدُ أَنْ لَا إِلَهَ إِلَّا اللهُ...", "trans": "Ashhadu an la ilaha illallahu...", "en": "I bear witness that none has the right to be worshipped but Allah...", "source": "Muslim" },
+  { "cat_id": 2, "title": "When going to the mosque", "ar": "اللَّهُمَّ اجْعَلْ فِي قَلْبِي نُوراً...", "trans": "Allahummaj'al fee qalbee nooran...", "en": "O Allah, place light in my heart...", "source": "Muslim" },
+  { "cat_id": 2, "title": "Upon entering the mosque", "ar": "اللَّهُمَّ افْتَحْ لِي أَبْوَابَ رَحْمَتِكَ", "trans": "Allahummaf-tah lee abwaba rahmatika", "en": "O Allah, open the doors of Your mercy for me.", "source": "Muslim" },
+  { "cat_id": 2, "title": "Upon leaving the mosque", "ar": "اللَّهُمَّ إِنِّي أَسْأَلُكَ مِنْ فَضْلِكَ", "trans": "Allahumma innee as'aluka min fadhlika", "en": "O Allah, I ask You from Your favor.", "source": "Muslim" },
+  { "cat_id": 2, "title": "After the Adhan", "ar": "اللَّهُمَّ رَبَّ هَذِهِ الدَّعْوَةِ التَّامَّةِ...", "trans": "Allahumma Rabba hathihid-da'watit-tammah...", "en": "O Allah, Lord of this perfect call...", "source": "Al-Bukhari" },
+
+  { "cat_id": 3, "title": "When leaving the house", "ar": "بِسْمِ اللهِ ، تَوَكَّلْتُ عَلَى اللهِ...", "trans": "Bismillahi, tawakkaltu 'alallahi...", "en": "In the Name of Allah, I have placed my trust in Allah...", "source": "Abu Dawud" },
+  { "cat_id": 3, "title": "When entering the house", "ar": "بِسْمِ اللهِ وَلَجْنَا، وَبِسْمِ اللهِ خَرَجْنَا...", "trans": "Bismillahi walajna, wa bismillahi kharajna...", "en": "In the Name of Allah we enter...", "source": "Abu Dawud" },
+  { "cat_id": 3, "title": "Mounting an animal or vehicle", "ar": "سُبْحَانَ الَّذِي سَخَّرَ لَنَا هَذَا...", "trans": "Subhanal-lathee sakhkhara lana hatha...", "en": "Glory is to Him Who has provided this for us...", "source": "Abu Dawud" },
+  { "cat_id": 3, "title": "For travel", "ar": "اللهُ أَكْبَرُ، اللهُ أَكْبَرُ، اللهُ أَكْبَرُ...", "trans": "Allahu Akbar, Allahu Akbar, Allahu Akbar...", "en": "Allah is the greatest... O Allah, we ask You on this our journey for goodness and piety...", "source": "Muslim" },
+  { "cat_id": 3, "title": "Entering a town or village", "ar": "اللَّهُمَّ رَبَّ السَّمَوَاتِ السَّبْعِ وَمَا أَظْلَلْنَ...", "trans": "Allahumma rabbas-samawatis-sab'i...", "en": "O Allah, Lord of the seven heavens...", "source": "Ibn Hibban" },
+  { "cat_id": 3, "title": "Returning from travel", "ar": "آيِبُونَ تَائِبُونَ عَابِدُونَ لِرَبِّنَا حَامِدُونَ", "trans": "Aayiboona, ta'iboona, 'aabidoona, lirabbina haamidoon", "en": "We return, repent, worship and praise our Lord.", "source": "Muslim" },
+
+  { "cat_id": 4, "title": "When in distress", "ar": "لَا إِلَهَ إِلَّا اللهُ الْعَظِيمُ الْحَلِيمُ", "trans": "La ilaha illallahul-Atheemul-Haleem", "en": "There is none worthy of worship but Allah the Mighty, the Forbearing.", "source": "Al-Bukhari" },
+  { "cat_id": 4, "title": "For anxiety and sorrow", "ar": "اللَّهُمَّ إِنِّي عَبْدُكَ، ابْنُ عَبْدِكَ...", "trans": "Allahumma innee 'abduka, ibnu 'abdika...", "en": "O Allah, I am Your slave and the son of Your male slave...", "source": "Ahmad" },
+  { "cat_id": 4, "title": "Upon encountering an enemy", "ar": "اللَّهُمَّ إِنَّا نَجْعَلُكَ فِي نُحُورِهِمْ...", "trans": "Allahumma inna naj'aluka fee nuhoorihim...", "en": "O Allah, we place You before them...", "source": "Abu Dawud" },
+  { "cat_id": 4, "title": "When afraid of people", "ar": "اللَّهُمَّ اكْفِنِيهِمْ بِمَا شِئْتَ", "trans": "Allahummak-fineehim bima shi'ta", "en": "O Allah, protect me from them with what You choose.", "source": "Muslim" },
+  { "cat_id": 4, "title": "When faced with a difficult task", "ar": "اللَّهُمَّ لَا سَهْلَ إِلَّا مَا جَعَلْتَهُ سَهْلاً", "trans": "Allahumma la sahla illa ma ja'altahu sahlan...", "en": "O Allah, there is no ease other than what You make easy...", "source": "Ibn Hibban" },
+  { "cat_id": 4, "title": "For settling a debt", "ar": "اللَّهُمَّ اكْفِنِي بِحَلَالِكَ عَنْ حَرَامِكَ", "trans": "Allahummak-finee bihalalika 'an haramika...", "en": "O Allah, suffice me with what You have allowed...", "source": "At-Tirmidhi" },
+
+  { "cat_id": 5, "title": "Before eating", "ar": "بِسْمِ اللهِ", "trans": "Bismillah", "en": "In the Name of Allah.", "source": "Abu Dawud" },
+  { "cat_id": 5, "title": "Forgetting to say Bismillah", "ar": "بِسْمِ اللهِ فِي أَوَّلِهِ وَآخِرِهِ", "trans": "Bismillahi fee awwalihi wa aakhirihi", "en": "In the Name of Allah, in the beginning and in the end.", "source": "Abu Dawud" },
+  { "cat_id": 5, "title": "Upon completing the meal", "ar": "الْحَمْدُ للهِ الَّذِي أَطْعَمَنِي هَذَا...", "trans": "Alhamdu lillahil-lathee at'amanee hatha...", "en": "All praise is to Allah Who has fed me this...", "source": "At-Tirmidhi" },
+  { "cat_id": 5, "title": "When breaking the fast", "ar": "ذَهَبَ الظَّمَأُ وَابْتَلَّتِ الْعُرُوقُ...", "trans": "Thahabath-thama'u wabtallatil-'urooqu...", "en": "The thirst has gone and the veins are quenched...", "source": "Abu Dawud" },
+  { "cat_id": 5, "title": "When someone offers you food", "ar": "اللَّهُمَّ أَطْعِمْ مَنْ أَطْعَمَنِي...", "trans": "Allahumma at'im man at'amanee...", "en": "O Allah, feed him who fed me...", "source": "Muslim" },
+  { "cat_id": 5, "title": "When drinking milk", "ar": "اللَّهُمَّ بَارِكْ لَنَا فِيهِ وَزِدْنَا مِنْهُ", "trans": "Allahumma baarik lana feehi wa zidna minhu", "en": "O Allah, bless us in it and give us more of it.", "source": "At-Tirmidhi" }
+]
