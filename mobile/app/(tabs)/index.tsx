@@ -10,6 +10,8 @@ import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Localization from 'expo-localization';
+import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -38,11 +40,34 @@ export default function HomeScreen() {
     const pulseAnim = useRef(new Animated.Value(0)).current;
 
     const [completedPrayers, setCompletedPrayers] = useState<string[]>([]);
+    const [envThemeColor, setEnvThemeColor] = useState('#0C0F0E'); // Default charcoal
 
-    const togglePrayer = (id: string) => {
-        setCompletedPrayers(prev =>
-            prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
-        );
+    // Unique per day key
+    const todayStorageKey = `prayers_completed_${new Date().toDateString()}`;
+
+    const loadCompletedPrayers = async () => {
+        try {
+            const stored = await AsyncStorage.getItem(todayStorageKey);
+            if (stored) {
+                setCompletedPrayers(JSON.parse(stored));
+            }
+        } catch (e) {
+            console.warn("Failed to load prayers", e);
+        }
+    };
+
+    const togglePrayer = async (id: string) => {
+        // Physical click feedback!
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+        const newList = completedPrayers.includes(id) ? completedPrayers.filter(p => p !== id) : [...completedPrayers, id];
+        setCompletedPrayers(newList);
+
+        try {
+            await AsyncStorage.setItem(todayStorageKey, JSON.stringify(newList));
+        } catch (e) {
+            console.error("Failed to save state", e);
+        }
     };
 
     // Calculate dynamic greeting based on time of day
@@ -142,12 +167,22 @@ export default function HomeScreen() {
             const nextId = prayerTimes.nextPrayer();
             const currentId = prayerTimes.currentPrayer();
 
+            // Set beautiful UI theme based on active prayer time
+            if (currentId === 'fajr' || currentId === 'maghrib') {
+                setEnvThemeColor('#191008'); // Ambient dark sunrise/sunset orange
+            } else if (currentId === 'isha') {
+                setEnvThemeColor('#040A14'); // Absolute deep midnight indigo
+            } else {
+                setEnvThemeColor('#0C0F0E'); // Standard charcoal black
+            }
+
             const formattedList = list.map(p => ({
                 ...p,
                 isNext: p.id === nextId
             }));
 
             setPrayers(formattedList);
+            await loadCompletedPrayers();
 
             // Schedule Notifications
             const scheduleAdhans = async () => {
@@ -247,14 +282,14 @@ export default function HomeScreen() {
 
     if (loading) {
         return (
-            <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+            <View style={[styles.container, { backgroundColor: envThemeColor, alignItems: 'center', justifyContent: 'center' }]}>
                 <ActivityIndicator size="large" color="#C9A84C" />
             </View>
         );
     }
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: envThemeColor }]}>
             <ScrollView
                 style={{ flex: 1 }}
                 showsVerticalScrollIndicator={false}
@@ -335,7 +370,7 @@ export default function HomeScreen() {
                 <View style={styles.prayersList}>
                     {prayers.map((prayer) => {
                         const isNext = prayer.isNext;
-                        const isCompleted = completedPrayers.includes(prayer.id);
+                        const isChecked = completedPrayers.includes(prayer.id);
 
                         return (
                             <TouchableOpacity
@@ -366,7 +401,7 @@ export default function HomeScreen() {
                                     <View style={styles.prayerRight}>
                                         <Text style={[styles.prayerTime, isNext && styles.prayerTimeNext]}>{prayer.time}</Text>
                                         <View style={styles.checkCircle}>
-                                            {isCompleted && <View style={styles.checkFill} />}
+                                            {isChecked && <View style={styles.checkFill} />}
                                         </View>
                                     </View>
                                 </LinearGradient>

@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import Svg, { Circle, Line, Rect, G, Text as SvgText, Path, Defs, LinearGradient as SvgLinearGradient, Stop, RadialGradient } from 'react-native-svg';
 
 const { width } = Dimensions.get('window');
@@ -100,6 +101,13 @@ export default function QiblaScreen() {
     // Is the phone actively pointing at Kaaba?
     const dif = Math.abs((heading - qiblaDirection) % 360);
     const isAligned = dif < 3 || dif > 357;
+
+    // Physical locking mechanism haptic feedback
+    useEffect(() => {
+        if (isAligned) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        }
+    }, [isAligned]);
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
