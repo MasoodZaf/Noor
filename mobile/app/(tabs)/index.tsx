@@ -11,6 +11,16 @@ import * as Notifications from 'expo-notifications';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Localization from 'expo-localization';
 
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+    }),
+});
+
 export default function HomeScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
@@ -65,8 +75,17 @@ export default function HomeScreen() {
         ).start();
 
         (async () => {
-            let { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') {
+            // Request Notification Permissions
+            const { status: existingStatus } = await Notifications.getPermissionsAsync();
+            let finalStatus = existingStatus;
+            if (existingStatus !== 'granted') {
+                const { status } = await Notifications.requestPermissionsAsync();
+                finalStatus = status;
+            }
+
+            // Location Permissions
+            let { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
+            if (locationStatus !== 'granted') {
                 setLocationName('Location Denied');
                 return;
             }
