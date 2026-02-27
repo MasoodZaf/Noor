@@ -4,8 +4,8 @@ import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Stop, Path, Rec
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
-import { Coordinates, CalculationMethod, PrayerTimes } from 'adhan';
-import moment from 'moment';
+import { Coordinates, CalculationMethod, PrayerTimes, Madhab } from 'adhan';
+import moment from 'moment-hijri';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,6 +22,7 @@ export default function HomeScreen() {
     const [fillPercentage, setFillPercentage] = useState(0);
     const [locationName, setLocationName] = useState('Locating...');
     const [greeting, setGreeting] = useState('As-salamu alaykum');
+    const [hijriDate, setHijriDate] = useState('');
 
     // Core animation value for the pulsing time ring
     const pulseAnim = useRef(new Animated.Value(0)).current;
@@ -72,30 +73,41 @@ export default function HomeScreen() {
 
             let location = await Location.getCurrentPositionAsync({});
 
+            let resolvedCity = 'Locating...';
             // Try reverse geocoding to get City name
             try {
                 let p = await Location.reverseGeocodeAsync(location.coords);
                 if (p.length > 0) {
-                    if (p[0].city) setLocationName(p[0].city);
-                    else if (p[0].region) setLocationName(p[0].region);
+                    if (p[0].city) resolvedCity = p[0].city;
+                    else if (p[0].region) resolvedCity = p[0].region;
                 }
             } catch (e) {
                 // Ignore fallback to 'Locating...'
             }
+            setLocationName(resolvedCity);
 
             const coordinates = new Coordinates(location.coords.latitude, location.coords.longitude);
 
             // Smarter Calculation Parameters using automatic geographic heuristics.
             let params = CalculationMethod.MuslimWorldLeague();
-            if (locationName.toLowerCase().includes('karachi') || locationName.toLowerCase().includes('pakistan')) {
+            const locationString = resolvedCity.toLowerCase();
+
+            if (locationString.includes('karachi') || locationString.includes('pakistan') || locationString.includes('india') || locationString.includes('islamabad')) {
                 params = CalculationMethod.Karachi();
-            } else if (locationName.toLowerCase().includes('egypt') || locationName.toLowerCase().includes('cairo')) {
+                // Mandatory override: Karachi methodology in adhan implies Hanafi defaults for Asr locally.
+                params.madhab = Madhab.Hanafi;
+            } else if (locationString.includes('egypt') || locationString.includes('cairo')) {
                 params = CalculationMethod.Egyptian();
-            } else if (locationName.toLowerCase().includes('dubai') || locationName.toLowerCase().includes('gulf')) {
+            } else if (locationString.includes('dubai') || locationString.includes('gulf') || locationString.includes('uae')) {
                 params = CalculationMethod.Dubai();
-            } else if (locationName.toLowerCase().includes('america') || locationName.toLowerCase().includes('usa')) {
+                params.madhab = Madhab.Hanafi;
+            } else if (locationString.includes('america') || locationString.includes('usa') || locationString.includes('uk') || locationString.includes('london')) {
                 params = CalculationMethod.NorthAmerica();
             }
+
+            // Sync dynamic correct Hijri date (e.g. 14 Ramadan -> 14th Sha'ban based on device offset)
+            const m = moment();
+            setHijriDate(m.format('iDo iMMMM').toUpperCase());
 
             const date = new Date(); // Automatically inherits devices accurate local time-zone
             const prayerTimes = new PrayerTimes(coordinates, date, params);
@@ -237,9 +249,13 @@ export default function HomeScreen() {
                         <Text style={styles.greetingText}>{greeting}</Text>
                         <Text style={styles.locationText}>{locationName}</Text>
                     </View>
-                    <View style={styles.dateBadge}>
-                        <Text style={styles.dateText}>14 Ramadan</Text>
-                    </View>
+                    {hijriDate ? (
+                        <View style={styles.dateBadge}>
+                            <Text style={styles.dateText}>{hijriDate}</Text>
+                        </View>
+                    ) : (
+                        <View style={[styles.dateBadge, { opacity: 0 }]} />
+                    )}
                 </View>
 
                 {/* Innovative Pulsing Timer Orb */}
