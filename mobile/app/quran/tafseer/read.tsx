@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useDatabase } from '../../../context/DatabaseContext';
+import { useLanguage } from '../../../context/LanguageContext';
 
 const TAFSEER_META: Record<string, { title: string, author: string, totalVolumes: number }> = {
     'ibn_kathir': { title: 'Tafsir Ibn Kathir', author: 'Isma\'il ibn Kathir', totalVolumes: 10 },
@@ -14,11 +15,113 @@ const TAFSEER_META: Record<string, { title: string, author: string, totalVolumes
     'tabari': { title: 'Tafsir al-Tabari', author: 'Muhammad ibn Jarir al-Tabari', totalVolumes: 24 }
 };
 
+const AyahTafseerCard = React.memo(({ ayah, index, isLast, meta, surahName, language }: any) => {
+    const isFirstInSurah = ayah.ayah_number === 1;
+    const [enTafseer, setEnTafseer] = useState<string | null>(null);
+    const [urTafseer, setUrTafseer] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [expanded, setExpanded] = useState(false);
+
+    const loadTafseer = async () => {
+        if (enTafseer || urTafseer) {
+            setExpanded(!expanded);
+            return;
+        }
+
+        setExpanded(true);
+        setLoading(true);
+        try {
+            const stripHtml = (html: string) => html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+
+            if (language === 'urdu') {
+                const urRes = await fetch(`https://api.quran.com/api/v4/tafsirs/160/by_ayah/${ayah.surah_number}:${ayah.ayah_number}`);
+                const urData = await urRes.json();
+                setUrTafseer(urData.tafsir ? stripHtml(urData.tafsir.text) : 'تفسیر دستیاب نہیں ہے۔');
+            } else {
+                const enRes = await fetch(`https://api.quran.com/api/v4/tafsirs/169/by_ayah/${ayah.surah_number}:${ayah.ayah_number}`);
+                const enData = await enRes.json();
+                setEnTafseer(enData.tafsir ? stripHtml(enData.tafsir.text) : 'Tafseer not available.');
+            }
+        } catch (e) {
+            console.error("Fetch error", e);
+            if (language === 'urdu') {
+                setUrTafseer('ایرر');
+            } else {
+                setEnTafseer('Error loading Tafseer.');
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <View style={styles.tafseerBlock}>
+            {isFirstInSurah && (
+                <View style={styles.introHeader}>
+                    <Text style={styles.introSurah}>Surah {surahName}</Text>
+                    <Text style={styles.introDesc}>Chapter {ayah.surah_number}</Text>
+                </View>
+            )}
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <View style={[styles.ayahIndicator, { marginBottom: 0 }]}>
+                    <Text style={styles.ayahIndicatorText}>AYAH {ayah.ayah_number}</Text>
+                </View>
+
+                <TouchableOpacity onPress={loadTafseer} style={styles.readTafseerBtn}>
+                    <Text style={styles.readTafseerTxt}>{expanded ? 'Hide Exegesis' : 'Read Exegesis'}</Text>
+                    <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color="#C9A84C" />
+                </TouchableOpacity>
+            </View>
+
+            <LinearGradient
+                colors={['rgba(255,255,255,0.03)', 'transparent']}
+                style={styles.ayahContainer}
+            >
+                <Text style={styles.arabicText}>{ayah.text_arabic}</Text>
+                {language === 'urdu' ? (
+                    <Text style={[styles.translationText, { textAlign: 'right', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', fontStyle: 'normal', fontSize: 18, lineHeight: 30 }]}>{ayah.text_urdu}</Text>
+                ) : (
+                    <Text style={styles.translationText}>{ayah.text_english}</Text>
+                )}
+            </LinearGradient>
+
+            {expanded && (
+                <View style={styles.tafseerBody}>
+                    <View style={styles.quoteBar} />
+                    <View style={{ flex: 1 }}>
+                        {loading ? (
+                            <ActivityIndicator color="#C9A84C" style={{ alignSelf: 'flex-start', marginVertical: 20 }} />
+                        ) : (
+                            <>
+                                {language === 'urdu' ? (
+                                    <Text style={[styles.tafseerText, { textAlign: 'right', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', fontSize: 18, lineHeight: 30 }]}>
+                                        <Text style={{ fontWeight: 'bold', color: '#C9A84C' }}>[{meta.author} - اردو] </Text>
+                                        {urTafseer}
+                                    </Text>
+                                ) : (
+                                    <Text style={styles.tafseerText}>
+                                        <Text style={{ fontWeight: 'bold', color: '#C9A84C' }}>[{meta.author}] </Text>
+                                        {enTafseer}
+                                    </Text>
+                                )}
+                            </>
+                        )}
+                    </View>
+                </View>
+            )}
+
+            {!isLast && <View style={styles.divider} />}
+        </View>
+    );
+});
+
 export default function TafseerReadScreen() {
     const { book, volume } = useLocalSearchParams();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { db } = useDatabase();
+    const { language } = useLanguage();
 
     const [loading, setLoading] = useState(true);
     const [ayahs, setAyahs] = useState<any[]>([]);
@@ -33,24 +136,19 @@ export default function TafseerReadScreen() {
 
         const loadVolumeData = async () => {
             try {
-                // Algorithmically divide the 114 Surahs into the Book's defined Total Volumes
                 const surahsPerVol = Math.ceil(114 / meta.totalVolumes);
                 const startSurah = (volumeIndex - 1) * surahsPerVol + 1;
                 const endSurah = Math.min(startSurah + surahsPerVol - 1, 114);
 
-                // Fetch Surah Metadata for Headers
                 const surahsData: any[] = await db.getAllAsync(
                     'SELECT number, name_english FROM surahs WHERE number >= ? AND number <= ?',
                     [startSurah, endSurah]
                 );
 
                 const map: Record<number, string> = {};
-                surahsData.forEach(s => {
-                    map[s.number] = s.name_english;
-                });
+                surahsData.forEach(s => { map[s.number] = s.name_english; });
                 setSurahMap(map);
 
-                // Fetch all Ayahs contained within this Volume's Surah range
                 const volumeAyahs: any[] = await db.getAllAsync(
                     'SELECT * FROM ayahs WHERE surah_number >= ? AND surah_number <= ? ORDER BY surah_number ASC, ayah_number ASC',
                     [startSurah, endSurah]
@@ -63,13 +161,11 @@ export default function TafseerReadScreen() {
                 setLoading(false);
             }
         };
-
         loadVolumeData();
     }, [db, tafseerId, volumeIndex]);
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
-            {/* Minimalist Reader Header */}
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Feather name="arrow-left" size={24} color="#C9A84C" />
@@ -89,59 +185,29 @@ export default function TafseerReadScreen() {
                     <Text style={{ color: '#9A9590', marginTop: 16 }}>Compiling Volume {volumeIndex}...</Text>
                 </View>
             ) : (
-                <ScrollView
-                    style={{ flex: 1 }}
+                <FlatList
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.contentArea}
-                >
-                    {ayahs.map((ayah, index) => {
-                        const isFirstInSurah = ayah.ayah_number === 1;
-
-                        return (
-                            <View key={ayah.id} style={styles.tafseerBlock}>
-                                {/* Show Surah Heading when transitioning between chapters */}
-                                {isFirstInSurah && (
-                                    <View style={styles.introHeader}>
-                                        <Text style={styles.introSurah}>Surah {surahMap[ayah.surah_number]}</Text>
-                                        <Text style={styles.introDesc}>Chapter {ayah.surah_number}</Text>
-                                    </View>
-                                )}
-
-                                <View style={styles.ayahIndicator}>
-                                    <Text style={styles.ayahIndicatorText}>AYAH {ayah.ayah_number}</Text>
-                                </View>
-
-                                <LinearGradient
-                                    colors={['rgba(255,255,255,0.03)', 'transparent']}
-                                    style={styles.ayahContainer}
-                                >
-                                    <Text style={styles.arabicText}>{ayah.text_arabic}</Text>
-                                    <Text style={styles.translationText}>{ayah.text_english}</Text>
-                                </LinearGradient>
-
-                                <View style={styles.tafseerBody}>
-                                    <View style={styles.quoteBar} />
-                                    <Text style={styles.tafseerText}>
-                                        <Text style={{ fontWeight: 'bold', color: '#C9A84C' }}>[{meta.author}] </Text>
-                                        The detailed exegesis and commentary for Surah {surahMap[ayah.surah_number]}, Ayah {ayah.ayah_number} will be seamlessly stream-loaded from the remote cloud database into this designated placeholder space during the final production build layout synchronization.
-                                    </Text>
-                                </View>
-
-                                {index < ayahs.length - 1 && (
-                                    <View style={styles.divider} />
-                                )}
-                            </View>
-                        );
-                    })}
-
-                    {/* Completion Block */}
-                    <View style={styles.completionBlock}>
-                        <Feather name="check-circle" size={32} color="#C9A84C" />
-                        <Text style={styles.completionText}>End of Volume {volumeIndex}</Text>
-                    </View>
-
-                    <View style={{ height: 100 }} />
-                </ScrollView>
+                    data={ayahs}
+                    keyExtractor={(item) => item.id.toString()}
+                    renderItem={({ item, index }) => (
+                        <AyahTafseerCard
+                            ayah={item}
+                            index={index}
+                            isLast={index === ayahs.length - 1}
+                            meta={meta}
+                            surahName={surahMap[item.surah_number]}
+                            language={language}
+                        />
+                    )}
+                    ListFooterComponent={
+                        <View style={styles.completionBlock}>
+                            <Feather name="check-circle" size={32} color="#C9A84C" />
+                            <Text style={styles.completionText}>End of Volume {volumeIndex}</Text>
+                            <View style={{ height: 100 }} />
+                        </View>
+                    }
+                />
             )}
         </View>
     );
@@ -234,6 +300,23 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: 'bold',
         letterSpacing: 1,
+    },
+    readTafseerBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        backgroundColor: 'rgba(201, 168, 76, 0.1)',
+        borderWidth: 1,
+        borderColor: 'rgba(201, 168, 76, 0.2)',
+    },
+    readTafseerTxt: {
+        color: '#C9A84C',
+        fontSize: 12,
+        fontWeight: 'bold',
+        letterSpacing: 0.5,
+        marginRight: 6,
     },
     ayahContainer: {
         borderRadius: 16,
