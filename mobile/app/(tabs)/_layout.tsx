@@ -14,14 +14,14 @@ export default function TabLayout() {
             screenOptions={{
                 headerShown: false,
                 tabBarStyle: {
-                    backgroundColor: '#0C0F0E',
+                    backgroundColor: '#123D26', // Deep green theme background
                     borderTopWidth: 1,
-                    borderTopColor: 'rgba(201, 168, 76, 0.15)', // Premium Gold subtle stroke
+                    borderTopColor: 'rgba(255, 255, 255, 0.05)',
                     elevation: 0,
                     shadowOpacity: 0,
-                    height: Platform.OS === 'ios' ? 85 + insets.bottom : 70,
+                    height: Platform.OS === 'ios' ? 85 + insets.bottom : 80, // Increased Android height to 80
                     paddingTop: 12,
-                    paddingBottom: Platform.OS === 'ios' ? insets.bottom + 8 : 12,
+                    paddingBottom: Platform.OS === 'ios' ? insets.bottom + 8 : 16, // Added paddingBottom for Android to clear bottom
                 },
                 tabBarActiveTintColor: '#C9A84C', // Gold
                 tabBarInactiveTintColor: '#5E5C58', // Placeholder grey

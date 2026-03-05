@@ -98,8 +98,8 @@ export default function TasbihScreen() {
                     <Svg width={width} height={width} viewBox={`0 0 ${width} ${width}`}>
                         <Defs>
                             <LinearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <Stop offset="0%" stopColor="#C9A84C" />
-                                <Stop offset="100%" stopColor="#8A7030" />
+                                <Stop offset="0%" stopColor="#f2930d" />
+                                <Stop offset="100%" stopColor="#ffb347" />
                             </LinearGradient>
                         </Defs>
 
@@ -107,7 +107,7 @@ export default function TasbihScreen() {
                             cx={width / 2}
                             cy={width / 2}
                             r={radius}
-                            stroke="rgba(255, 255, 255, 0.03)"
+                            stroke="rgba(0, 0, 0, 0.05)"
                             strokeWidth={strokeWidth}
                             fill="none"
                         />
@@ -139,7 +139,7 @@ export default function TasbihScreen() {
                 </Animated.View>
 
                 <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
-                    <Feather name="refresh-ccw" size={20} color="#9A9590" />
+                    <Feather name="refresh-ccw" size={20} color="#8A8A8A" />
                 </TouchableOpacity>
 
                 <View style={styles.presetsContainer}>
@@ -175,7 +175,7 @@ export default function TasbihScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0C0F0E',
+        backgroundColor: '#FDF8F0',
     },
     header: {
         flexDirection: 'row',
@@ -192,9 +192,9 @@ const styles = StyleSheet.create({
         marginLeft: -10,
     },
     headerTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 18,
-        fontWeight: '500',
+        fontWeight: '600',
         letterSpacing: 0.5,
     },
     content: {
@@ -210,15 +210,16 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     arabicText: {
-        color: '#C9A84C',
+        color: '#1A1A1A',
         fontSize: 42,
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
         marginBottom: 8,
     },
     translationText: {
-        color: '#9A9590',
+        color: '#8A8A8A',
         fontSize: 16,
         letterSpacing: 0.5,
+        fontWeight: '500',
     },
     counterWrapper: {
         width: width,
@@ -232,38 +233,42 @@ const styles = StyleSheet.create({
         width: width * 0.55,
         height: width * 0.55,
         borderRadius: width * 0.275,
-        backgroundColor: 'rgba(201, 168, 76, 0.02)',
+        backgroundColor: '#FFFFFF',
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(201, 168, 76, 0.1)',
-        shadowColor: '#C9A84C',
+        borderColor: 'rgba(0,0,0,0.02)',
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.05,
         shadowRadius: 20,
     },
     tapInner: {
         alignItems: 'center',
     },
     countText: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 72,
-        fontWeight: '200',
+        fontWeight: '300',
         letterSpacing: -2,
     },
     targetText: {
-        color: '#C9A84C',
+        color: '#f2930d',
         fontSize: 18,
-        fontWeight: '600',
+        fontWeight: '700',
         marginTop: -5,
     },
     resetButton: {
         marginTop: -10,
         padding: 15,
         borderRadius: 30,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: '#FFFFFF',
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: 'rgba(0,0,0,0.02)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
     },
     presetsContainer: {
         flexDirection: 'row',
@@ -275,39 +280,43 @@ const styles = StyleSheet.create({
     },
     presetCard: {
         width: (width - 60) / 2,
-        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        backgroundColor: '#FFFFFF',
         borderRadius: 16,
         padding: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: 'rgba(0,0,0,0.02)',
         alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
     },
     presetCardActive: {
-        backgroundColor: 'rgba(31, 78, 61, 0.15)',
-        borderColor: 'rgba(201, 168, 76, 0.3)',
+        backgroundColor: '#FFF8F0',
+        borderColor: 'rgba(242, 147, 13, 0.3)',
         transform: [{ scale: 1.02 }],
-        shadowColor: '#C9A84C',
+        shadowColor: '#f2930d',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
+        shadowOpacity: 0.15,
+        shadowRadius: 10,
     },
     presetLabel: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 15,
-        fontWeight: '500',
+        fontWeight: '600',
         marginBottom: 6,
     },
     presetLabelActive: {
-        color: '#C9A84C',
-        fontWeight: '600',
+        color: '#f2930d',
+        fontWeight: '700',
     },
     presetTarget: {
-        color: '#9A9590',
+        color: '#8A8A8A',
         fontSize: 12,
         fontWeight: '600',
         letterSpacing: 1,
     },
     presetTargetActive: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
     },
 });

@@ -4,6 +4,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, Platform } from 'react-native';
 import { DatabaseProvider } from '../context/DatabaseContext';
 import { LanguageProvider } from '../context/LanguageContext';
+import { AudioProvider } from '../context/AudioContext';
+import MiniAudioPlayer from '../components/MiniAudioPlayer';
 import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
 
@@ -51,6 +53,7 @@ export default function RootLayout() {
         <SafeAreaProvider>
             <LanguageProvider>
                 <DatabaseProvider>
+                    <AudioProvider>
                     <View style={{ flex: 1, backgroundColor: '#0C0F0E' }}>
                         <StatusBar style="light" />
                         <Stack
@@ -61,7 +64,9 @@ export default function RootLayout() {
                         >
                             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                         </Stack>
+                        <MiniAudioPlayer />
                     </View>
+                    </AudioProvider>
                 </DatabaseProvider>
             </LanguageProvider>
         </SafeAreaProvider>

@@ -30,18 +30,21 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
         const initDb = async () => {
             try {
                 const dbName = 'noor_v12.db';
-                const sqliteDir = `${FileSystem.documentDirectory}SQLite`;
-                const dbFilePath = `${sqliteDir}/${dbName}`;
-
-                const dirInfo = await FileSystem.getInfoAsync(sqliteDir);
-                if (!dirInfo.exists) {
-                    await FileSystem.makeDirectoryAsync(sqliteDir, { intermediates: true });
-                }
+                // Safely use FileSystem.documentDirectory which passes all expo-file-system write validations.
+                // SQLite defaults to this 'SQLite' subfolder.
+                const dbDirectory = `${FileSystem.documentDirectory}SQLite`;
+                const dbFilePath = `${dbDirectory}/${dbName}`;
 
                 const fileInfo = await FileSystem.getInfoAsync(dbFilePath);
 
                 if (!fileInfo.exists) {
                     console.log("Offline Database not found locally. Extracting from bundle...");
+                    // Ensure the SQLite directory exists before copying
+                    const dirInfo = await FileSystem.getInfoAsync(dbDirectory);
+                    if (!dirInfo.exists) {
+                        await FileSystem.makeDirectoryAsync(dbDirectory, { intermediates: true });
+                    }
+
                     const asset = Asset.fromModule(require('../assets/noor.db'));
                     await asset.downloadAsync();
 

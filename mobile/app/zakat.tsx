@@ -29,7 +29,7 @@ export default function ZakatScreen() {
         >
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Feather name="chevron-left" size={28} color="#E8E6E1" />
+                    <Feather name="chevron-left" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Zakat Calculator</Text>
                 <View style={{ width: 40 }} />
@@ -60,14 +60,14 @@ export default function ZakatScreen() {
 
                     <View style={styles.inputGroup}>
                         <View style={styles.inputLabelRow}>
-                            <Feather name="dollar-sign" size={16} color="#C9A84C" />
+                            <Feather name="dollar-sign" size={16} color="#f2930d" />
                             <Text style={styles.inputLabel}>Cash & Bank Balance</Text>
                         </View>
                         <TextInput
                             style={styles.input}
                             keyboardType="decimal-pad"
                             placeholder="0.00"
-                            placeholderTextColor="#5E5C58"
+                            placeholderTextColor="#A0A0A0"
                             value={cash}
                             onChangeText={setCash}
                         />
@@ -75,14 +75,14 @@ export default function ZakatScreen() {
 
                     <View style={styles.inputGroup}>
                         <View style={styles.inputLabelRow}>
-                            <Feather name="box" size={16} color="#C9A84C" />
+                            <Feather name="box" size={16} color="#f2930d" />
                             <Text style={styles.inputLabel}>Gold & Silver Value</Text>
                         </View>
                         <TextInput
                             style={styles.input}
                             keyboardType="decimal-pad"
                             placeholder="0.00"
-                            placeholderTextColor="#5E5C58"
+                            placeholderTextColor="#A0A0A0"
                             value={goldSilver}
                             onChangeText={setGoldSilver}
                         />
@@ -90,14 +90,14 @@ export default function ZakatScreen() {
 
                     <View style={styles.inputGroup}>
                         <View style={styles.inputLabelRow}>
-                            <Feather name="trending-up" size={16} color="#C9A84C" />
+                            <Feather name="trending-up" size={16} color="#f2930d" />
                             <Text style={styles.inputLabel}>Investments & Shares</Text>
                         </View>
                         <TextInput
                             style={styles.input}
                             keyboardType="decimal-pad"
                             placeholder="0.00"
-                            placeholderTextColor="#5E5C58"
+                            placeholderTextColor="#A0A0A0"
                             value={investments}
                             onChangeText={setInvestments}
                         />
@@ -114,7 +114,7 @@ export default function ZakatScreen() {
                             style={styles.input}
                             keyboardType="decimal-pad"
                             placeholder="0.00"
-                            placeholderTextColor="#5E5C58"
+                            placeholderTextColor="#A0A0A0"
                             value={debts}
                             onChangeText={setDebts}
                         />
@@ -129,7 +129,7 @@ export default function ZakatScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0C0F0E',
+        backgroundColor: '#FDF8F0',
     },
     header: {
         flexDirection: 'row',
@@ -146,9 +146,9 @@ const styles = StyleSheet.create({
         marginLeft: -10,
     },
     headerTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 18,
-        fontWeight: '500',
+        fontWeight: '600',
         letterSpacing: 0.5,
     },
     scrollContent: {
@@ -157,22 +157,27 @@ const styles = StyleSheet.create({
         paddingTop: 20,
     },
     resultCard: {
-        backgroundColor: 'rgba(31, 78, 61, 0.2)', // Forest Green tint
+        backgroundColor: '#FFFFFF',
         borderRadius: 24,
         padding: 30,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(201, 168, 76, 0.3)', // Gold border
+        borderColor: 'rgba(0,0,0,0.02)',
         marginBottom: 40,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
     },
     resultLabel: {
-        color: '#9A9590',
+        color: '#8A8A8A',
         fontSize: 14,
         letterSpacing: 0.5,
         marginBottom: 10,
+        fontWeight: '500',
     },
     resultAmount: {
-        color: '#C9A84C', // Gold
+        color: '#f2930d',
         fontSize: 42,
         fontWeight: '300',
         letterSpacing: -1,
@@ -180,9 +185,11 @@ const styles = StyleSheet.create({
     },
     resultDetails: {
         width: '100%',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: '#FDF8F0',
         borderRadius: 12,
         padding: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.02)',
     },
     detailItem: {
         flexDirection: 'row',
@@ -190,11 +197,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     detailLabel: {
-        color: '#E8E6E1',
+        color: '#8A8A8A',
         fontSize: 14,
+        fontWeight: '500',
     },
     detailValue: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 16,
         fontWeight: '600',
     },
@@ -202,9 +210,9 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     sectionTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 18,
-        fontWeight: '500',
+        fontWeight: '600',
         marginBottom: 20,
     },
     inputGroup: {
@@ -217,16 +225,21 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     inputLabel: {
-        color: '#9A9590',
+        color: '#8A8A8A',
         fontSize: 14,
+        fontWeight: '500',
     },
     input: {
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        backgroundColor: '#FFFFFF',
         borderRadius: 12,
         padding: 16,
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 18,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: 'rgba(0,0,0,0.04)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.02,
+        shadowRadius: 4,
     },
 });

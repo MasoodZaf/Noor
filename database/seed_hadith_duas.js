@@ -31,7 +31,53 @@ async function seedDatabase() {
         }
     });
 
-    db.serialize(async () => {
+    console.log("Fetching top Hadiths from external API...");
+    let allHadithsToInsert = [];
+    try {
+        let globalHadithId = 1;
+
+        for (const collection of HADITH_COLLECTIONS) {
+            console.log(`Fetching ${collection.en}...`);
+            try {
+                const [reqEng, reqAr, reqUrdu] = await Promise.all([
+                    fetch(`https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/eng-${collection.slug}.json`),
+                    fetch(`https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/ara-${collection.slug}.json`),
+                    fetch(`https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/urd-${collection.slug}.json`)
+                ]);
+
+                const dataEng = await reqEng.json();
+                const dataAr = await reqAr.json();
+                const dataUrdu = await reqUrdu.json();
+
+                // Grab first 150 from each to keep db lightweight
+                const sampleEng = dataEng.hadiths.slice(0, 150);
+                const sampleAr = dataAr.hadiths.slice(0, 150);
+                const sampleUrdu = dataUrdu.hadiths.slice(0, 150);
+
+                sampleEng.forEach((h, idx) => {
+                    const arText = sampleAr[idx] ? sampleAr[idx].text : h.text;
+                    const urduText = sampleUrdu[idx] ? sampleUrdu[idx].text : h.text;
+                    allHadithsToInsert.push({
+                        id: globalHadithId,
+                        colSlug: collection.slug,
+                        num: String(h.hadithnumber),
+                        ar: arText,
+                        en: h.text,
+                        ur: urduText,
+                        grade: h.grades?.[0]?.grade || 'Sahih',
+                        narrator: 'Narrated by Companions'
+                    });
+                    globalHadithId++;
+                });
+            } catch (colErr) {
+                console.log(`Failed to fetch ${collection.slug}: ${colErr.message}`);
+            }
+        }
+    } catch (e) {
+        console.log("Could not fetch Hadith from internet, proceeding with default seeds.", e.message);
+    }
+
+    db.serialize(() => {
         db.run("BEGIN TRANSACTION");
 
         // 1. Seed Dua Categories
@@ -49,52 +95,19 @@ async function seedDatabase() {
         HADITH_COLLECTIONS.forEach(c => insertCollection.run(c.slug, c.en, c.ar, c.count));
         insertCollection.finalize();
 
-        // 4. Fetch up to 150 Hadiths per collection
-        console.log("Fetching top Hadiths from external API...");
-        try {
+        // 4. Insert fetched hadiths
+        if (allHadithsToInsert.length > 0) {
             const insertHadith = db.prepare(`INSERT OR IGNORE INTO hadiths (id, collection_slug, hadith_number, arabic_text, english_text, urdu_text, grade, narrator_chain) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
             const insertFTS = db.prepare(`INSERT OR IGNORE INTO hadiths_fts (rowid, english_text, arabic_text) VALUES (?, ?, ?)`);
 
-            let globalHadithId = 1;
-            let totalSeeded = 0;
-
-            for (const collection of HADITH_COLLECTIONS) {
-                console.log(`Fetching ${collection.en}...`);
-                try {
-                    const [reqEng, reqAr, reqUrdu] = await Promise.all([
-                        fetch(`https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/eng-${collection.slug}.json`),
-                        fetch(`https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/ara-${collection.slug}.json`),
-                        fetch(`https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/urd-${collection.slug}.json`)
-                    ]);
-
-                    const dataEng = await reqEng.json();
-                    const dataAr = await reqAr.json();
-                    const dataUrdu = await reqUrdu.json();
-
-                    // Grab first 150 from each to keep db lightweight
-                    const sampleEng = dataEng.hadiths.slice(0, 150);
-                    const sampleAr = dataAr.hadiths.slice(0, 150);
-                    const sampleUrdu = dataUrdu.hadiths.slice(0, 150);
-
-                    sampleEng.forEach((h, idx) => {
-                        const arText = sampleAr[idx] ? sampleAr[idx].text : h.text;
-                        const urduText = sampleUrdu[idx] ? sampleUrdu[idx].text : h.text;
-                        insertHadith.run(globalHadithId, collection.slug, String(h.hadithnumber), arText, h.text, urduText, h.grades?.[0]?.grade || 'Sahih', 'Narrated by Companions');
-                        insertFTS.run(globalHadithId, h.text, arText);
-                        globalHadithId++;
-                        totalSeeded++;
-                    });
-                } catch (colErr) {
-                    console.log(`Failed to fetch ${collection.slug}: ${colErr.message}`);
-                }
-            }
+            allHadithsToInsert.forEach(h => {
+                insertHadith.run(h.id, h.colSlug, h.num, h.ar, h.en, h.ur, h.grade, h.narrator);
+                insertFTS.run(h.id, h.en, h.ar);
+            });
 
             insertHadith.finalize();
             insertFTS.finalize();
-
-            console.log(`Successfully seeded ${totalSeeded} Total Hadiths across multiple books!`);
-        } catch (e) {
-            console.log("Could not fetch Hadith from internet, proceeding with default seeds.", e.message);
+            console.log(`Successfully seeded ${allHadithsToInsert.length} Total Hadiths across multiple books!`);
         }
 
         db.run("COMMIT", (err) => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, ActivityIndicator, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -13,12 +14,31 @@ const { width } = Dimensions.get('window');
 const MECCA_LAT = 21.422487;
 const MECCA_LON = 39.826206;
 
+const ALADHAN_QIBLA = 'https://api.aladhan.com/v1/qibla';
+
+const reverseGeocode = async (lat: number, lon: number): Promise<{ locality: string; countryCode: string }> => {
+    const res = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`
+    );
+    if (!res.ok) throw new Error(`BigDataCloud ${res.status}`);
+    const d = await res.json();
+    return {
+        locality: d.locality || d.city || d.principalSubdivision || '',
+        countryCode: d.countryCode || '',
+    };
+};
+
+const qiblaCacheKey = (lat: number, lng: number) =>
+    `@qibla_${Math.round(lat * 100)}_${Math.round(lng * 100)}`;
+
 export default function QiblaScreen() {
     const insets = useSafeAreaInsets();
     const [heading, setHeading] = useState(0);
     const [qiblaDirection, setQiblaDirection] = useState(0);
     const [locationReady, setLocationReady] = useState(false);
     const [distance, setDistance] = useState(0);
+    const [cityName, setCityName] = useState('');
+    const [qiblaSource, setQiblaSource] = useState<'api' | 'cache' | 'offline'>('api');
     const [errorMsg, setErrorMsg] = useState('');
 
     const calculateQibla = (lat1: number, lon1: number) => {
@@ -50,30 +70,94 @@ export default function QiblaScreen() {
 
     useEffect(() => {
         let headingSub: Location.LocationSubscription | null = null;
+        let isMounted = true;
 
         (async () => {
             let { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
-                setErrorMsg('Permission to access location was denied');
+                if (isMounted) setErrorMsg('Permission to access location was denied');
                 return;
             }
 
-            let location = await Location.getCurrentPositionAsync({});
+            let location;
+            try {
+                location = await Location.getCurrentPositionAsync({});
+            } catch (error) {
+                console.warn("Location unavailable for Qibla, falling back to Makkah", error);
+                location = { coords: { latitude: 21.4225, longitude: 39.8262 } };
+            }
             const { latitude, longitude } = location.coords;
 
-            setQiblaDirection(calculateQibla(latitude, longitude));
-            setDistance(Math.round(calculateDistance(latitude, longitude)));
-            setLocationReady(true);
+            if (isMounted) {
+                // BigDataCloud: district-level reverse geocoding, global precision
+                try {
+                    const geo = await reverseGeocode(latitude, longitude);
+                    if (isMounted && geo.locality) {
+                        setCityName(geo.countryCode ? `${geo.locality}, ${geo.countryCode}` : geo.locality);
+                    }
+                } catch (_) { /* silently skip */ }
+
+                const cacheKey = qiblaCacheKey(latitude, longitude);
+
+                // 1. Try AsyncStorage cache
+                let qiblaSet = false;
+                try {
+                    const cached = await AsyncStorage.getItem(cacheKey);
+                    if (cached) {
+                        const dir = parseFloat(cached);
+                        if (!isNaN(dir) && isMounted) {
+                            setQiblaDirection(dir);
+                            setQiblaSource('cache');
+                            qiblaSet = true;
+                        }
+                    }
+                } catch (_) { }
+
+                // 2. Fetch from AlAdhan Qibla API
+                if (!qiblaSet) {
+                    try {
+                        const qiblaRes = await fetch(`${ALADHAN_QIBLA}/${latitude}/${longitude}`);
+                        const qiblaData = await qiblaRes.json();
+                        if (qiblaData.code === 200 && qiblaData.data?.direction != null) {
+                            const dir: number = qiblaData.data.direction;
+                            if (isMounted) {
+                                setQiblaDirection(dir);
+                                setQiblaSource('api');
+                            }
+                            // Cache for future visits
+                            AsyncStorage.setItem(cacheKey, String(dir)).catch(() => { });
+                            qiblaSet = true;
+                        } else {
+                            throw new Error("Invalid Qibla API response");
+                        }
+                    } catch (e) {
+                        console.warn("Falling back to local math for Qibla", e);
+                    }
+                }
+
+                // 3. Offline math fallback
+                if (!qiblaSet && isMounted) {
+                    setQiblaDirection(calculateQibla(latitude, longitude));
+                    setQiblaSource('offline');
+                }
+
+                setDistance(Math.round(calculateDistance(latitude, longitude)));
+                if (isMounted) setLocationReady(true);
+            }
 
             headingSub = await Location.watchHeadingAsync((headingData) => {
-                // Native OS sensor-fusion via CoreLocation. Handles Tilt/Yaw perfectly natively!
-                // Using un-rounded decimal degrees ensures silky smooth sub-degree rotation on SVG frame
                 const rawAngle = headingData.trueHeading >= 0 ? headingData.trueHeading : headingData.magHeading;
-                setHeading(rawAngle);
+                if (isMounted) setHeading(rawAngle);
             });
+
+            // If the component already unmounted during the async setup
+            if (!isMounted && headingSub) {
+                headingSub.remove();
+            }
         })();
 
         return () => {
+            isMounted = false;
             if (headingSub) {
                 headingSub.remove();
             }
@@ -113,7 +197,9 @@ export default function QiblaScreen() {
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Qibla Compass</Text>
-                <Text style={styles.headerSubtitle}>Locate the Kaaba instantly anywhere.</Text>
+                <Text style={styles.headerSubtitle}>
+                    {cityName ? cityName : 'Locate the Kaaba instantly anywhere.'}
+                </Text>
             </View>
 
             <View style={styles.compassContainer}>
@@ -222,6 +308,16 @@ export default function QiblaScreen() {
                     </View>
                     <View style={styles.divider} />
                     <View style={styles.infoBlock}>
+                        <Text style={styles.infoLabel}>Qibla</Text>
+                        <Text style={[styles.infoData, isAligned && { color: '#C9A84C' }]}>
+                            {Math.round(qiblaDirection)}°
+                        </Text>
+                        <Text style={styles.sourceTag}>
+                            {qiblaSource === 'api' ? '· Live' : qiblaSource === 'cache' ? '· Cached' : '· Offline'}
+                        </Text>
+                    </View>
+                    <View style={styles.divider} />
+                    <View style={styles.infoBlock}>
                         <Text style={styles.infoLabel}>Heading</Text>
                         <Text style={[styles.infoData, isAligned && { color: '#C9A84C' }]}>
                             {Math.round(heading)}°
@@ -255,6 +351,7 @@ const styles = StyleSheet.create({
     infoLabel: { color: '#9A9590', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
     infoData: { color: '#E8E6E1', fontSize: 28, fontWeight: '300', fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-light' },
     smTxt: { fontSize: 14, color: '#9A9590' },
+    sourceTag: { color: '#5E5C58', fontSize: 10, marginTop: 2 },
     statusPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 30, backgroundColor: 'rgba(201, 168, 76, 0.1)', borderWidth: 1, borderColor: 'rgba(201, 168, 76, 0.3)' },
     statusText: { color: '#C9A84C', fontSize: 15, fontWeight: '600' },
     statusPillAligned: { backgroundColor: '#C9A84C' },

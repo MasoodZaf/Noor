@@ -29,10 +29,17 @@ async function seed() {
 
     db.serialize(() => {
         // 1. Alter Ayahs Table
-        try {
-            db.run("ALTER TABLE ayahs ADD COLUMN text_urdu TEXT;");
-            console.log("Added text_urdu column to ayahs.");
-        } catch (e) { console.log(e.message); } // Might already exist
+        console.log("Adding text_urdu column to ayahs (if not exists)...");
+        db.run("ALTER TABLE ayahs ADD COLUMN text_urdu TEXT;", (err) => {
+            if (err) {
+                // Ignore "duplicate column name" error, throw otherwise
+                if (!err.message.includes('duplicate column')) {
+                    console.log("Notice: " + err.message);
+                }
+            } else {
+                console.log("Added text_urdu column to ayahs.");
+            }
+        });
 
         console.log("Updating Quran Ayahs with Urdu...");
         db.run("BEGIN TRANSACTION;");
