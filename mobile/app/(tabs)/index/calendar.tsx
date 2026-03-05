@@ -186,7 +186,7 @@ export default function CalendarScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Feather name="chevron-left" size={28} color="#E8E6E1" />
+                    <Feather name="chevron-left" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Hijri Calendar</Text>
                 <View style={{ width: 40 }} />
@@ -197,7 +197,7 @@ export default function CalendarScreen() {
                 {/* Month Selector */}
                 <View style={styles.monthSelector}>
                     <TouchableOpacity onPress={goToPrev} style={styles.navBtn} disabled={loading}>
-                        <Feather name="chevron-left" size={24} color={loading ? '#3A3A3A' : '#9A9590'} />
+                        <Feather name="chevron-left" size={24} color={loading ? '#3A3A3A' : '#5E5C58'} />
                     </TouchableOpacity>
 
                     <View style={styles.monthTextContainer}>
@@ -217,7 +217,7 @@ export default function CalendarScreen() {
                     </View>
 
                     <TouchableOpacity onPress={goToNext} style={styles.navBtn} disabled={loading}>
-                        <Feather name="chevron-right" size={24} color={loading ? '#3A3A3A' : '#9A9590'} />
+                        <Feather name="chevron-right" size={24} color={loading ? '#3A3A3A' : '#5E5C58'} />
                     </TouchableOpacity>
                 </View>
 
@@ -279,7 +279,7 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0C0F0E',
+        backgroundColor: '#FDF8F0',
     },
     header: {
         flexDirection: 'row',
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
         marginLeft: -10,
     },
     headerTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 18,
         fontWeight: '500',
         letterSpacing: 0.5,
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     gregorianMonth: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 14,
         fontWeight: '400',
         marginBottom: 6,
@@ -351,12 +351,12 @@ const styles = StyleSheet.create({
         fontSize: 11,
     },
     calendarContainer: {
-        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        backgroundColor: '#FFFFFF',
         marginHorizontal: 20,
         borderRadius: 24,
         padding: 20,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
         marginBottom: 40,
     },
     daysOfWeek: {
@@ -399,10 +399,10 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(201, 168, 76, 0.5)',
     },
     dayCellHoliday: {
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
     },
     dayText: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 16,
         fontWeight: '500',
     },
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     dayTextHoliday: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
     },
     holidayDot: {
         width: 4,
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
         marginTop: 3,
     },
     sectionTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 18,
         fontWeight: '500',
         paddingHorizontal: 24,
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         padding: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
     },
     eventDate: {
         backgroundColor: 'rgba(201, 168, 76, 0.1)',
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     eventMonth: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 11,
         marginTop: 2,
         textTransform: 'uppercase',
@@ -464,13 +464,13 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     eventTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 15,
         fontWeight: '500',
         marginBottom: 4,
     },
     eventSubTitle: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 13,
     },
     noHolidaysBlock: {

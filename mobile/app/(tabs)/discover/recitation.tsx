@@ -254,7 +254,7 @@ export default function RecitationScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                    <Feather name="chevron-left" size={28} color="#E8E6E1" />
+                    <Feather name="chevron-left" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
                     <Text style={styles.headerTitle}>Recitation</Text>
@@ -290,7 +290,7 @@ export default function RecitationScreen() {
                             <Text style={styles.surahSelectorSub}>{selectedSurah.ayahs} ayahs</Text>
                         </View>
                     </View>
-                    <Feather name={showSurahPicker ? 'chevron-up' : 'chevron-down'} size={20} color="#9A9590" />
+                    <Feather name={showSurahPicker ? 'chevron-up' : 'chevron-down'} size={20} color="#5E5C58" />
                 </TouchableOpacity>
 
                 {/* Surah picker dropdown */}
@@ -324,7 +324,7 @@ export default function RecitationScreen() {
                                 key={i}
                                 style={[
                                     styles.waveBar,
-                                    { height: bar, backgroundColor: recState === 'recording' ? '#C9A84C' : 'rgba(255,255,255,0.1)' },
+                                    { height: bar, backgroundColor: recState === 'recording' ? '#C9A84C' : 'rgba(0,0,0,0.08)' },
                                 ]}
                             />
                         ))}
@@ -347,11 +347,11 @@ export default function RecitationScreen() {
                         activeOpacity={0.85}
                     >
                         {recState === 'processing' ? (
-                            <Feather name="loader" size={28} color="#0C0F0E" />
+                            <Feather name="loader" size={28} color="#FDF8F0" />
                         ) : recState === 'recording' ? (
-                            <Feather name="square" size={28} color="#0C0F0E" />
+                            <Feather name="square" size={28} color="#FDF8F0" />
                         ) : (
-                            <Feather name="mic" size={28} color={recState === 'done' ? '#0C0F0E' : '#C9A84C'} />
+                            <Feather name="mic" size={28} color={recState === 'done' ? '#FDF8F0' : '#C9A84C'} />
                         )}
                     </TouchableOpacity>
 
@@ -439,7 +439,7 @@ export default function RecitationScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0C0F0E' },
+    container: { flex: 1, backgroundColor: '#FDF8F0' },
 
     header: {
         flexDirection: 'row',
@@ -448,11 +448,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         height: 64,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.05)',
+        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
     headerCenter: { alignItems: 'center' },
-    headerTitle: { color: '#E8E6E1', fontSize: 18, fontWeight: '500' },
+    headerTitle: { color: '#1A1A1A', fontSize: 18, fontWeight: '500' },
     liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
     liveDot: { width: 6, height: 6, borderRadius: 3 },
     liveText: { color: '#5E5C58', fontSize: 11 },
@@ -479,8 +479,8 @@ const styles = StyleSheet.create({
         alignItems: 'center', justifyContent: 'center',
     },
     surahNumberText: { color: '#C9A84C', fontWeight: '700', fontSize: 14 },
-    surahSelectorName: { color: '#E8E6E1', fontSize: 16, fontWeight: '500' },
-    surahSelectorSub: { color: '#9A9590', fontSize: 12, marginTop: 2 },
+    surahSelectorName: { color: '#1A1A1A', fontSize: 16, fontWeight: '500' },
+    surahSelectorSub: { color: '#5E5C58', fontSize: 12, marginTop: 2 },
 
     surahDropdown: {
         marginHorizontal: 20,
@@ -502,7 +502,7 @@ const styles = StyleSheet.create({
     },
     surahOptionActive: { backgroundColor: 'rgba(201,168,76,0.07)' },
     surahOptionNum: { color: '#5E5C58', fontSize: 13, width: 28, textAlign: 'right' },
-    surahOptionName: { color: '#E8E6E1', fontSize: 15, flex: 1 },
+    surahOptionName: { color: '#1A1A1A', fontSize: 15, flex: 1 },
 
     // Recording
     recordingArea: { alignItems: 'center', paddingVertical: 40 },
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
         borderRadius: 2,
         minHeight: 4,
     },
-    durationText: { color: '#9A9590', fontSize: 14, marginBottom: 20 },
+    durationText: { color: '#5E5C58', fontSize: 14, marginBottom: 20 },
     recordBtn: {
         width: 80,
         height: 80,
@@ -562,11 +562,11 @@ const styles = StyleSheet.create({
     scoreNumber: { fontSize: 26, fontWeight: '700' },
     scoreLabel: { color: '#5E5C58', fontSize: 11 },
     scoreInfo: { flex: 1 },
-    scoreTitle: { color: '#E8E6E1', fontSize: 18, fontWeight: '500', marginBottom: 6 },
-    scoreFeedback: { color: '#9A9590', fontSize: 13, lineHeight: 20 },
+    scoreTitle: { color: '#1A1A1A', fontSize: 18, fontWeight: '500', marginBottom: 6 },
+    scoreFeedback: { color: '#5E5C58', fontSize: 13, lineHeight: 20 },
 
     mistakesTitle: {
-        color: '#E8E6E1', fontSize: 16, fontWeight: '500',
+        color: '#1A1A1A', fontSize: 16, fontWeight: '500',
         marginBottom: 12,
     },
     mistakeCard: {
@@ -585,11 +585,11 @@ const styles = StyleSheet.create({
     },
     ruleTagText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
     mistakeWord: {
-        color: '#E8E6E1', fontSize: 22, lineHeight: 36, textAlign: 'right',
+        color: '#1A1A1A', fontSize: 22, lineHeight: 36, textAlign: 'right',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
         marginBottom: 6,
     },
-    mistakeCorrection: { color: '#9A9590', fontSize: 14, lineHeight: 20 },
+    mistakeCorrection: { color: '#5E5C58', fontSize: 14, lineHeight: 20 },
 
     perfectCard: {
         flexDirection: 'row', alignItems: 'center', gap: 14,
@@ -607,11 +607,11 @@ const styles = StyleSheet.create({
         marginTop: 8, marginBottom: 16,
     },
     upsellTitle: { color: '#C9A84C', fontSize: 16, fontWeight: '600', marginBottom: 8 },
-    upsellText: { color: '#9A9590', fontSize: 14, lineHeight: 21, textAlign: 'center', marginBottom: 12 },
+    upsellText: { color: '#5E5C58', fontSize: 14, lineHeight: 21, textAlign: 'center', marginBottom: 12 },
     upsellKey: {
         color: '#5E5C58', fontSize: 11,
         fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
     },
 
@@ -624,8 +624,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10, paddingVertical: 6,
         backgroundColor: 'rgba(255,255,255,0.03)',
         borderRadius: 8, borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
     },
     legendDot: { width: 8, height: 8, borderRadius: 4 },
-    legendText: { color: '#9A9590', fontSize: 12 },
+    legendText: { color: '#5E5C58', fontSize: 12 },
 });

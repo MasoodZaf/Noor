@@ -38,7 +38,7 @@ export default function LiveScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Feather name="chevron-left" size={28} color="#E8E6E1" />
+                    <Feather name="chevron-left" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Live Broadcasts</Text>
                 <View style={{ width: 40 }} />
@@ -65,7 +65,7 @@ export default function LiveScreen() {
 
                             {/* Viewers Overlay */}
                             <View style={styles.viewersBadge}>
-                                <Feather name="users" size={12} color="#E8E6E1" />
+                                <Feather name="users" size={12} color="#1A1A1A" />
                                 <Text style={styles.viewersText}>{activeStream.viewers}</Text>
                             </View>
                         </View>
@@ -96,7 +96,7 @@ export default function LiveScreen() {
                         >
                             {/* Thumbnail Mock */}
                             <View style={styles.streamThumbnail}>
-                                <Feather name="video" size={24} color="#9A9590" />
+                                <Feather name="video" size={24} color="#5E5C58" />
                                 {stream.live && (
                                     <View style={styles.smallLiveBadge}>
                                         <Text style={styles.smallLiveText}>LIVE</Text>
@@ -132,7 +132,7 @@ export default function LiveScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0C0F0E',
+        backgroundColor: '#FDF8F0',
     },
     header: {
         flexDirection: 'row',
@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
         marginLeft: -10,
     },
     headerTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 18,
         fontWeight: '500',
         letterSpacing: 0.5,
@@ -157,9 +157,9 @@ const styles = StyleSheet.create({
     videoPlayerContainer: {
         width: width,
         height: width * 0.5625, // 16:9 Aspect Ratio
-        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        backgroundColor: '#FFFFFF',
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     loadingWrapper: {
         flex: 1,
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     loadingText: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 14,
         letterSpacing: 0.5,
     },
@@ -216,17 +216,17 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     viewersText: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 12,
         fontWeight: '500',
     },
     streamInfoContainer: {
         padding: 24,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     streamTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 22,
         fontWeight: '500',
         letterSpacing: 0.5,
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
         padding: 24,
     },
     sectionTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 18,
         fontWeight: '500',
         marginBottom: 16,
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
     },
     streamCardActive: {
         backgroundColor: 'rgba(31, 78, 61, 0.2)',
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
         width: 80,
         height: 50,
         borderRadius: 8,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 16,
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     cardTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 16,
         fontWeight: '500',
         marginBottom: 4,
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
         color: '#C9A84C',
     },
     cardLocation: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 13,
     },
     playingIndicator: {

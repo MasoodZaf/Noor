@@ -264,9 +264,9 @@ export default function QiblaScreen() {
 
                         {/* Exact Cardinal Letters anchored perfectly */}
                         <SvgText x="199" y="25" fill="url(#redGrad)" fontSize="24" fontWeight="800" textAnchor="middle">N</SvgText>
-                        <SvgText x="382" y="206" fill="#E8E6E1" fontSize="18" fontWeight="600" textAnchor="middle">E</SvgText>
-                        <SvgText x="200" y="394" fill="#E8E6E1" fontSize="18" fontWeight="600" textAnchor="middle">S</SvgText>
-                        <SvgText x="18" y="206" fill="#E8E6E1" fontSize="18" fontWeight="600" textAnchor="middle">W</SvgText>
+                        <SvgText x="382" y="206" fill="#1A1A1A" fontSize="18" fontWeight="600" textAnchor="middle">E</SvgText>
+                        <SvgText x="200" y="394" fill="#1A1A1A" fontSize="18" fontWeight="600" textAnchor="middle">S</SvgText>
+                        <SvgText x="18" y="206" fill="#1A1A1A" fontSize="18" fontWeight="600" textAnchor="middle">W</SvgText>
 
                         {/* Qibla Indicator Arrow rotated exactly relative to true North */}
                         <G transform={`rotate(${qiblaDirection}, 200, 200)`}>
@@ -275,11 +275,11 @@ export default function QiblaScreen() {
                             <Line x1="200" y1="200" x2="200" y2="80" stroke={isAligned ? "url(#goldGrad)" : "rgba(201, 168, 76, 0.3)"} strokeWidth="3" strokeDasharray="4,4" />
 
                             {/* Pointer Head */}
-                            <Path d="M188 85 L200 60 L212 85 Z" fill={isAligned ? "url(#goldGrad)" : "#E8E6E1"} />
+                            <Path d="M188 85 L200 60 L212 85 Z" fill={isAligned ? "url(#goldGrad)" : "#1A1A1A"} />
 
                             {/* Kaaba floating icon at target bounds */}
                             <G transform="translate(186, 25)">
-                                <Rect width="28" height="30" fill="#0C0F0E" stroke={isAligned ? "url(#goldGrad)" : "rgba(255,255,255,0.7)"} strokeWidth="2" rx="3" />
+                                <Rect width="28" height="30" fill="#FDF8F0" stroke={isAligned ? "url(#goldGrad)" : "rgba(255,255,255,0.7)"} strokeWidth="2" rx="3" />
                                 {/* Kiswah Gold lines */}
                                 <Line x1="0" y1="8" x2="28" y2="8" stroke={isAligned ? "url(#goldGrad)" : "rgba(255,255,255,0.7)"} strokeWidth="2" />
                                 <Line x1="0" y1="12" x2="28" y2="12" stroke={isAligned ? "url(#goldGrad)" : "rgba(255,255,255,0.5)"} strokeWidth="1" />
@@ -299,7 +299,7 @@ export default function QiblaScreen() {
 
             <View style={styles.infoWrapper}>
                 <LinearGradient
-                    colors={['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.01)']}
+                    colors={['rgba(0,0,0,0.05)', 'rgba(255, 255, 255, 0.01)']}
                     style={styles.infoCard}
                 >
                     <View style={styles.infoBlock}>
@@ -326,7 +326,7 @@ export default function QiblaScreen() {
                 </LinearGradient>
 
                 <View style={[styles.statusPill, isAligned && styles.statusPillAligned]}>
-                    <Feather name={isAligned ? "check-circle" : "compass"} size={16} color={isAligned ? "#0C0F0E" : "#C9A84C"} style={{ marginRight: 8 }} />
+                    <Feather name={isAligned ? "check-circle" : "compass"} size={16} color={isAligned ? "#FDF8F0" : "#C9A84C"} style={{ marginRight: 8 }} />
                     <Text style={[styles.statusText, isAligned && styles.statusTextAligned]}>
                         {isAligned ? 'Qibla found. You are aligned.' : 'Rotate Phone to point at Kaaba.'}
                     </Text>
@@ -337,23 +337,23 @@ export default function QiblaScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0C0F0E' },
-    locatingText: { color: '#9A9590', fontSize: 16, marginTop: 20 },
+    container: { flex: 1, backgroundColor: '#FDF8F0' },
+    locatingText: { color: '#5E5C58', fontSize: 16, marginTop: 20 },
     errorText: { color: '#E53E3E', fontSize: 16, marginTop: 10, textAlign: 'center', paddingHorizontal: 40 },
     header: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 10 },
-    headerTitle: { color: '#E8E6E1', fontSize: 32, fontWeight: '300', letterSpacing: 0.5 },
-    headerSubtitle: { color: '#9A9590', fontSize: 15, marginTop: 4 },
+    headerTitle: { color: '#1A1A1A', fontSize: 32, fontWeight: '300', letterSpacing: 0.5 },
+    headerSubtitle: { color: '#5E5C58', fontSize: 15, marginTop: 4 },
     compassContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     infoWrapper: { paddingHorizontal: 24, paddingBottom: 50 },
-    infoCard: { flexDirection: 'row', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', marginBottom: 20 },
+    infoCard: { flexDirection: 'row', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)', marginBottom: 20 },
     infoBlock: { flex: 1, alignItems: 'center' },
-    divider: { width: 1, backgroundColor: 'rgba(255,255,255,0.1)' },
-    infoLabel: { color: '#9A9590', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
-    infoData: { color: '#E8E6E1', fontSize: 28, fontWeight: '300', fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-light' },
-    smTxt: { fontSize: 14, color: '#9A9590' },
+    divider: { width: 1, backgroundColor: 'rgba(0,0,0,0.08)' },
+    infoLabel: { color: '#5E5C58', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
+    infoData: { color: '#1A1A1A', fontSize: 28, fontWeight: '300', fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-light' },
+    smTxt: { fontSize: 14, color: '#5E5C58' },
     sourceTag: { color: '#5E5C58', fontSize: 10, marginTop: 2 },
     statusPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 30, backgroundColor: 'rgba(201, 168, 76, 0.1)', borderWidth: 1, borderColor: 'rgba(201, 168, 76, 0.3)' },
     statusText: { color: '#C9A84C', fontSize: 15, fontWeight: '600' },
     statusPillAligned: { backgroundColor: '#C9A84C' },
-    statusTextAligned: { color: '#0C0F0E' }
+    statusTextAligned: { color: '#FDF8F0' }
 });

@@ -16,7 +16,7 @@ export default function TabLayout() {
                 tabBarStyle: {
                     backgroundColor: '#123D26', // Deep green theme background
                     borderTopWidth: 1,
-                    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+                    borderTopColor: 'rgba(0,0,0,0.05)',
                     elevation: 0,
                     shadowOpacity: 0,
                     height: Platform.OS === 'ios' ? 85 + insets.bottom : 80, // Increased Android height to 80

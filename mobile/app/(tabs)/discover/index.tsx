@@ -46,7 +46,7 @@ export default function DiscoverScreen() {
                         {/* Halal Places */}
                         <TouchableOpacity style={styles.gridTile} onPress={() => router.push('/discover/halal')} activeOpacity={0.9}>
                             <LinearGradient
-                                colors={['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.01)']}
+                                colors={['rgba(0,0,0,0.05)', 'rgba(255, 255, 255, 0.01)']}
                                 style={styles.gridGradient}
                             >
                                 <View style={[styles.gridIconBox, { backgroundColor: 'rgba(229, 62, 62, 0.1)' }]}>
@@ -60,7 +60,7 @@ export default function DiscoverScreen() {
                         {/* Makkah Live */}
                         <TouchableOpacity style={styles.gridTile} onPress={() => router.push('/discover/live')} activeOpacity={0.9}>
                             <LinearGradient
-                                colors={['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.01)']}
+                                colors={['rgba(0,0,0,0.05)', 'rgba(255, 255, 255, 0.01)']}
                                 style={styles.gridGradient}
                             >
                                 <View style={[styles.gridIconBox, { backgroundColor: 'rgba(49, 130, 206, 0.1)' }]}>
@@ -104,15 +104,15 @@ export default function DiscoverScreen() {
                     </View>
 
                     {/* Extra tools / knowledge */}
-                    <TouchableOpacity style={[styles.heroTile, { borderColor: 'rgba(255, 255, 255, 0.05)' }]} onPress={() => router.push('/discover/articles')} activeOpacity={0.9}>
+                    <TouchableOpacity style={[styles.heroTile, { borderColor: 'rgba(0,0,0,0.05)' }]} onPress={() => router.push('/discover/articles')} activeOpacity={0.9}>
                         <LinearGradient
-                            colors={['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.01)']}
+                            colors={['rgba(0,0,0,0.05)', 'rgba(255, 255, 255, 0.01)']}
                             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                             style={styles.heroGradient}
                         >
                             <View style={styles.heroContent}>
-                                <View style={[styles.heroIconBox, { backgroundColor: 'rgba(255, 255, 255, 0.05)' }]}>
-                                    <Feather name="book-open" size={28} color="#E8E6E1" />
+                                <View style={[styles.heroIconBox, { backgroundColor: 'rgba(0,0,0,0.05)' }]}>
+                                    <Feather name="book-open" size={28} color="#1A1A1A" />
                                 </View>
                                 <View style={styles.heroTextContent}>
                                     <Text style={styles.heroTitle}>Islamic Library</Text>
@@ -132,7 +132,7 @@ export default function DiscoverScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0C0F0E',
+        backgroundColor: '#FDF8F0',
     },
     scrollContent: {
         paddingBottom: 40,
@@ -145,13 +145,13 @@ const styles = StyleSheet.create({
         width: '100%',
     },
     titleText: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 34,
         fontWeight: '300',
         letterSpacing: 0.5,
     },
     subtitleText: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 16,
         letterSpacing: 0.5,
         marginTop: 6,
@@ -187,13 +187,13 @@ const styles = StyleSheet.create({
         paddingRight: 20,
     },
     heroTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 26,
         fontWeight: '500',
         marginBottom: 8,
     },
     heroSubtitle: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 15,
         lineHeight: 24,
     },
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
         borderRadius: 24,
         overflow: 'hidden',
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
     },
     gridGradient: {
         padding: 24,
@@ -224,19 +224,19 @@ const styles = StyleSheet.create({
         width: 52,
         height: 52,
         borderRadius: 16,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 20,
     },
     gridTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 18,
         fontWeight: '500',
         marginBottom: 8,
     },
     gridSubtitle: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 13,
         lineHeight: 20,
     },

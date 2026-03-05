@@ -52,7 +52,7 @@ export default function QuranIndexScreen() {
         return (
             <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
                 <ActivityIndicator size="large" color="#C9A84C" />
-                <Text style={{ color: '#9A9590', marginTop: 16 }}>Loading Mushaf...</Text>
+                <Text style={{ color: '#5E5C58', marginTop: 16 }}>Loading Mushaf...</Text>
             </View>
         );
     }
@@ -72,11 +72,11 @@ export default function QuranIndexScreen() {
                             <Text style={styles.hifzBannerSub}>Track memorization using SRS</Text>
                         </View>
                     </View>
-                    <Feather name="chevron-right" size={20} color="#9A9590" />
+                    <Feather name="chevron-right" size={20} color="#5E5C58" />
                 </TouchableOpacity>
 
                 <View style={styles.searchBar}>
-                    <Feather name="search" size={20} color="#9A9590" style={styles.searchIcon} />
+                    <Feather name="search" size={20} color="#5E5C58" style={styles.searchIcon} />
                     <TextInput
                         style={styles.searchInput}
                         placeholder="Search Surah or Juz..."
@@ -176,19 +176,19 @@ export default function QuranIndexScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0C0F0E',
+        backgroundColor: '#FDF8F0',
     },
     header: {
         paddingHorizontal: 24,
         paddingTop: 10,
         paddingBottom: 16,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     headerTitle: {
         fontSize: 28,
         fontWeight: '300',
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         marginBottom: 20,
         letterSpacing: 0.5,
     },
@@ -208,19 +208,19 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     hifzBannerTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 16,
         fontWeight: '600',
         marginBottom: 2,
     },
     hifzBannerSub: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 13,
     },
     searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         borderRadius: 12,
         paddingHorizontal: 16,
         height: 48,
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
     },
     searchInput: {
         flex: 1,
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 16,
     },
     tabContainer: {
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(201, 168, 76, 0.2)',
     },
     tabText: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 14,
         fontWeight: '600',
     },
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingVertical: 16,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.05)',
+        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     itemLeft: {
         flexDirection: 'row',
@@ -285,21 +285,21 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
     },
     numberText: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 13,
         fontWeight: '600',
     },
     engName: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 16,
         fontWeight: '500',
         marginBottom: 4,
     },
     subtext: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 11,
         letterSpacing: 0.5,
     },
@@ -317,18 +317,18 @@ const styles = StyleSheet.create({
     },
     juzCard: {
         width: '48%',
-        backgroundColor: 'rgba(255,255,255,0.02)',
+        backgroundColor: '#FFFFFF',
         borderRadius: 16,
         padding: 24,
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
         gap: 12,
     },
     juzTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 16,
         fontWeight: '500',
     },
@@ -339,11 +339,11 @@ const styles = StyleSheet.create({
     tafseerCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.02)',
+        backgroundColor: '#FFFFFF',
         borderRadius: 16,
         padding: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
     },
     tafseerIconBox: {
         width: 48,
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
         marginRight: 16,
     },
     tafseerTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 16,
         fontWeight: '600',
         marginBottom: 4,
@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     tafseerDesc: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 12,
         lineHeight: 18,
     }

@@ -84,24 +84,24 @@ export default function QaidaScreen() {
                                 <View style={styles.lessonRight}>
                                     {isCompleted ? (
                                         <View style={[styles.statusOrb, { backgroundColor: '#4ECDC4' }]}>
-                                            <Feather name="check" size={16} color="#0C0F0E" />
+                                            <Feather name="check" size={16} color="#FDF8F0" />
                                         </View>
                                     ) : isCurrent ? (
                                         <View style={[styles.statusOrb, { backgroundColor: '#FFD166' }]}>
-                                            <Feather name="play" size={16} color="#0C0F0E" style={{ marginLeft: 2 }} />
+                                            <Feather name="play" size={16} color="#FDF8F0" style={{ marginLeft: 2 }} />
                                         </View>
                                     ) : (
-                                        <View style={[styles.statusOrb, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
-                                            <Feather name="lock" size={14} color="#9A9590" />
+                                        <View style={[styles.statusOrb, { backgroundColor: 'rgba(0,0,0,0.08)' }]}>
+                                            <Feather name="lock" size={14} color="#5E5C58" />
                                         </View>
                                     )}
                                 </View>
 
                                 <View style={styles.lessonContent}>
-                                    <View style={[styles.arabicBox, { backgroundColor: isLocked ? 'rgba(255,255,255,0.05)' : lesson.color }]}>
+                                    <View style={[styles.arabicBox, { backgroundColor: isLocked ? 'rgba(0,0,0,0.05)' : lesson.color }]}>
                                         <Text style={[styles.arabicText, isLocked && { color: '#5E5C58' }]}>{lesson.arabic}</Text>
                                     </View>
-                                    <Text style={[styles.lessonTitle, isLocked && { color: '#9A9590' }]}>Lesson {lesson.id}</Text>
+                                    <Text style={[styles.lessonTitle, isLocked && { color: '#5E5C58' }]}>Lesson {lesson.id}</Text>
                                     <Text style={[styles.lessonTitleMain, isLocked && { color: '#5E5C58' }]}>{lesson.title}</Text>
                                     <Text style={[styles.lessonSub, isLocked && { color: '#5E5C58' }]}>{lesson.sub}</Text>
                                 </View>
@@ -118,7 +118,7 @@ export default function QaidaScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0C0F0E',
+        backgroundColor: '#FDF8F0',
     },
     header: {
         flexDirection: 'row',
@@ -128,12 +128,12 @@ const styles = StyleSheet.create({
         paddingTop: 10,
         paddingBottom: 20,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.05)',
+        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     headerTitle: {
         fontSize: 28,
         fontWeight: 'bold',
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         letterSpacing: 0.5,
     },
     headerSub: {
@@ -178,14 +178,14 @@ const styles = StyleSheet.create({
         width: 60,
         height: 60,
         borderRadius: 30,
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: 'rgba(0,0,0,0.08)',
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 2,
         borderColor: 'rgba(255,255,255,0.2)',
     },
     heroTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 20,
         fontWeight: 'bold',
         marginBottom: 4,
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     },
     trackBg: {
         height: 12,
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: 'rgba(0,0,0,0.08)',
         borderRadius: 6,
         overflow: 'hidden',
     },
@@ -210,14 +210,14 @@ const styles = StyleSheet.create({
         borderRadius: 6,
     },
     trackText: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 13,
         fontWeight: '600',
         marginTop: 8,
         textAlign: 'right',
     },
     sectionTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 20,
         fontWeight: 'bold',
         marginBottom: 20,
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
         borderRadius: 24,
         padding: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
         position: 'relative',
     },
     lessonCardCurrent: {
@@ -272,13 +272,13 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     arabicText: {
-        color: '#0C0F0E',
+        color: '#FDF8F0',
         fontSize: 22,
         fontWeight: 'bold',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
     },
     lessonTitle: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 12,
         fontWeight: 'bold',
         textTransform: 'uppercase',
@@ -286,13 +286,13 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     lessonTitleMain: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 16,
         fontWeight: 'bold',
         marginBottom: 4,
     },
     lessonSub: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 12,
     },
 });

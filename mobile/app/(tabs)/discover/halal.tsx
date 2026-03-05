@@ -40,7 +40,7 @@ export default function HalalPlacesScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Feather name="chevron-left" size={28} color="#E8E6E1" />
+                    <Feather name="chevron-left" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Halal Places</Text>
                 <View style={{ width: 40 }} />
@@ -120,7 +120,7 @@ export default function HalalPlacesScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0C0F0E',
+        backgroundColor: '#FDF8F0',
     },
     header: {
         flexDirection: 'row',
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
         marginLeft: -10,
     },
     headerTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 18,
         fontWeight: '500',
         letterSpacing: 0.5,
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     searchInputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         borderRadius: 16,
         paddingHorizontal: 16,
         height: 50,
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
     },
     searchInput: {
         flex: 1,
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 15,
     },
     filterRow: {
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         paddingHorizontal: 16,
         borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         borderWidth: 1,
         borderColor: 'transparent',
     },
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(201, 168, 76, 0.3)',
     },
     filterText: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 14,
         fontWeight: '500',
     },
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
         marginHorizontal: 20,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 24,
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
         paddingBottom: 40,
     },
     listTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 18,
         fontWeight: '500',
         marginBottom: 16,
@@ -223,13 +223,13 @@ const styles = StyleSheet.create({
         padding: 16,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
     },
     placeInfo: {
         flex: 1,
     },
     placeName: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 16,
         fontWeight: '600',
         marginBottom: 6,
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     placeDistance: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 13,
     },
     dot: {
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
         marginHorizontal: 8,
     },
     placeType: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 13,
     },
     placeStatus: {
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     placeRating: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 13,
         marginLeft: 4,
         fontWeight: '500',

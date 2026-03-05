@@ -166,14 +166,14 @@ export default function ProfileScreen() {
                         <View style={styles.menuGroup}>
                             <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert("About Noor", "Version 1.0.0\n\nDesigned to elevate your daily spiritual connection with a premium, seamless interface.\n\nBy MZ and MBZ")}>
                                 <View style={styles.menuItemLeft}>
-                                    <View style={styles.menuIconBox}><Feather name="info" size={18} color="#E8E6E1" /></View>
+                                    <View style={styles.menuIconBox}><Feather name="info" size={18} color="#1A1A1A" /></View>
                                     <Text style={styles.menuItemText}>About Noor</Text>
                                 </View>
                                 <Feather name="chevron-right" size={20} color="#5E5C58" />
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.menuItem}>
                                 <View style={styles.menuItemLeft}>
-                                    <View style={styles.menuIconBox}><Feather name="shield" size={18} color="#E8E6E1" /></View>
+                                    <View style={styles.menuIconBox}><Feather name="shield" size={18} color="#1A1A1A" /></View>
                                     <Text style={styles.menuItemText}>Privacy Policy</Text>
                                 </View>
                                 <Feather name="chevron-right" size={20} color="#5E5C58" />
@@ -212,7 +212,7 @@ export default function ProfileScreen() {
                             <Text style={styles.statVal}>0</Text>
                             <Text style={styles.statLbl}>Days Streak</Text>
                         </View>
-                        <View style={[styles.idStatBox, { borderLeftWidth: 1, borderLeftColor: 'rgba(255,255,255,0.05)' }]}>
+                        <View style={[styles.idStatBox, { borderLeftWidth: 1, borderLeftColor: 'rgba(0,0,0,0.05)' }]}>
                             <Text style={styles.statVal}>Basic</Text>
                             <Text style={styles.statLbl}>Plan level</Text>
                         </View>
@@ -246,21 +246,21 @@ export default function ProfileScreen() {
                 <View style={styles.menuGroup}>
                     <TouchableOpacity style={styles.menuItem}>
                         <View style={styles.menuItemLeft}>
-                            <View style={styles.menuIconBox}><Feather name="bell" size={18} color="#E8E6E1" /></View>
+                            <View style={styles.menuIconBox}><Feather name="bell" size={18} color="#1A1A1A" /></View>
                             <Text style={styles.menuItemText}>Adhan Notifications</Text>
                         </View>
                         <Feather name="chevron-right" size={20} color="#5E5C58" />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.menuItem}>
                         <View style={styles.menuItemLeft}>
-                            <View style={styles.menuIconBox}><Feather name="map-pin" size={18} color="#E8E6E1" /></View>
+                            <View style={styles.menuIconBox}><Feather name="map-pin" size={18} color="#1A1A1A" /></View>
                             <Text style={styles.menuItemText}>Calculation Method (Karachi)</Text>
                         </View>
                         <Feather name="chevron-right" size={20} color="#5E5C58" />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.menuItem}>
                         <View style={styles.menuItemLeft}>
-                            <View style={styles.menuIconBox}><Feather name="download-cloud" size={18} color="#E8E6E1" /></View>
+                            <View style={styles.menuIconBox}><Feather name="download-cloud" size={18} color="#1A1A1A" /></View>
                             <Text style={styles.menuItemText}>Force Sync Database</Text>
                         </View>
                         <Feather name="chevron-right" size={20} color="#5E5C58" />
@@ -272,14 +272,14 @@ export default function ProfileScreen() {
                 <View style={styles.menuGroup}>
                     <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert("About Noor", "Version 1.0.0\n\nDesigned to elevate your daily spiritual connection with a premium, seamless interface.\n\nBy MZ and MBZ")}>
                         <View style={styles.menuItemLeft}>
-                            <View style={styles.menuIconBox}><Feather name="info" size={18} color="#E8E6E1" /></View>
+                            <View style={styles.menuIconBox}><Feather name="info" size={18} color="#1A1A1A" /></View>
                             <Text style={styles.menuItemText}>About Noor</Text>
                         </View>
                         <Feather name="chevron-right" size={20} color="#5E5C58" />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.menuItem}>
                         <View style={styles.menuItemLeft}>
-                            <View style={styles.menuIconBox}><Feather name="shield" size={18} color="#E8E6E1" /></View>
+                            <View style={styles.menuIconBox}><Feather name="shield" size={18} color="#1A1A1A" /></View>
                             <Text style={styles.menuItemText}>Privacy Policy</Text>
                         </View>
                         <Feather name="chevron-right" size={20} color="#5E5C58" />
@@ -288,7 +288,7 @@ export default function ProfileScreen() {
 
                 {/* Premium Teaser */}
                 <TouchableOpacity style={styles.premiumBanner}>
-                    <Feather name="star" size={24} color="#0C0F0E" style={{ marginRight: 16 }} />
+                    <Feather name="star" size={24} color="#FDF8F0" style={{ marginRight: 16 }} />
                     <View style={{ flex: 1 }}>
                         <Text style={styles.premiumBannerTitle}>Upgrade to Noor Pro</Text>
                         <Text style={styles.premiumBannerDesc}>Unlock unlimited Hifz tracking & Audio.</Text>
@@ -309,7 +309,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0C0F0E' },
+    container: { flex: 1, backgroundColor: '#FDF8F0' },
     authContainer: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 60 },
     authHeader: { alignItems: 'center', marginBottom: 40 },
     authIconContainer: {
@@ -318,55 +318,55 @@ const styles = StyleSheet.create({
         alignItems: 'center', justifyContent: 'center',
         marginBottom: 20, borderWidth: 1, borderColor: 'rgba(201, 168, 76, 0.2)'
     },
-    authTitle: { color: '#E8E6E1', fontSize: 28, fontWeight: 'bold', marginBottom: 12 },
-    authDesc: { color: '#9A9590', fontSize: 15, textAlign: 'center', lineHeight: 24, paddingHorizontal: 20 },
+    authTitle: { color: '#1A1A1A', fontSize: 28, fontWeight: 'bold', marginBottom: 12 },
+    authDesc: { color: '#5E5C58', fontSize: 15, textAlign: 'center', lineHeight: 24, paddingHorizontal: 20 },
     inputStack: { gap: 16, marginBottom: 40 },
     inputWrapper: {
         flexDirection: 'row', alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         borderRadius: 16, paddingHorizontal: 16, height: 60,
-        borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.05)'
+        borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)'
     },
     inputIcon: { marginRight: 16 },
-    input: { flex: 1, color: '#E8E6E1', fontSize: 16, height: '100%' },
+    input: { flex: 1, color: '#1A1A1A', fontSize: 16, height: '100%' },
     authActionRow: { gap: 16 },
     primaryBtn: {
         backgroundColor: '#C9A84C',
         borderRadius: 16, height: 60,
         alignItems: 'center', justifyContent: 'center',
     },
-    primaryBtnText: { color: '#0C0F0E', fontSize: 16, fontWeight: 'bold' },
+    primaryBtnText: { color: '#FDF8F0', fontSize: 16, fontWeight: 'bold' },
     secondaryBtn: {
         backgroundColor: 'transparent',
         borderRadius: 16, height: 60,
         alignItems: 'center', justifyContent: 'center',
-        borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)',
     },
-    secondaryBtnText: { color: '#E8E6E1', fontSize: 16, fontWeight: '600' },
-    header: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
-    headerTitle: { fontSize: 26, fontWeight: '300', color: '#E8E6E1', letterSpacing: 0.5 },
+    secondaryBtnText: { color: '#1A1A1A', fontSize: 16, fontWeight: '600' },
+    header: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' },
+    headerTitle: { fontSize: 26, fontWeight: '300', color: '#1A1A1A', letterSpacing: 0.5 },
     content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 60 },
     idCard: { borderRadius: 20, borderWidth: 1, borderColor: 'rgba(201, 168, 76, 0.3)', marginBottom: 30 },
-    idHeader: { flexDirection: 'row', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.05)' },
-    avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-    emailText: { color: '#E8E6E1', fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
+    idHeader: { flexDirection: 'row', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' },
+    avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(140, 75, 64, 0.05)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
+    emailText: { color: '#1A1A1A', fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
     statusText: { color: '#C9A84C', fontSize: 13, fontWeight: '500', textTransform: 'uppercase', letterSpacing: 1 },
     idStats: { flexDirection: 'row' },
     idStatBox: { flex: 1, paddingVertical: 16, alignItems: 'center' },
-    statVal: { color: '#E8E6E1', fontSize: 20, fontWeight: 'bold', marginBottom: 4 },
-    statLbl: { color: '#9A9590', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
-    sectionTitle: { color: '#9A9590', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, paddingHorizontal: 4 },
-    menuGroup: { backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', marginBottom: 30 },
-    menuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.02)' },
+    statVal: { color: '#1A1A1A', fontSize: 20, fontWeight: 'bold', marginBottom: 4 },
+    statLbl: { color: '#5E5C58', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+    sectionTitle: { color: '#5E5C58', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, paddingHorizontal: 4 },
+    menuGroup: { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', marginBottom: 30 },
+    menuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: '#FFFFFF' },
     menuItemLeft: { flexDirection: 'row', alignItems: 'center' },
-    menuIconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center', marginRight: 16 },
-    menuItemText: { color: '#E8E6E1', fontSize: 16 },
+    menuIconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.05)', alignItems: 'center', justifyContent: 'center', marginRight: 16 },
+    menuItemText: { color: '#1A1A1A', fontSize: 16 },
     premiumBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#C9A84C', borderRadius: 16, padding: 20, marginBottom: 30 },
-    premiumBannerTitle: { color: '#0C0F0E', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+    premiumBannerTitle: { color: '#FDF8F0', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
     premiumBannerDesc: { color: 'rgba(12, 15, 14, 0.8)', fontSize: 13 },
     logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 16, backgroundColor: 'rgba(229, 62, 62, 0.1)', borderWidth: 1, borderColor: 'rgba(229, 62, 62, 0.2)' },
     logoutBtnText: { color: '#E53E3E', fontSize: 16, fontWeight: '600' },
-    menuItemSubText: { color: '#9A9590', fontSize: 12, marginTop: 2 },
+    menuItemSubText: { color: '#5E5C58', fontSize: 12, marginTop: 2 },
     badgeContainer: { backgroundColor: 'rgba(201, 168, 76, 0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(201, 168, 76, 0.3)' },
     badgeText: { color: '#C9A84C', fontSize: 12, fontWeight: 'bold' }
 });

@@ -170,10 +170,10 @@ export default function DuaDetailScreen() {
             {/* Custom Fixed Header */}
             <View style={[styles.fixedNav, { paddingTop: insets.top }]}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Feather name="chevron-left" size={28} color="#E8E6E1" />
+                    <Feather name="chevron-left" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.actionBtn}>
-                    <Feather name="bookmark" size={22} color="#E8E6E1" />
+                    <Feather name="bookmark" size={22} color="#1A1A1A" />
                 </TouchableOpacity>
             </View>
 
@@ -222,7 +222,7 @@ export default function DuaDetailScreen() {
                                         <View style={styles.duaNumBadge}>
                                             <Text style={styles.duaNumText}>{index + 1}</Text>
                                         </View>
-                                        <Feather name={isExpanded ? "chevron-up" : "chevron-down"} size={20} color="#9A9590" />
+                                        <Feather name={isExpanded ? "chevron-up" : "chevron-down"} size={20} color="#5E5C58" />
                                     </View>
 
                                     <Text style={styles.arabicHeroText}>{item.arabic}</Text>
@@ -247,10 +247,10 @@ export default function DuaDetailScreen() {
                                                 <Text style={styles.refText}>{item.reference}</Text>
                                                 <View style={{ flexDirection: 'row', gap: 16 }}>
                                                     <TouchableOpacity style={styles.iconOp}>
-                                                        <Feather name="copy" size={20} color="#9A9590" />
+                                                        <Feather name="copy" size={20} color="#5E5C58" />
                                                     </TouchableOpacity>
                                                     <TouchableOpacity style={styles.iconOp}>
-                                                        <Feather name="bookmark" size={20} color="#9A9590" />
+                                                        <Feather name="bookmark" size={20} color="#5E5C58" />
                                                     </TouchableOpacity>
                                                 </View>
                                             </View>
@@ -271,7 +271,7 @@ export default function DuaDetailScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0C0F0E',
+        backgroundColor: '#FDF8F0',
     },
     ambientHeader: {
         position: 'absolute',
@@ -297,23 +297,23 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: 'rgba(0,0,0,0.3)',
+        backgroundColor: 'rgba(140, 75, 64, 0.05)',
         alignItems: 'center',
         justifyContent: 'center',
         marginLeft: -10,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
     },
     actionBtn: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: 'rgba(0,0,0,0.3)',
+        backgroundColor: 'rgba(140, 75, 64, 0.05)',
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: -10,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
     },
     scrollContent: {
         paddingHorizontal: 24,
@@ -334,14 +334,14 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(201, 168, 76, 0.2)',
     },
     heroTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 34,
         fontWeight: 'bold',
         letterSpacing: 0.5,
         marginBottom: 12,
     },
     heroDesc: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 16,
         lineHeight: 24,
         marginBottom: 20,
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
         borderRadius: 24,
         padding: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.2,
@@ -386,12 +386,12 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         alignItems: 'center',
         justifyContent: 'center',
     },
     duaNumText: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 14,
         fontWeight: 'bold',
     },
@@ -408,7 +408,7 @@ const styles = StyleSheet.create({
     },
     divider: {
         height: 1,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         marginVertical: 20,
     },
     sectionLabel: {
@@ -419,14 +419,14 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     translitText: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 16,
         lineHeight: 24,
         fontStyle: 'italic',
         marginBottom: 24,
     },
     translationText: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 16,
         lineHeight: 26,
         marginBottom: 24,
@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.05)',
+        borderTopColor: 'rgba(0,0,0,0.05)',
         paddingTop: 16,
     },
     refText: {

@@ -44,11 +44,11 @@ const COUNTRY_METHODS: Record<string, { method: number; school: number }> = {
     // North Africa
     EG: { method: 5, school: 0 }, MA: { method: 21, school: 0 },
     DZ: { method: 19, school: 0 }, TN: { method: 18, school: 0 },
-    LY: { method: 3,  school: 0 },
+    LY: { method: 3, school: 0 },
     // Levant / Middle East
     JO: { method: 23, school: 0 }, SY: { method: 5, school: 0 },
-    IQ: { method: 3,  school: 0 }, LB: { method: 3, school: 0 },
-    PS: { method: 3,  school: 0 },
+    IQ: { method: 3, school: 0 }, LB: { method: 3, school: 0 },
+    PS: { method: 3, school: 0 },
     // Iran
     IR: { method: 7, school: 0 },
     // Turkey
@@ -62,8 +62,8 @@ const COUNTRY_METHODS: Record<string, { method: number; school: number }> = {
     US: { method: 2, school: 0 }, CA: { method: 2, school: 0 },
     // Europe
     GB: { method: 15, school: 0 }, FR: { method: 12, school: 0 },
-    DE: { method: 3,  school: 0 }, NL: { method: 3, school: 0 },
-    BE: { method: 3,  school: 0 },
+    DE: { method: 3, school: 0 }, NL: { method: 3, school: 0 },
+    BE: { method: 3, school: 0 },
     // Russia
     RU: { method: 14, school: 1 },
     // Oceania / Rest of World
@@ -168,10 +168,10 @@ export default function HomeScreen() {
                             numberInSurah: json.data[0].numberInSurah,
                         };
                         setDayAya(aya);
-                        AsyncStorage.setItem(ayaKey, JSON.stringify(aya)).catch(() => {});
+                        AsyncStorage.setItem(ayaKey, JSON.stringify(aya)).catch(() => { });
                     }
                 }
-            } catch (_) {}
+            } catch (_) { }
         })();
 
         // Start infinite pulsing animation
@@ -235,8 +235,8 @@ export default function HomeScreen() {
 
             // Adhan.js offline params (school mapped from API school value)
             let offlineParams = apiMethod === 1 ? CalculationMethod.Karachi()
-                              : apiMethod === 2 ? CalculationMethod.NorthAmerica()
-                              : CalculationMethod.MuslimWorldLeague();
+                : apiMethod === 2 ? CalculationMethod.NorthAmerica()
+                    : CalculationMethod.MuslimWorldLeague();
             if (apiSchool === 1) offlineParams.madhab = Madhab.Hanafi;
 
             let todayPrayers: any = null;
@@ -251,16 +251,16 @@ export default function HomeScreen() {
                 if (cached) {
                     const { prayers: cp, hijri: ch, tomorrowFajrMs } = JSON.parse(cached);
                     todayPrayers = {
-                        Fajr:    new Date(cp.Fajr),
-                        Dhuhr:   new Date(cp.Dhuhr),
-                        Asr:     new Date(cp.Asr),
+                        Fajr: new Date(cp.Fajr),
+                        Dhuhr: new Date(cp.Dhuhr),
+                        Asr: new Date(cp.Asr),
                         Maghrib: new Date(cp.Maghrib),
-                        Isha:    new Date(cp.Isha),
+                        Isha: new Date(cp.Isha),
                     };
-                    hijriString  = ch;
+                    hijriString = ch;
                     tomorrowFajr = tomorrowFajrMs ? new Date(tomorrowFajrMs) : null;
                 }
-            } catch {}
+            } catch { }
 
             // ── Fetch from AlAdhan API (today + tomorrow in parallel) ─────────
             if (!todayPrayers) {
@@ -275,21 +275,21 @@ export default function HomeScreen() {
 
                     if (todayResult.status === 'fulfilled') {
                         const td = todayResult.value;
-                        const t  = td.timings;
+                        const t = td.timings;
                         const gd = td.date.gregorian.date; // DD-MM-YYYY
                         todayPrayers = {
-                            Fajr:    moment(`${gd} ${t.Fajr}`,    'DD-MM-YYYY HH:mm').toDate(),
-                            Dhuhr:   moment(`${gd} ${t.Dhuhr}`,   'DD-MM-YYYY HH:mm').toDate(),
-                            Asr:     moment(`${gd} ${t.Asr}`,     'DD-MM-YYYY HH:mm').toDate(),
-                            Maghrib: moment(`${gd} ${t.Maghrib}`,  'DD-MM-YYYY HH:mm').toDate(),
-                            Isha:    moment(`${gd} ${t.Isha}`,    'DD-MM-YYYY HH:mm').toDate(),
+                            Fajr: moment(`${gd} ${t.Fajr}`, 'DD-MM-YYYY HH:mm').toDate(),
+                            Dhuhr: moment(`${gd} ${t.Dhuhr}`, 'DD-MM-YYYY HH:mm').toDate(),
+                            Asr: moment(`${gd} ${t.Asr}`, 'DD-MM-YYYY HH:mm').toDate(),
+                            Maghrib: moment(`${gd} ${t.Maghrib}`, 'DD-MM-YYYY HH:mm').toDate(),
+                            Isha: moment(`${gd} ${t.Isha}`, 'DD-MM-YYYY HH:mm').toDate(),
                         };
                         const h = td.date.hijri;
                         hijriString = `${h.day} ${h.month.en} ${h.year} ${h.designation.abbreviated}`;
                     }
 
                     if (tomorrowResult.status === 'fulfilled') {
-                        const tm   = tomorrowResult.value;
+                        const tm = tomorrowResult.value;
                         const tmgd = tm.date.gregorian.date;
                         tomorrowFajr = moment(`${tmgd} ${tm.timings.Fajr}`, 'DD-MM-YYYY HH:mm').toDate();
                     }
@@ -298,13 +298,13 @@ export default function HomeScreen() {
                     if (todayPrayers) {
                         await AsyncStorage.setItem(cacheKey, JSON.stringify({
                             prayers: {
-                                Fajr:    todayPrayers.Fajr.getTime(),
-                                Dhuhr:   todayPrayers.Dhuhr.getTime(),
-                                Asr:     todayPrayers.Asr.getTime(),
+                                Fajr: todayPrayers.Fajr.getTime(),
+                                Dhuhr: todayPrayers.Dhuhr.getTime(),
+                                Asr: todayPrayers.Asr.getTime(),
                                 Maghrib: todayPrayers.Maghrib.getTime(),
-                                Isha:    todayPrayers.Isha.getTime(),
+                                Isha: todayPrayers.Isha.getTime(),
                             },
-                            hijri:          hijriString,
+                            hijri: hijriString,
                             tomorrowFajrMs: tomorrowFajr?.getTime() ?? null,
                         }));
                     }
@@ -317,11 +317,11 @@ export default function HomeScreen() {
             if (!todayPrayers) {
                 const offlineTimes = new PrayerTimes(coordinates, new Date(), offlineParams);
                 todayPrayers = {
-                    Fajr:    offlineTimes.fajr,
-                    Dhuhr:   offlineTimes.dhuhr,
-                    Asr:     offlineTimes.asr,
+                    Fajr: offlineTimes.fajr,
+                    Dhuhr: offlineTimes.dhuhr,
+                    Asr: offlineTimes.asr,
                     Maghrib: offlineTimes.maghrib,
-                    Isha:    offlineTimes.isha,
+                    Isha: offlineTimes.isha,
                 };
                 hijriString = moment().format('iDo iMMMM').toUpperCase();
             }
@@ -349,17 +349,17 @@ export default function HomeScreen() {
                 }
             }
 
-            // Set beautiful dynamic gradient based on active prayer time (Morning, Noon, Evening, Night)
+            // Set beautiful dynamic gradient based on active prayer time perfectly matching the design exactly
             if (currentId === 'fajr') {
-                setEnvGradient(['#FFD194', '#70E1F5']); // Morning / Sunrise
+                setEnvGradient(['#2d6c88', '#1e4a60']); // Fajr
             } else if (currentId === 'dhuhr' || currentId === 'asr') {
-                setEnvGradient(['#4CA1AF', '#C4E0E5']); // Noon / Bright Blue Sky
+                setEnvGradient(['#fff5df', '#ecc26d']); // Dhuhr & Asr
             } else if (currentId === 'maghrib') {
-                setEnvGradient(['#FF4E50', '#F9D423']); // Evening / Sunset
-            } else if (currentId === 'isha') {
-                setEnvGradient(['#141E30', '#243B55']); // Night / Dark Sapphire
+                setEnvGradient(['#c27a5d', '#dfa17e']); // Maghrib
+            } else if (currentId === 'isha' || currentId === 'none') {
+                setEnvGradient(['#0a2e40', '#05151e']); // Isha & Midnight
             } else {
-                setEnvGradient(['#FFD194', '#70E1F5']); // Default Morning
+                setEnvGradient(['#2d6c88', '#1e4a60']); // Default fallback
             }
 
             const formattedList = list.map(p => ({
@@ -412,7 +412,7 @@ export default function HomeScreen() {
                                     date: tomorrowFajr,
                                 },
                             });
-                        } catch (_) {}
+                        } catch (_) { }
                     }
                 };
                 scheduleAdhans();

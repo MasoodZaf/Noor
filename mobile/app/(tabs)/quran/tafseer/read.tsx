@@ -12,27 +12,27 @@ import { useLanguage } from '../../../../context/LanguageContext';
 const { width } = Dimensions.get('window');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const TAFSEER_META: Record<string, { title: string; author: string; totalVolumes: number }> = {
-    ibn_kathir: { title: 'Tafsir Ibn Kathir', author: "Isma'il ibn Kathir", totalVolumes: 10 },
-    jalalayn:   { title: 'Tafsir al-Jalalayn', author: 'Al-Mahalli & As-Suyuti', totalVolumes: 1 },
-    sadi:       { title: "Tafsir As-Sa'di", author: "Abdur-Rahman as-Sa'di", totalVolumes: 10 },
-    maarif:     { title: "Ma'ariful Qur'an", author: 'Muhammad Shafi Usmani', totalVolumes: 8 },
-    tabari:     { title: 'Tafsir al-Tabari', author: 'Muhammad ibn Jarir al-Tabari', totalVolumes: 24 },
+const TAFSEER_META: Record<string, { title: string; author: string; totalVolumes: number; ids?: { english?: number; urdu?: number; arabic?: number } }> = {
+    ibn_kathir: { title: 'Tafsir Ibn Kathir', author: "Isma'il ibn Kathir", totalVolumes: 10, ids: { english: 169, urdu: 160, arabic: 14 } },
+    jalalayn: { title: 'Tafsir al-Jalalayn', author: 'Al-Mahalli & As-Suyuti', totalVolumes: 1, ids: { arabic: 16 } },
+    sadi: { title: "Tafsir As-Sa'di", author: "Abdur-Rahman as-Sa'di", totalVolumes: 10, ids: { arabic: 91, english: 169 } },
+    maarif: { title: "Ma'ariful Qur'an", author: 'Muhammad Shafi Usmani', totalVolumes: 8, ids: { english: 168, urdu: 159 } },
+    tabari: { title: 'Tafsir al-Tabari', author: 'Muhammad ibn Jarir al-Tabari', totalVolumes: 24, ids: { arabic: 15, english: 169, urdu: 160 } },
 };
 
-// quran.com tafsir IDs: 169 = Ibn Kathir (EN), 160 = Maarif-ul-Quran (UR)
+// quran.com tafsir fallback IDs
 const TAFSIR_EN_ID = 169;
 const TAFSIR_UR_ID = 160;
 
 const ARABIC_FONTS = [
-    { id: 'default', name: 'Standard Auto (Default System)',  family: undefined },
-    { id: 'uthmani', name: 'Uthmani Script (Mishafi)',         family: Platform.OS === 'ios' ? 'Mishafi'  : 'sans-serif' },
-    { id: 'naskh',   name: 'Traditional Naskh (Damascus)',     family: Platform.OS === 'ios' ? 'Damascus' : 'serif' },
-    { id: 'indopak', name: 'Indo-Pak Majeedi Text',            family: Platform.OS === 'ios' ? 'Al Nile'  : 'monospace' },
+    { id: 'default', name: 'Standard Auto (Default System)', family: undefined },
+    { id: 'uthmani', name: 'Uthmani Script (Mishafi)', family: Platform.OS === 'ios' ? 'Mishafi' : 'sans-serif' },
+    { id: 'naskh', name: 'Traditional Naskh (Damascus)', family: Platform.OS === 'ios' ? 'Damascus' : 'serif' },
+    { id: 'indopak', name: 'Indo-Pak Majeedi Text', family: Platform.OS === 'ios' ? 'Al Nile' : 'monospace' },
 ];
 
 const toArabicDigits = (n: number) => {
-    const d = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
+    const d = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
     return String(n).replace(/[0-9]/g, w => d[parseInt(w, 10)]);
 };
 
@@ -41,12 +41,13 @@ const stripHtml = (html: string) =>
 
 // ─── Ayah Card (per page) ─────────────────────────────────────────────────────
 const AyahPage = React.memo(({
-    ayah, surahName, language, meta, selectedFont, fontSize,
+    ayah, surahName, language, meta, selectedFont, fontSize, tafseerIdKey
 }: {
     ayah: any; surahName: string; language: string;
-    meta: { title: string; author: string; totalVolumes: number };
+    meta: any;
     selectedFont: { id: string; name: string; family: string | undefined };
     fontSize: number;
+    tafseerIdKey: string;
 }) => {
     const isFirstInSurah = ayah.ayah_number === 1;
     const [tafseerText, setTafseerText] = useState<string | null>(null);
@@ -61,18 +62,33 @@ const AyahPage = React.memo(({
         setExpanded(true);
         setTafseerLoading(true);
         try {
-            const tafsirId = language === 'urdu' ? TAFSIR_UR_ID : TAFSIR_EN_ID;
+            // Determine best ID for current language + requested tafsir
+            let fetchId = language === 'urdu' ? TAFSIR_UR_ID : TAFSIR_EN_ID;
+            if (language === 'urdu' && meta.ids?.urdu) fetchId = meta.ids.urdu;
+            else if (language === 'english' && meta.ids?.english) fetchId = meta.ids.english;
+            else if (meta.ids?.arabic && language !== 'urdu' && language !== 'english') fetchId = meta.ids.arabic;
+            else if (meta.ids?.arabic && tafseerIdKey === 'tabari') fetchId = meta.ids.arabic; // Default Tabari to AR if urdu/english fallback doesn't apply well enough or just enforce it. Actually, the fallback mapping above handles Tabari's english/urdu versions.
+
             const res = await fetch(
-                `https://api.quran.com/api/v4/tafsirs/${tafsirId}/by_ayah/${ayah.surah_number}:${ayah.ayah_number}`
+                `https://api.quran.com/api/v4/tafsirs/${fetchId}/by_ayah/${ayah.surah_number}:${ayah.ayah_number}`,
+                {
+                    headers: {
+                        'Accept': 'application/json',
+                        'User-Agent': 'NoorApp/1.0 (Mobile)',
+                    }
+                }
             );
+
+            if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+
             const data = await res.json();
             setTafseerText(
                 data.tafsir?.text
                     ? stripHtml(data.tafsir.text)
                     : language === 'urdu' ? 'تفسیر دستیاب نہیں ہے۔' : 'Tafseer not available.'
             );
-        } catch {
-            setTafseerText(language === 'urdu' ? 'خطا' : 'Error loading Tafseer.');
+        } catch (error: any) {
+            setTafseerText(language === 'urdu' ? `خطا: ${error.message}` : `Error loading Tafseer: ${error.message}`);
         } finally {
             setTafseerLoading(false);
         }
@@ -179,12 +195,12 @@ export default function TafseerReadScreen() {
     const { db } = useDatabase();
     const { language } = useLanguage();
 
-    const tafseerId  = typeof book   === 'string' ? book   : 'ibn_kathir';
+    const tafseerId = typeof book === 'string' ? book : 'ibn_kathir';
     const volumeIndex = typeof volume === 'string' ? parseInt(volume, 10) : 1;
     const meta = TAFSEER_META[tafseerId] || TAFSEER_META['ibn_kathir'];
 
     const [loading, setLoading] = useState(true);
-    const [ayahs, setAyahs]     = useState<any[]>([]);
+    const [ayahs, setAyahs] = useState<any[]>([]);
     const [surahMap, setSurahMap] = useState<Record<number, string>>({});
 
     const [showSettings, setShowSettings] = useState(false);
@@ -198,8 +214,8 @@ export default function TafseerReadScreen() {
             setLoading(true);
             try {
                 const surahsPerVol = Math.ceil(114 / meta.totalVolumes);
-                const startSurah   = (volumeIndex - 1) * surahsPerVol + 1;
-                const endSurah     = Math.min(startSurah + surahsPerVol - 1, 114);
+                const startSurah = (volumeIndex - 1) * surahsPerVol + 1;
+                const endSurah = Math.min(startSurah + surahsPerVol - 1, 114);
 
                 const surahsData: any[] = await db.getAllAsync(
                     'SELECT number, name_english FROM surahs WHERE number >= ? AND number <= ?',
@@ -215,10 +231,10 @@ export default function TafseerReadScreen() {
                 );
 
                 const merged = rows.map(r => ({
-                    id:               `${r.surah_number}_${r.ayah_number}`,
-                    surah_number:     r.surah_number,
-                    ayah_number:      r.ayah_number,
-                    text_arabic:      r.text_arabic || '',
+                    id: `${r.surah_number}_${r.ayah_number}`,
+                    surah_number: r.surah_number,
+                    ayah_number: r.ayah_number,
+                    text_arabic: r.text_arabic || '',
                     text_translation: language === 'urdu'
                         ? (r.text_urdu || r.text_english || '')
                         : (r.text_english || ''),
@@ -243,7 +259,7 @@ export default function TafseerReadScreen() {
     }
 
     const firstSurah = ayahs[0]?.surah_number;
-    const lastSurah  = ayahs[ayahs.length - 1]?.surah_number;
+    const lastSurah = ayahs[ayahs.length - 1]?.surah_number;
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -286,6 +302,7 @@ export default function TafseerReadScreen() {
                         meta={meta}
                         selectedFont={selectedFont}
                         fontSize={fontSize}
+                        tafseerIdKey={tafseerId}
                     />
                 )}
                 ListFooterComponent={
@@ -347,7 +364,7 @@ export default function TafseerReadScreen() {
 }
 
 const styles = StyleSheet.create({
-    container:   { flex: 1, backgroundColor: '#FDF6E3' },
+    container: { flex: 1, backgroundColor: '#FDF6E3' },
     loadingText: { color: '#5E5C58', marginTop: 16 },
 
     // Header
@@ -355,10 +372,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10,
     },
-    headerLeft:  { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 12 },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 12 },
     headerRight: { flexDirection: 'row', alignItems: 'center' },
-    backButton:  { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
-    actionButton:{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
+    actionButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     headerTitle: { color: '#1A1A1A', fontSize: 17, fontWeight: 'bold', marginLeft: 8, flexShrink: 1 },
 
     subHeader: {
@@ -366,7 +383,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20, paddingBottom: 14,
         borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)',
     },
-    subHeaderText:  { color: '#5E5C58', fontSize: 13 },
+    subHeaderText: { color: '#5E5C58', fontSize: 13 },
     subHeaderRight: { color: '#5E5C58', fontSize: 13 },
 
     // Page content
@@ -387,7 +404,7 @@ const styles = StyleSheet.create({
     bismillahText: { color: '#1A1A1A', fontSize: 30, textAlign: 'center' },
 
     // Ayah area
-    ayahContainer:       { paddingVertical: 10 },
+    ayahContainer: { paddingVertical: 10 },
     ayahTopRow: {
         flexDirection: 'row', justifyContent: 'space-between',
         alignItems: 'center', marginBottom: 16,
@@ -396,7 +413,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: '#EAE2CF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
     },
-    ayahPillText:   { color: '#5E5C58', fontSize: 12, fontWeight: '600' },
+    ayahPillText: { color: '#5E5C58', fontSize: 12, fontWeight: '600' },
     exegesisBtn: {
         flexDirection: 'row', alignItems: 'center',
         paddingVertical: 6, paddingHorizontal: 12,
@@ -451,25 +468,25 @@ const styles = StyleSheet.create({
         paddingTop: 80, paddingHorizontal: 32,
     },
     completionText: { color: '#1A1A1A', fontSize: 18, fontWeight: '600', marginTop: 16, marginBottom: 6 },
-    completionSub:  { color: '#5E5C58', fontSize: 14, textAlign: 'center' },
+    completionSub: { color: '#5E5C58', fontSize: 14, textAlign: 'center' },
 
     // Settings modal
-    modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    modalContent:  { backgroundColor: '#FDF6E3', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-    modalHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    modalTitle:    { color: '#1A1A1A', fontSize: 18, fontWeight: '600' },
-    settingLabel:  { color: '#5E5C58', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    modalContent: { backgroundColor: '#FDF6E3', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+    modalTitle: { color: '#1A1A1A', fontSize: 18, fontWeight: '600' },
+    settingLabel: { color: '#5E5C58', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 },
     settingsGroup: { backgroundColor: '#F4EBD9', borderRadius: 16, marginBottom: 24, overflow: 'hidden' },
     settingOption: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
         padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     settingOptionActive: { backgroundColor: 'rgba(140,75,64,0.05)' },
-    settingOptionText:   { color: '#1A1A1A', fontSize: 16 },
+    settingOptionText: { color: '#1A1A1A', fontSize: 16 },
     sizeControlGroup: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         backgroundColor: '#F4EBD9', borderRadius: 16, padding: 12,
     },
-    sizeBtn:             { width: 48, height: 48, borderRadius: 24, backgroundColor: '#EAE2CF', alignItems: 'center', justifyContent: 'center' },
-    sizePreviewIndicator:{ color: '#8C4B40', fontSize: 20, fontWeight: '500' },
+    sizeBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#EAE2CF', alignItems: 'center', justifyContent: 'center' },
+    sizePreviewIndicator: { color: '#8C4B40', fontSize: 20, fontWeight: '500' },
 });

@@ -97,7 +97,7 @@ export default function ArticlesScreen() {
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                    <Feather name="chevron-left" size={28} color="#E8E6E1" />
+                    <Feather name="chevron-left" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Islamic Library</Text>
                 <View style={{ width: 40 }} />
@@ -162,21 +162,21 @@ export default function ArticlesScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0C0F0E' },
+    container: { flex: 1, backgroundColor: '#FDF8F0' },
     header: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: 20, height: 64,
     },
     backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
-    headerTitle: { color: '#E8E6E1', fontSize: 18, fontWeight: '500' },
+    headerTitle: { color: '#1A1A1A', fontSize: 18, fontWeight: '500' },
     searchWrapper: {
         flexDirection: 'row', alignItems: 'center',
         marginHorizontal: 20, marginBottom: 12,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         borderRadius: 14, paddingHorizontal: 14, height: 48,
         borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)',
     },
-    searchInput: { flex: 1, color: '#E8E6E1', fontSize: 15 },
+    searchInput: { flex: 1, color: '#1A1A1A', fontSize: 15 },
     catRow: { paddingHorizontal: 20, paddingBottom: 16, gap: 8 },
     catChip: {
         paddingHorizontal: 14, paddingVertical: 7,
@@ -185,8 +185,8 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.04)',
     },
     catChipActive: { backgroundColor: '#C9A84C', borderColor: '#C9A84C' },
-    catText: { color: '#9A9590', fontSize: 13 },
-    catTextActive: { color: '#0C0F0E', fontWeight: '600' },
+    catText: { color: '#5E5C58', fontSize: 13 },
+    catTextActive: { color: '#FDF8F0', fontWeight: '600' },
     scroll: { paddingHorizontal: 20, paddingBottom: 60 },
     card: {
         backgroundColor: 'rgba(255,255,255,0.03)',
@@ -199,8 +199,8 @@ const styles = StyleSheet.create({
     cardMeta: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     catLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
     readTime: { color: '#5E5C58', fontSize: 12 },
-    cardTitle: { color: '#E8E6E1', fontSize: 17, fontWeight: '500', marginBottom: 8, lineHeight: 24 },
-    cardExcerpt: { color: '#9A9590', fontSize: 14, lineHeight: 21 },
+    cardTitle: { color: '#1A1A1A', fontSize: 17, fontWeight: '500', marginBottom: 8, lineHeight: 24 },
+    cardExcerpt: { color: '#5E5C58', fontSize: 14, lineHeight: 21 },
     emptyState: { alignItems: 'center', paddingTop: 60, gap: 16 },
     emptyText: { color: '#3A3A3A', fontSize: 15 },
 });

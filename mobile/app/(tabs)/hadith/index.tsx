@@ -84,7 +84,7 @@ export default function HadithScreen() {
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Hadith Library</Text>
                 <TouchableOpacity style={styles.headerAction}>
-                    <Feather name="bookmark" size={24} color="#E8E6E1" />
+                    <Feather name="bookmark" size={24} color="#1A1A1A" />
                 </TouchableOpacity>
             </View>
 
@@ -109,7 +109,7 @@ export default function HadithScreen() {
                         />
                         {searchQuery.length > 0 && (
                             <TouchableOpacity onPress={() => setSearchQuery('')}>
-                                <Feather name="x-circle" size={18} color="#9A9590" />
+                                <Feather name="x-circle" size={18} color="#5E5C58" />
                             </TouchableOpacity>
                         )}
                     </View>
@@ -139,10 +139,10 @@ export default function HadithScreen() {
                                     <Text style={styles.englishText}>{hadith.text_english}</Text>
                                     <View style={styles.cardActions}>
                                         <TouchableOpacity style={styles.actionBtn}>
-                                            <Feather name="share-2" size={18} color="#9A9590" />
+                                            <Feather name="share-2" size={18} color="#5E5C58" />
                                         </TouchableOpacity>
                                         <TouchableOpacity style={styles.actionBtn}>
-                                            <Feather name="bookmark" size={18} color="#9A9590" />
+                                            <Feather name="bookmark" size={18} color="#5E5C58" />
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -169,7 +169,7 @@ export default function HadithScreen() {
                         {/* Source Banner */}
                         <TouchableOpacity style={styles.premiumBanner}>
                             <View style={styles.bannerIcon}>
-                                <Feather name="wifi" size={24} color="#0C0F0E" />
+                                <Feather name="wifi" size={24} color="#FDF8F0" />
                             </View>
                             <View style={styles.bannerTextContainer}>
                                 <Text style={styles.bannerTitle}>Live · Fawaz Hadith API</Text>
@@ -188,7 +188,7 @@ export default function HadithScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0C0F0E',
+        backgroundColor: '#FDF8F0',
     },
     header: {
         flexDirection: 'row',
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     headerTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 28,
         fontWeight: '300',
         letterSpacing: -0.5,
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     searchInputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         borderRadius: 16,
         paddingHorizontal: 16,
         height: 56,
@@ -235,12 +235,12 @@ const styles = StyleSheet.create({
     },
     searchInput: {
         flex: 1,
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 15,
         height: '100%',
     },
     sectionTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 18,
         fontWeight: '500',
         paddingHorizontal: 24,
@@ -255,23 +255,23 @@ const styles = StyleSheet.create({
     },
     collectionCard: {
         width: '46%',
-        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        backgroundColor: '#FFFFFF',
         borderRadius: 16,
         padding: 20,
         borderWidth: 1,
         borderTopWidth: 4,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
         alignItems: 'center',
     },
     colTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 15,
         fontWeight: '500',
         textAlign: 'center',
         marginBottom: 4,
     },
     colCount: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 12,
     },
     premiumBanner: {
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     bannerTitle: {
-        color: '#0C0F0E',
+        color: '#FDF8F0',
         fontSize: 16,
         fontWeight: 'bold',
         marginBottom: 2,
@@ -314,11 +314,11 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     loadingText: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 14,
     },
     noResultsText: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 16,
         textAlign: 'center',
         marginTop: 40,
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
         padding: 24,
         marginBottom: 20,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: 'rgba(0,0,0,0.05)',
     },
     hadithHeader: {
         flexDirection: 'row',
@@ -349,12 +349,12 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     narratorTag: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 13,
         fontStyle: 'italic',
     },
     arabicText: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 24,
         fontWeight: '600',
         lineHeight: 40,
@@ -363,11 +363,11 @@ const styles = StyleSheet.create({
     },
     divider: {
         height: 1,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         marginVertical: 20,
     },
     englishText: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 15,
         lineHeight: 24,
     },
@@ -378,11 +378,11 @@ const styles = StyleSheet.create({
         marginTop: 20,
         paddingTop: 16,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.05)',
+        borderTopColor: 'rgba(0,0,0,0.05)',
     },
     actionBtn: {
         padding: 8,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         borderRadius: 12,
     }
 });

@@ -242,7 +242,7 @@ export default function AiDeenScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Feather name="chevron-left" size={28} color="#E8E6E1" />
+                    <Feather name="chevron-left" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
                     <Text style={styles.headerTitle}>AiDeen</Text>
@@ -263,7 +263,7 @@ export default function AiDeenScreen() {
                         <Feather
                             name={SCOPE_ICONS[s]}
                             size={13}
-                            color={scope === s ? '#0C0F0E' : '#9A9590'}
+                            color={scope === s ? '#FDF8F0' : '#5E5C58'}
                             style={{ marginRight: 5 }}
                         />
                         <Text style={[styles.scopeTabText, scope === s && styles.scopeTabTextActive]}>
@@ -291,7 +291,7 @@ export default function AiDeenScreen() {
                     >
                         {msg.sender === 'ai' && (
                             <View style={styles.aiAvatar}>
-                                <Feather name="shield" size={13} color="#0C0F0E" />
+                                <Feather name="shield" size={13} color="#FDF8F0" />
                             </View>
                         )}
                         <Text style={[
@@ -307,7 +307,7 @@ export default function AiDeenScreen() {
                 {isLoading && (
                     <View style={[styles.bubble, styles.bubbleAI, styles.typingBubble]}>
                         <View style={styles.aiAvatar}>
-                            <Feather name="shield" size={13} color="#0C0F0E" />
+                            <Feather name="shield" size={13} color="#FDF8F0" />
                         </View>
                         <View style={styles.dotsRow}>
                             {[dot1, dot2, dot3].map((dot, i) => (
@@ -359,7 +359,7 @@ export default function AiDeenScreen() {
                         <Feather
                             name="send"
                             size={18}
-                            color={message.trim() && !isLoading ? '#0C0F0E' : '#5E5C58'}
+                            color={message.trim() && !isLoading ? '#FDF8F0' : '#5E5C58'}
                         />
                     </TouchableOpacity>
                 </View>
@@ -370,7 +370,7 @@ export default function AiDeenScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0C0F0E' },
+    container: { flex: 1, backgroundColor: '#FDF8F0' },
 
     // Header
     header: {
@@ -380,11 +380,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         height: 60,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.05)',
+        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
     headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    headerTitle: { color: '#E8E6E1', fontSize: 18, fontWeight: '500', letterSpacing: 0.5 },
+    headerTitle: { color: '#1A1A1A', fontSize: 18, fontWeight: '500', letterSpacing: 0.5 },
     onlineStatus: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CD964' },
 
     // Scope tabs
@@ -394,7 +394,7 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         gap: 8,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.05)',
+        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     scopeTab: {
         flexDirection: 'row',
@@ -407,8 +407,8 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.06)',
     },
     scopeTabActive: { backgroundColor: '#C9A84C', borderColor: '#C9A84C' },
-    scopeTabText: { color: '#9A9590', fontSize: 13, fontWeight: '500' },
-    scopeTabTextActive: { color: '#0C0F0E', fontWeight: '600' },
+    scopeTabText: { color: '#5E5C58', fontSize: 13, fontWeight: '500' },
+    scopeTabTextActive: { color: '#FDF8F0', fontWeight: '600' },
 
     // Chat
     chatArea: { flex: 1 },
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     },
     bubbleAI: {
         alignSelf: 'flex-start',
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         borderBottomLeftRadius: 4,
         flexDirection: 'row',
         gap: 10,
@@ -443,8 +443,8 @@ const styles = StyleSheet.create({
         marginTop: 1,
     },
     bubbleText: { fontSize: 15, lineHeight: 23 },
-    bubbleTextUser: { color: '#0C0F0E', fontWeight: '500' },
-    bubbleTextAI: { color: '#E8E6E1', flex: 1 },
+    bubbleTextUser: { color: '#FDF8F0', fontWeight: '500' },
+    bubbleTextAI: { color: '#1A1A1A', flex: 1 },
 
     // Typing dots
     dotsRow: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 4 },
@@ -478,13 +478,13 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingTop: 12,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.05)',
-        backgroundColor: '#0C0F0E',
+        borderTopColor: 'rgba(0,0,0,0.05)',
+        backgroundColor: '#FDF8F0',
     },
     inputRow: {
         flexDirection: 'row',
         alignItems: 'flex-end',
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         borderRadius: 24,
         paddingHorizontal: 16,
         paddingVertical: 10,
@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
     },
     input: {
         flex: 1,
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 15,
         maxHeight: 100,
         minHeight: 24,

@@ -54,12 +54,12 @@ export default function RootLayout() {
             <LanguageProvider>
                 <DatabaseProvider>
                     <AudioProvider>
-                    <View style={{ flex: 1, backgroundColor: '#0C0F0E' }}>
+                    <View style={{ flex: 1, backgroundColor: '#FDF8F0' }}>
                         <StatusBar style="light" />
                         <Stack
                             screenOptions={{
                                 headerShown: false,
-                                contentStyle: { backgroundColor: '#0C0F0E' },
+                                contentStyle: { backgroundColor: '#FDF8F0' },
                             }}
                         >
                             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

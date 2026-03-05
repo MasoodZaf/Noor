@@ -62,7 +62,7 @@ function ProgressRing({ pct, size, color }: { pct: number; size: number; color: 
     const circ = 2 * Math.PI * r;
     return (
         <Svg width={size} height={size}>
-            <Circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.1)" strokeWidth={6} fill="none" />
+            <Circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(0,0,0,0.08)" strokeWidth={6} fill="none" />
             <Circle
                 cx={size / 2} cy={size / 2} r={r}
                 stroke={color} strokeWidth={6} fill="none"
@@ -231,7 +231,7 @@ export default function RamadanScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                    <Feather name="chevron-left" size={28} color="#E8E6E1" />
+                    <Feather name="chevron-left" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
                 <View>
                     <Text style={styles.headerTitle}>Ramadan</Text>
@@ -278,7 +278,7 @@ export default function RamadanScreen() {
 
                 {/* Today's Fast Toggle */}
                 <TouchableOpacity style={[styles.fastToggle, fasted && styles.fastToggleActive]} onPress={toggleFasted} activeOpacity={0.8}>
-                    <Feather name={fasted ? 'check-circle' : 'circle'} size={24} color={fasted ? '#0C0F0E' : '#C9A84C'} />
+                    <Feather name={fasted ? 'check-circle' : 'circle'} size={24} color={fasted ? '#FDF8F0' : '#C9A84C'} />
                     <Text style={[styles.fastToggleText, fasted && styles.fastToggleTextActive]}>
                         {fasted ? 'Fasting today ✓' : 'Mark today as fasted'}
                     </Text>
@@ -294,7 +294,7 @@ export default function RamadanScreen() {
                     <View style={styles.statCard}>
                         <View style={styles.pagesRow}>
                             <TouchableOpacity onPress={() => adjustPages(-1)} style={styles.pageBtn}>
-                                <Feather name="minus" size={16} color="#9A9590" />
+                                <Feather name="minus" size={16} color="#5E5C58" />
                             </TouchableOpacity>
                             <Text style={styles.statNumber}>{pagesRead}</Text>
                             <TouchableOpacity onPress={() => adjustPages(1)} style={styles.pageBtn}>
@@ -320,8 +320,8 @@ export default function RamadanScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0C0F0E' },
-    loadingText: { color: '#9A9590', marginTop: 16, fontSize: 14 },
+    container: { flex: 1, backgroundColor: '#FDF8F0' },
+    loadingText: { color: '#5E5C58', marginTop: 16, fontSize: 14 },
 
     header: {
         flexDirection: 'row',
@@ -331,8 +331,8 @@ const styles = StyleSheet.create({
         height: 64,
     },
     backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
-    headerTitle: { color: '#E8E6E1', fontSize: 22, fontWeight: '500', textAlign: 'center' },
-    headerSub: { color: '#9A9590', fontSize: 13, textAlign: 'center', marginTop: 2 },
+    headerTitle: { color: '#1A1A1A', fontSize: 22, fontWeight: '500', textAlign: 'center' },
+    headerSub: { color: '#5E5C58', fontSize: 13, textAlign: 'center', marginTop: 2 },
 
     scroll: { paddingBottom: 60 },
 
@@ -349,8 +349,8 @@ const styles = StyleSheet.create({
     ringSection: { alignItems: 'center', marginVertical: 16 },
     ringWrapper: { width: 200, height: 200, alignItems: 'center', justifyContent: 'center' },
     ringCenter: { position: 'absolute', alignItems: 'center' },
-    ringLabel: { color: '#9A9590', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 },
-    ringTime: { color: '#E8E6E1', fontSize: 32, fontWeight: '300', marginVertical: 4 },
+    ringLabel: { color: '#5E5C58', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 },
+    ringTime: { color: '#1A1A1A', fontSize: 32, fontWeight: '300', marginVertical: 4 },
     ringSubLabel: { color: '#5E5C58', fontSize: 11 },
 
     // Timings
@@ -366,8 +366,8 @@ const styles = StyleSheet.create({
     },
     timingCard: { flex: 1, alignItems: 'center' },
     timingDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.06)' },
-    timingLabel: { color: '#9A9590', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 },
-    timingTime: { color: '#E8E6E1', fontSize: 22, fontWeight: '300' },
+    timingLabel: { color: '#5E5C58', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 },
+    timingTime: { color: '#1A1A1A', fontSize: 22, fontWeight: '300' },
     timingCountdown: { color: '#C9A84C', fontSize: 12, marginTop: 4 },
 
     // Toggle
@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
     },
     fastToggleActive: { backgroundColor: '#C9A84C', borderColor: '#C9A84C' },
     fastToggleText: { color: '#C9A84C', fontSize: 16, fontWeight: '600' },
-    fastToggleTextActive: { color: '#0C0F0E' },
+    fastToggleTextActive: { color: '#FDF8F0' },
 
     // Stats
     statsRow: { flexDirection: 'row', marginHorizontal: 20, gap: 12, marginBottom: 20 },
@@ -398,8 +398,8 @@ const styles = StyleSheet.create({
         padding: 20,
         alignItems: 'center',
     },
-    statNumber: { color: '#E8E6E1', fontSize: 36, fontWeight: '300' },
-    statLabel: { color: '#9A9590', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 },
+    statNumber: { color: '#1A1A1A', fontSize: 36, fontWeight: '300' },
+    statLabel: { color: '#5E5C58', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 },
     statSub: { color: '#5E5C58', fontSize: 11, marginTop: 4 },
     pagesRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     pageBtn: { padding: 6 },
@@ -415,12 +415,12 @@ const styles = StyleSheet.create({
     },
     duaTitle: { color: '#C9A84C', fontSize: 14, fontWeight: '600', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 0.8 },
     duaArabic: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 22,
         lineHeight: 40,
         textAlign: 'right',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
     },
-    duaDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginVertical: 16 },
-    duaTranslation: { color: '#9A9590', fontSize: 14, lineHeight: 22, fontStyle: 'italic' },
+    duaDivider: { height: 1, backgroundColor: 'rgba(0,0,0,0.05)', marginVertical: 16 },
+    duaTranslation: { color: '#5E5C58', fontSize: 14, lineHeight: 22, fontStyle: 'italic' },
 });

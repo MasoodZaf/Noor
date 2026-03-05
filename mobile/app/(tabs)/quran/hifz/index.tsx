@@ -50,7 +50,7 @@ export default function HifzTrackerScreen() {
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Hifz Memory Tracker</Text>
                 <TouchableOpacity style={styles.actionButton}>
-                    <Feather name="plus" size={24} color="#E8E6E1" />
+                    <Feather name="plus" size={24} color="#1A1A1A" />
                 </TouchableOpacity>
             </View>
 
@@ -90,7 +90,7 @@ export default function HifzTrackerScreen() {
                                     </Defs>
                                     <Circle
                                         cx="75" cy="75" r={radius}
-                                        stroke="rgba(255,255,255,0.05)"
+                                        stroke="rgba(0,0,0,0.05)"
                                         strokeWidth={strokeWidth}
                                         fill="none"
                                     />
@@ -128,7 +128,7 @@ export default function HifzTrackerScreen() {
                             {mockHifzData.filter(d => d.status === 'learning').map((surah, idx) => (
                                 <View key={idx} style={styles.surahRow}>
                                     <View style={styles.surahIcon}>
-                                        <Feather name="book-open" size={20} color="#9A9590" />
+                                        <Feather name="book-open" size={20} color="#5E5C58" />
                                     </View>
                                     <View style={{ flex: 1 }}>
                                         <Text style={styles.surahName}>{surah.name}</Text>
@@ -166,7 +166,7 @@ export default function HifzTrackerScreen() {
                                         ]}>{surah.nextReview}</Text>
                                     </View>
                                     <TouchableOpacity style={styles.startBtn}>
-                                        <Feather name="play" size={16} color="#0C0F0E" />
+                                        <Feather name="play" size={16} color="#FDF8F0" />
                                         <Text style={styles.startBtnText}>Start Drill</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -184,7 +184,7 @@ export default function HifzTrackerScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0C0F0E',
+        backgroundColor: '#FDF8F0',
     },
     header: {
         flexDirection: 'row',
@@ -207,11 +207,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: -10,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         borderRadius: 20,
     },
     headerTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 18,
         fontWeight: '600',
     },
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         alignItems: 'center',
         borderBottomWidth: 2,
-        borderBottomColor: 'rgba(255,255,255,0.05)',
+        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     tabBtnActive: {
         borderBottomColor: '#C9A84C',
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     radialNumber: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 36,
         fontWeight: 'bold',
     },
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
         color: '#C9A84C',
     },
     radialLabel: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 14,
         textTransform: 'uppercase',
         letterSpacing: 1,
@@ -295,26 +295,26 @@ const styles = StyleSheet.create({
         width: '100%',
         justifyContent: 'space-around',
         borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.05)',
+        borderTopColor: 'rgba(0,0,0,0.05)',
         paddingTop: 24,
     },
     statBox: {
         alignItems: 'center',
     },
     statValue: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 24,
         fontWeight: '600',
         marginBottom: 4,
     },
     statLabel: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 12,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
     },
     sectionTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 18,
         fontWeight: '600',
         marginBottom: 16,
@@ -329,25 +329,25 @@ const styles = StyleSheet.create({
         padding: 16,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.02)',
+        borderColor: '#FFFFFF',
     },
     surahIcon: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 16,
     },
     surahName: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 16,
         fontWeight: '500',
         marginBottom: 4,
     },
     surahSub: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 13,
     },
     statusPill: {
@@ -369,17 +369,17 @@ const styles = StyleSheet.create({
         paddingVertical: 30,
         paddingHorizontal: 20,
         marginBottom: 20,
-        backgroundColor: 'rgba(255,255,255,0.02)',
+        backgroundColor: '#FFFFFF',
         borderRadius: 20,
     },
     srsTitle: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 22,
         fontWeight: '600',
         marginBottom: 12,
     },
     srsDesc: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 14,
         textAlign: 'center',
         lineHeight: 22,
@@ -398,13 +398,13 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     reviewSurah: {
-        color: '#E8E6E1',
+        color: '#1A1A1A',
         fontSize: 18,
         fontWeight: 'bold',
         marginBottom: 6,
     },
     reviewDue: {
-        color: '#9A9590',
+        color: '#5E5C58',
         fontSize: 13,
     },
     startBtn: {
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     startBtnText: {
-        color: '#0C0F0E',
+        color: '#FDF8F0',
         fontSize: 14,
         fontWeight: 'bold',
     }

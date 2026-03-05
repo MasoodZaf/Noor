@@ -95,7 +95,7 @@ const gradeColor = (grade: string) => {
     if (g.includes('sahih'))                                    return '#2ECC71';
     if (g.includes('hasan'))                                    return '#F39C12';
     if (g.includes("da'if") || g.includes('daif') || g.includes('weak')) return '#E74C3C';
-    return '#9A9590';
+    return '#5E5C58';
 };
 
 // ─── Collection meta ──────────────────────────────────────────────────────────
@@ -335,10 +335,10 @@ export default function HadithCollectionScreen() {
 
                     <View style={styles.actionRow}>
                         <TouchableOpacity style={styles.actionBtn}>
-                            <Feather name="share-2" size={18} color="#9A9590" />
+                            <Feather name="share-2" size={18} color="#5E5C58" />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.actionBtn}>
-                            <Feather name="bookmark" size={18} color="#9A9590" />
+                            <Feather name="bookmark" size={18} color="#5E5C58" />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -371,7 +371,7 @@ export default function HadithCollectionScreen() {
                     </Text>
                 </View>
                 <TouchableOpacity style={styles.filterButton}>
-                    <Feather name="filter" size={22} color="#E8E6E1" />
+                    <Feather name="filter" size={22} color="#1A1A1A" />
                 </TouchableOpacity>
             </View>
 
@@ -401,33 +401,33 @@ export default function HadithCollectionScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0C0F0E' },
+    container: { flex: 1, backgroundColor: '#FDF8F0' },
     header: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: 20, paddingTop: 10, paddingBottom: 16,
-        borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)',
+        borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     backButton:   { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
     filterButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginRight: -10 },
     headerTitle:  { fontSize: 18, fontWeight: 'bold', letterSpacing: 0.5 },
     headerSubtitle: {
-        color: '#9A9590', fontSize: 12, marginTop: 4,
+        color: '#5E5C58', fontSize: 12, marginTop: 4,
         letterSpacing: 0.5, textTransform: 'uppercase',
     },
     loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    loadingText:    { color: '#9A9590', marginTop: 16, fontSize: 15 },
+    loadingText:    { color: '#5E5C58', marginTop: 16, fontSize: 15 },
     loadingSubtext: { color: '#5E5C58', marginTop: 6, fontSize: 12 },
     listContent:    { paddingHorizontal: 20, paddingTop: 24 },
     sectionHeader: {
         paddingVertical: 10, paddingHorizontal: 4,
         marginBottom: 12, marginTop: 8,
-        borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)',
+        borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     sectionText: { fontSize: 13, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
     hadithCard: {
-        backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 16,
+        backgroundColor: '#FFFFFF', borderRadius: 16,
         padding: 24, marginBottom: 20,
-        borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)',
     },
     cardTopRow: {
         flexDirection: 'row', justifyContent: 'space-between',
@@ -438,21 +438,21 @@ const styles = StyleSheet.create({
     gradeBadge: {
         flexDirection: 'row', alignItems: 'center', gap: 6,
         paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
-        borderWidth: 1, backgroundColor: 'rgba(255,255,255,0.02)',
+        borderWidth: 1, backgroundColor: '#FFFFFF',
     },
     gradeDot:   { width: 6, height: 6, borderRadius: 3 },
     gradeText:  { fontSize: 11, fontWeight: '600', letterSpacing: 0.5 },
     arabicText: {
-        color: '#E8E6E1', fontSize: 22, lineHeight: 40,
+        color: '#1A1A1A', fontSize: 22, lineHeight: 40,
         textAlign: 'right', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
     },
-    divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginVertical: 20 },
-    translationText: { color: '#9A9590', fontSize: 15, lineHeight: 24 },
+    divider: { height: 1, backgroundColor: 'rgba(0,0,0,0.05)', marginVertical: 20 },
+    translationText: { color: '#5E5C58', fontSize: 15, lineHeight: 24 },
     actionRow: {
         flexDirection: 'row', justifyContent: 'flex-end', gap: 16,
         marginTop: 20, paddingTop: 16,
-        borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)',
+        borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)',
     },
-    actionBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12 },
+    actionBtn: { padding: 8, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 12 },
     footerLoader: { paddingVertical: 30, alignItems: 'center' },
 });
