@@ -11,13 +11,14 @@ export default function MiniAudioPlayer() {
 
     const progressPct = durationMs > 0 ? (positionMs / durationMs) * 100 : 0;
 
-    const togglePlay = async () => {
-        if (!soundRef.current) return;
+    const togglePlay = () => {
+        const player = soundRef.current;
+        if (!player || !player.isLoaded) return;
         if (isPlaying) {
-            await soundRef.current.pauseAsync();
+            player.pause();
             setAudioState(s => ({ ...s, isPlaying: false }));
         } else {
-            await soundRef.current.playAsync();
+            player.play();
             setAudioState(s => ({ ...s, isPlaying: true }));
         }
     };

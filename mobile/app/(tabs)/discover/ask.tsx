@@ -1,10 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, ScrollView,
-    TextInput, KeyboardAvoidingView, Platform, Animated,
+    TextInput, KeyboardAvoidingView, Platform, Animated, BackHandler,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../../../context/DatabaseContext';
 
@@ -84,6 +84,19 @@ export default function AiDeenScreen() {
     const insets = useSafeAreaInsets();
     const { db } = useDatabase();
     const scrollRef = useRef<ScrollView>(null);
+
+    const goBack = useCallback(() => {
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)/discover' as any);
+    }, [router]);
+
+    useFocusEffect(
+        useCallback(() => {
+            if (Platform.OS !== 'android') return;
+            const sub = BackHandler.addEventListener('hardwareBackPress', () => { goBack(); return true; });
+            return () => sub.remove();
+        }, [goBack])
+    );
 
     const [scope, setScope] = useState<Scope>('quran');
     const [message, setMessage] = useState('');
@@ -241,7 +254,7 @@ export default function AiDeenScreen() {
         >
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <TouchableOpacity onPress={goBack} style={styles.backButton}>
                     <Feather name="chevron-left" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>

@@ -29,50 +29,61 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
 
         const initDb = async () => {
             try {
-                const dbName = 'noor_v12.db';
-                // Safely use FileSystem.documentDirectory which passes all expo-file-system write validations.
-                // SQLite defaults to this 'SQLite' subfolder.
-                const dbDirectory = `${FileSystem.documentDirectory}SQLite`;
-                const dbFilePath = `${dbDirectory}/${dbName}`;
+                const dbVersion = 'v19';
+                const dbName = `noor_${dbVersion}.db`;
+                // SQLite on Expo looks for dbs in the 'SQLite' folder of documentDirectory
+                const dbDirectory = `${FileSystem.documentDirectory}SQLite/`;
+                const dbFilePath = `${dbDirectory}${dbName}`;
 
+                console.log(`[Database] Initializing version ${dbVersion}...`);
                 const fileInfo = await FileSystem.getInfoAsync(dbFilePath);
 
                 if (!fileInfo.exists) {
-                    console.log("Offline Database not found locally. Extracting from bundle...");
-                    // Ensure the SQLite directory exists before copying
+                    console.log(`[Database] ${dbName} not found. Preparing new copy...`);
+
+                    // Create directory if missing
                     const dirInfo = await FileSystem.getInfoAsync(dbDirectory);
                     if (!dirInfo.exists) {
                         await FileSystem.makeDirectoryAsync(dbDirectory, { intermediates: true });
                     }
 
+                    // Get asset and copy it
+                    // NOTE: 'noor.db' is the source filename in project assets
                     const asset = Asset.fromModule(require('../assets/noor.db'));
                     await asset.downloadAsync();
 
-                    if (asset.localUri) {
+                    const source = asset.localUri || asset.uri;
+                    if (!source) throw new Error("Asset source (localUri/uri) is null or undefined");
+
+                    if (source.startsWith('http')) {
+                        await FileSystem.downloadAsync(source, dbFilePath);
+                    } else {
                         await FileSystem.copyAsync({
-                            from: asset.localUri,
+                            from: source,
                             to: dbFilePath
                         });
-                        console.log("Database successfully copied for offline use.");
-                    } else if (asset.uri) {
-                        await FileSystem.downloadAsync(asset.uri, dbFilePath);
-                        console.log("Database perfectly downloaded to physical device.");
-                    } else {
-                        throw new Error("Asset URI not found");
                     }
+                    console.log("[Database] Successfully copied master database to app storage.");
+                } else {
+                    console.log("[Database] Using existing offline vault at:", dbFilePath);
                 }
 
-                // Open our beautifully seeded real database
+                // In v15+, we specify the exact name
                 const database = await SQLite.openDatabaseAsync(dbName);
+
+                // Run a sanity check query
+                const check = await database.getFirstAsync('SELECT count(*) as count FROM surahs') as any;
+                const qCheck = await database.getFirstAsync('SELECT count(*) as count FROM qaida_lessons') as any;
+                console.log("[Database] Sanity check:", check?.count || 0, "surahs and", qCheck?.count || 0, "qaida lessons");
 
                 if (isMounted) {
                     setDb(database);
                     setIsReady(true);
                 }
             } catch (error: any) {
-                console.error("Database initialization failed:", error);
+                console.error("[Database] CRITICAL ERROR:", error);
                 if (isMounted) {
-                    setErrorMsg(error.message);
+                    setErrorMsg(`Init Failure: ${error.message}`);
                 }
             }
         };

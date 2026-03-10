@@ -1,139 +1,222 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import {
+    View, Text, StyleSheet, TouchableOpacity, ScrollView,
+    Dimensions, Animated, Linking, Platform, BackHandler,
+} from 'react-native';
+import { WebView } from 'react-native-webview';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
+const PLAYER_HEIGHT = width * 0.5625; // 16:9
 
+// Official Saudi Broadcasting channels (channel IDs are stable — never change)
+// Makkah: قناة القران الكريم (Saudi Quran TV) — UCos52azQNBgW63_9uDJoPDA
+// Madinah: قناة السنة النبوية (Saudi Sunnah TV) — UCROKYPep-UuODNwyipe6JMw
+// Al-Aqsa: Al-Quds channel live stream
 const STREAMS = [
-    { id: '1', title: 'Makkah Al-Mukarramah', location: 'Saudi Arabia', live: true, viewers: '45.2K' },
-    { id: '2', title: 'Al-Madinah Al-Munawwarah', location: 'Saudi Arabia', live: true, viewers: '32.1K' },
-    { id: '3', title: 'Al-Aqsa Mosque', location: 'Palestine', live: true, viewers: '15.8K' },
+    {
+        id: '1',
+        title: 'Makkah Al-Mukarramah',
+        subtitle: 'Masjid Al-Haram · Live 24/7',
+        location: 'Saudi Arabia',
+        color: '#1E5631',
+        icon: '🕋',
+        // YouTube live_stream?channel= embeds the currently active live broadcast from the channel
+        channelId: 'UCos52azQNBgW63_9uDJoPDA',
+        youtubeUrl: 'https://www.youtube.com/@SaudiQuranTv/live',
+    },
+    {
+        id: '2',
+        title: 'Al-Madinah Al-Munawwarah',
+        subtitle: 'Masjid An-Nabawi · Live 24/7',
+        location: 'Saudi Arabia',
+        color: '#1B3A6B',
+        icon: '🕌',
+        channelId: 'UCROKYPep-UuODNwyipe6JMw',
+        youtubeUrl: 'https://www.youtube.com/@SaudiSunnahTv/live',
+    },
+    {
+        id: '3',
+        title: 'Al-Aqsa Mosque',
+        subtitle: 'Masjid Al-Aqsa · Live',
+        location: 'Palestine',
+        color: '#4A1C40',
+        icon: '🏛️',
+        channelId: 'UCBqoNJiL4yWYqyNOpkTXzpA',
+        youtubeUrl: 'https://www.youtube.com/@alaqsa/live',
+    },
 ];
+
+// Build the YouTube embed URI directly — avoids double-embedding (WebView→HTML→iframe).
+// live_stream?channel= loads the active live broadcast from the channel.
+const buildEmbedUri = (channelId: string) =>
+    `https://www.youtube.com/embed/live_stream?channel=${channelId}&autoplay=1&playsinline=1&rel=0&modestbranding=1&controls=1`;
 
 export default function LiveScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-
-    // Default to Makkah
     const [activeStream, setActiveStream] = useState(STREAMS[0]);
-    const [loading, setLoading] = useState(true);
 
-    // Mock video loading
-    const handleStreamChange = (stream: typeof STREAMS[0]) => {
-        setLoading(true);
-        setActiveStream(stream);
-        setTimeout(() => setLoading(false), 1500);
-    };
+    const goBack = useCallback(() => {
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)/discover' as any);
+    }, [router]);
+    useFocusEffect(useCallback(() => {
+        if (Platform.OS !== 'android') return;
+        const sub = BackHandler.addEventListener('hardwareBackPress', () => { goBack(); return true; });
+        return () => sub.remove();
+    }, [goBack]));
+    const [playerKey, setPlayerKey] = useState(0); // force WebView remount on stream change
+    const [embedError, setEmbedError] = useState(false);
 
-    // Initial mock load
-    React.useEffect(() => {
-        const timer = setTimeout(() => setLoading(false), 1500);
-        return () => clearTimeout(timer);
+    // Pulsing live dot
+    const pulse = useRef(new Animated.Value(1)).current;
+    useEffect(() => {
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(pulse, { toValue: 0.2, duration: 900, useNativeDriver: true }),
+                Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+            ])
+        ).start();
     }, []);
+
+    const switchStream = (stream: typeof STREAMS[0]) => {
+        setActiveStream(stream);
+        setEmbedError(false);
+        setPlayerKey(k => k + 1); // remount WebView for clean load
+    };
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <TouchableOpacity onPress={goBack} style={styles.backBtn}>
                     <Feather name="chevron-left" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Live Broadcasts</Text>
                 <View style={{ width: 40 }} />
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Video Player Placeholder Area */}
-                <View style={styles.videoPlayerContainer}>
-                    {loading ? (
-                        <View style={styles.loadingWrapper}>
-                            <ActivityIndicator size="large" color="#C9A84C" />
-                            <Text style={styles.loadingText}>Connecting to {activeStream.title}...</Text>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+                {/* ── In-app YouTube Player ── */}
+                <View style={styles.playerWrapper}>
+                    {embedError ? (
+                        /* Fallback card when YouTube embed is unavailable */
+                        <View style={styles.errorCard}>
+                            <Text style={styles.errorEmoji}>{activeStream.icon}</Text>
+                            <Text style={styles.errorTitle}>{activeStream.title}</Text>
+                            <Text style={styles.errorSub}>Live stream unavailable in embed.{'\n'}Tap below to watch on YouTube.</Text>
+                            <TouchableOpacity
+                                style={styles.openYtBtn}
+                                onPress={() => Linking.openURL(activeStream.youtubeUrl)}
+                            >
+                                <Feather name="youtube" size={16} color="#FFF" />
+                                <Text style={styles.openYtText}>Watch Live on YouTube</Text>
+                            </TouchableOpacity>
                         </View>
                     ) : (
-                        <View style={styles.placeholderPlayer}>
-                            {/* In a real app, expo-av Video component goes here */}
-                            <Feather name="play-circle" size={64} color="rgba(255, 255, 255, 0.4)" />
-
-                            {/* Live Badge Overlay */}
-                            <View style={styles.liveBadge}>
-                                <View style={styles.liveDot} />
-                                <Text style={styles.liveBadgeText}>LIVE</Text>
-                            </View>
-
-                            {/* Viewers Overlay */}
-                            <View style={styles.viewersBadge}>
-                                <Feather name="users" size={12} color="#1A1A1A" />
-                                <Text style={styles.viewersText}>{activeStream.viewers}</Text>
-                            </View>
+                        <WebView
+                            key={playerKey}
+                            source={{ uri: buildEmbedUri(activeStream.channelId) }}
+                            style={styles.webview}
+                            allowsInlineMediaPlayback
+                            mediaPlaybackRequiresUserAction={false}
+                            allowsFullscreenVideo
+                            javaScriptEnabled
+                            scrollEnabled={false}
+                            onError={() => setEmbedError(true)}
+                            onHttpError={(e) => {
+                                if (e.nativeEvent.statusCode >= 400) setEmbedError(true);
+                            }}
+                            injectedJavaScript={`
+                                // Poll for YouTube's "unavailable" error state and notify RN
+                                (function() {
+                                    var attempts = 0;
+                                    var check = setInterval(function() {
+                                        attempts++;
+                                        var el = document.querySelector('.ytp-error-content-wrap-reason');
+                                        if (el) {
+                                            clearInterval(check);
+                                            window.ReactNativeWebView.postMessage('ERROR:' + el.textContent);
+                                        }
+                                        if (attempts > 20) clearInterval(check);
+                                    }, 500);
+                                })();
+                                true;
+                            `}
+                            onMessage={(e) => {
+                                if (e.nativeEvent.data.startsWith('ERROR:')) setEmbedError(true);
+                            }}
+                        />
+                    )}
+                    {/* Live badge overlay */}
+                    {!embedError && (
+                        <View style={styles.liveBadge}>
+                            <Animated.View style={[styles.liveDot, { opacity: pulse }]} />
+                            <Text style={styles.liveBadgeText}>LIVE</Text>
                         </View>
+                    )}
+                    {/* Open in YouTube button (always visible) */}
+                    {!embedError && (
+                        <TouchableOpacity
+                            style={styles.ytFallbackBtn}
+                            onPress={() => Linking.openURL(activeStream.youtubeUrl)}
+                        >
+                            <Feather name="youtube" size={14} color="#FFF" />
+                            <Text style={styles.ytFallbackText}>Open in YouTube</Text>
+                        </TouchableOpacity>
                     )}
                 </View>
 
-                {/* Stream Info Area */}
-                <View style={styles.streamInfoContainer}>
-                    <Text style={styles.streamTitle}>{activeStream.title}</Text>
-                    <View style={styles.locationWrapper}>
-                        <Feather name="map-pin" size={14} color="#C9A84C" />
-                        <Text style={styles.streamLocation}>{activeStream.location}</Text>
+                {/* Stream info */}
+                <View style={[styles.streamInfo, { borderLeftColor: activeStream.color }]}>
+                    <Text style={styles.streamEmoji}>{activeStream.icon}</Text>
+                    <View>
+                        <Text style={styles.streamTitle}>{activeStream.title}</Text>
+                        <Text style={styles.streamSub}>{activeStream.subtitle}</Text>
                     </View>
                 </View>
 
-                {/* Available Streams List */}
-                <View style={styles.otherStreamsSection}>
-                    <Text style={styles.sectionTitle}>Other Broadcasts</Text>
-
-                    {STREAMS.map((stream) => (
+                {/* Stream selector */}
+                <Text style={styles.sectionLabel}>Select Broadcast</Text>
+                {STREAMS.map((stream) => {
+                    const isActive = activeStream.id === stream.id;
+                    return (
                         <TouchableOpacity
                             key={stream.id}
-                            style={[
-                                styles.streamCard,
-                                activeStream.id === stream.id && styles.streamCardActive
-                            ]}
-                            onPress={() => handleStreamChange(stream)}
+                            style={[styles.streamCard, isActive && { borderColor: stream.color, borderWidth: 2 }]}
+                            activeOpacity={0.8}
+                            onPress={() => switchStream(stream)}
                         >
-                            {/* Thumbnail Mock */}
-                            <View style={styles.streamThumbnail}>
-                                <Feather name="video" size={24} color="#5E5C58" />
-                                {stream.live && (
-                                    <View style={styles.smallLiveBadge}>
-                                        <Text style={styles.smallLiveText}>LIVE</Text>
-                                    </View>
-                                )}
+                            <View style={[styles.iconCircle, { backgroundColor: stream.color + '22' }]}>
+                                <Text style={styles.cardEmoji}>{stream.icon}</Text>
                             </View>
-
-                            <View style={styles.streamCardInfo}>
-                                <Text style={[
-                                    styles.cardTitle,
-                                    activeStream.id === stream.id && styles.cardTitleActive
-                                ]}>
+                            <View style={styles.cardBody}>
+                                <Text style={[styles.cardTitle, isActive && { color: stream.color }]}>
                                     {stream.title}
                                 </Text>
-                                <Text style={styles.cardLocation}>{stream.location}</Text>
+                                <Text style={styles.cardSub}>{stream.subtitle}</Text>
                             </View>
-
-                            {activeStream.id === stream.id && (
-                                <View style={styles.playingIndicator}>
-                                    <View style={styles.eqBar1} />
-                                    <View style={styles.eqBar2} />
-                                    <View style={styles.eqBar3} />
+                            {isActive ? (
+                                <View style={styles.activePill}>
+                                    <Animated.View style={[styles.pillDot, { opacity: pulse }]} />
+                                    <Text style={styles.pillText}>PLAYING</Text>
                                 </View>
+                            ) : (
+                                <Feather name="play-circle" size={22} color="#C9A84C" />
                             )}
                         </TouchableOpacity>
-                    ))}
-                </View>
+                    );
+                })}
             </ScrollView>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#FDF8F0',
-    },
+    container: { flex: 1, backgroundColor: '#FDF8F0' },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -141,178 +224,128 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         height: 60,
     },
-    backButton: {
-        width: 40,
-        height: 40,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginLeft: -10,
-    },
-    headerTitle: {
-        color: '#1A1A1A',
-        fontSize: 18,
-        fontWeight: '500',
-        letterSpacing: 0.5,
-    },
-    videoPlayerContainer: {
-        width: width,
-        height: width * 0.5625, // 16:9 Aspect Ratio
-        backgroundColor: '#FFFFFF',
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0,0,0,0.05)',
-    },
-    loadingWrapper: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 16,
-    },
-    loadingText: {
-        color: '#5E5C58',
-        fontSize: 14,
-        letterSpacing: 0.5,
-    },
-    placeholderPlayer: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(31, 78, 61, 0.2)', // Forest Green tint to mimic Kaaba cover vibe
+    backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
+    headerTitle: { color: '#1A1A1A', fontSize: 18, fontWeight: '600' },
+
+    playerWrapper: {
+        width,
+        height: PLAYER_HEIGHT,
+        backgroundColor: '#000',
         position: 'relative',
     },
+    webview: { flex: 1, backgroundColor: '#000' },
     liveBadge: {
         position: 'absolute',
-        top: 16,
-        left: 16,
-        backgroundColor: 'rgba(242, 91, 91, 0.9)', // Red
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 8,
+        top: 12,
+        left: 12,
         flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: 'rgba(242,91,91,0.92)',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 20,
         gap: 6,
     },
-    liveDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: '#FFFFFF',
-    },
-    liveBadgeText: {
-        color: '#FFFFFF',
-        fontSize: 11,
-        fontWeight: '700',
-        letterSpacing: 1,
-    },
-    viewersBadge: {
+    liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#FFF' },
+    liveBadgeText: { color: '#FFF', fontSize: 11, fontWeight: '800', letterSpacing: 1.5 },
+    ytFallbackBtn: {
         position: 'absolute',
-        top: 16,
-        right: 16,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        bottom: 10,
+        right: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        backgroundColor: 'rgba(0,0,0,0.6)',
         paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 8,
+        paddingVertical: 6,
+        borderRadius: 14,
+    },
+    ytFallbackText: { color: '#FFF', fontSize: 11, fontWeight: '600' },
+
+    errorCard: {
+        flex: 1,
+        backgroundColor: '#111',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        gap: 10,
+    },
+    errorEmoji: { fontSize: 40 },
+    errorTitle: { color: '#FFF', fontSize: 18, fontWeight: '700', textAlign: 'center' },
+    errorSub: { color: '#9A9590', fontSize: 13, textAlign: 'center', lineHeight: 20 },
+    openYtBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
+        backgroundColor: '#FF0000',
+        paddingHorizontal: 18,
+        paddingVertical: 10,
+        borderRadius: 20,
+        gap: 8,
+        marginTop: 6,
     },
-    viewersText: {
-        color: '#1A1A1A',
+    openYtText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+
+    streamInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+        marginHorizontal: 20,
+        marginTop: 20,
+        marginBottom: 24,
+        paddingLeft: 14,
+        borderLeftWidth: 4,
+    },
+    streamEmoji: { fontSize: 32 },
+    streamTitle: { color: '#1A1A1A', fontSize: 18, fontWeight: '700' },
+    streamSub: { color: '#C9A84C', fontSize: 13, marginTop: 2 },
+
+    sectionLabel: {
+        color: '#5E5C58',
         fontSize: 12,
-        fontWeight: '500',
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginHorizontal: 20,
+        marginBottom: 12,
     },
-    streamInfoContainer: {
-        padding: 24,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0,0,0,0.05)',
-    },
-    streamTitle: {
-        color: '#1A1A1A',
-        fontSize: 22,
-        fontWeight: '500',
-        letterSpacing: 0.5,
-        marginBottom: 8,
-    },
-    locationWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    streamLocation: {
-        color: '#C9A84C', // Gold
-        fontSize: 14,
-    },
-    otherStreamsSection: {
-        padding: 24,
-    },
-    sectionTitle: {
-        color: '#1A1A1A',
-        fontSize: 18,
-        fontWeight: '500',
-        marginBottom: 16,
-    },
+
     streamCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 12,
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
-        borderRadius: 16,
+        marginHorizontal: 20,
         marginBottom: 12,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        padding: 14,
         borderWidth: 1,
         borderColor: 'rgba(0,0,0,0.05)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 2,
     },
-    streamCardActive: {
-        backgroundColor: 'rgba(31, 78, 61, 0.2)',
-        borderColor: 'rgba(201, 168, 76, 0.3)',
-    },
-    streamThumbnail: {
-        width: 80,
-        height: 50,
-        borderRadius: 8,
-        backgroundColor: 'rgba(0,0,0,0.05)',
+    iconCircle: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 16,
-        position: 'relative',
+        marginRight: 14,
     },
-    smallLiveBadge: {
-        position: 'absolute',
-        bottom: 4,
-        right: 4,
-        backgroundColor: '#F25B5B',
-        paddingHorizontal: 4,
-        paddingVertical: 2,
-        borderRadius: 4,
-    },
-    smallLiveText: {
-        color: '#FFF',
-        fontSize: 8,
-        fontWeight: 'bold',
-    },
-    streamCardInfo: {
-        flex: 1,
-        justifyContent: 'center',
-    },
-    cardTitle: {
-        color: '#1A1A1A',
-        fontSize: 16,
-        fontWeight: '500',
-        marginBottom: 4,
-    },
-    cardTitleActive: {
-        color: '#C9A84C',
-    },
-    cardLocation: {
-        color: '#5E5C58',
-        fontSize: 13,
-    },
-    playingIndicator: {
+    cardEmoji: { fontSize: 24 },
+    cardBody: { flex: 1 },
+    cardTitle: { color: '#1A1A1A', fontSize: 15, fontWeight: '700', marginBottom: 2 },
+    cardSub: { color: '#9A9590', fontSize: 12 },
+    activePill: {
         flexDirection: 'row',
-        alignItems: 'flex-end',
-        gap: 3,
-        height: 16,
-        marginLeft: 16,
+        alignItems: 'center',
+        backgroundColor: 'rgba(242,91,91,0.12)',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 10,
+        gap: 5,
     },
-    eqBar1: { width: 3, height: '60%', backgroundColor: '#C9A84C', borderRadius: 2 },
-    eqBar2: { width: 3, height: '100%', backgroundColor: '#C9A84C', borderRadius: 2 },
-    eqBar3: { width: 3, height: '40%', backgroundColor: '#C9A84C', borderRadius: 2 },
+    pillDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#F25B5B' },
+    pillText: { color: '#F25B5B', fontSize: 9, fontWeight: '800', letterSpacing: 1 },
 });

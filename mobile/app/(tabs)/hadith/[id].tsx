@@ -63,19 +63,21 @@ const buildHadiths = (
     trHadiths: any[],
     sections: Record<string, string>
 ): HadithItem[] =>
-    araHadiths.map((ara, i) => {
-        const tr = trHadiths[i];
-        const sectionKey = String(ara.reference?.book ?? '');
-        return {
-            id: String(ara.hadithnumber),
-            hadith_number: ara.hadithnumber,
-            book_slug: collectionId,
-            text_arabic: ara.text ?? '',
-            text_translation: tr?.text ?? '',
-            grade: tr?.grades?.[0]?.grade ?? '',
-            section: sections[sectionKey] ?? '',
-        };
-    });
+    araHadiths
+        .map((ara, i) => {
+            const tr = trHadiths[i];
+            const sectionKey = String(ara.reference?.book ?? '');
+            return {
+                id: String(ara.hadithnumber),
+                hadith_number: ara.hadithnumber,
+                book_slug: collectionId,
+                text_arabic: ara.text ?? '',
+                text_translation: tr?.text ?? '',
+                grade: tr?.grades?.[0]?.grade ?? '',
+                section: sections[sectionKey] ?? '',
+            };
+        })
+        .filter(h => h.text_arabic || h.text_translation);
 
 // DB fallback — get translation column by language
 const getTranslationFromRow = (row: any, lang: string): string => {
@@ -100,10 +102,10 @@ const gradeColor = (grade: string) => {
 
 // ─── Collection meta ──────────────────────────────────────────────────────────
 const COLLECTIONS_META: Record<string, { title: string; count: number; color: string }> = {
-    bukhari:  { title: 'Sahih al-Bukhari',  count: 7563, color: '#C9A84C' },
-    muslim:   { title: 'Sahih Muslim',      count: 3033, color: '#1F4E3D' },
-    tirmidhi: { title: 'Jami at-Tirmidhi',  count: 3956, color: '#4A3E2D' },
-    abudawud: { title: 'Sunan Abu Dawud',   count: 5274, color: '#2C3E50' },
+    bukhari:  { title: 'Sahih al-Bukhari',  count: 7580, color: '#C9A84C' },
+    muslim:   { title: 'Sahih Muslim',      count: 7360, color: '#1F4E3D' },
+    tirmidhi: { title: 'Jami at-Tirmidhi',  count: 3926, color: '#4A3E2D' },
+    abudawud: { title: 'Sunan Abu Dawud',   count: 5272, color: '#2C3E50' },
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -187,9 +189,10 @@ export default function HadithCollectionScreen() {
         const rows = await db.getAllAsync(
             `SELECT collection_slug AS book_slug, hadith_number,
                     arabic_text AS text_arabic, english_text AS text_english,
-                    urdu_text AS text_urdu, narrator_chain AS narrator
+                    '' AS text_urdu, narrator_chain AS narrator,
+                    grade, book_number
              FROM hadiths WHERE collection_slug = ?
-             ORDER BY CAST(hadith_number AS INTEGER) ASC
+             ORDER BY hadith_number ASC
              LIMIT ? OFFSET ?`,
             [collectionId, ITEMS_PER_PAGE, dbOffset]
         ) as any[];
@@ -202,14 +205,14 @@ export default function HadithCollectionScreen() {
             book_slug:        r.book_slug ?? '',
             text_arabic:      r.text_arabic ?? '',
             text_translation: getTranslationFromRow(r, lang),
-            grade:            '',
+            grade:            r.grade ?? '',
             section:          '',
         }));
 
         setHadiths(prev => isInitial ? mapped : [...prev, ...mapped]);
     };
 
-    // ── Initial load ──────────────────────────────────────────────────────────
+    // ── Initial load — API first, SQLite fallback ─────────────────────────────
     useEffect(() => {
         araRawRef.current      = [];
         allHadithsRef.current  = [];
@@ -246,11 +249,10 @@ export default function HadithCollectionScreen() {
                 try {
                     await loadFromApi(language, true);
                 } catch {
-                    // Remap whatever we have with best-effort (keeps existing hadiths)
+                    // keep existing hadiths, best-effort
                 }
             })();
         } else {
-            // DB mode — reload with new language from beginning
             setLoading(true);
             setHadiths([]);
             setHasMore(true);

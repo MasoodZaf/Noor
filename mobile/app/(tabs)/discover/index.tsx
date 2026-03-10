@@ -14,113 +14,109 @@ export default function DiscoverScreen() {
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <View style={styles.header}>
-                <Text style={styles.titleText}>Discover</Text>
-                <Text style={styles.subtitleText}>Tools to elevate your Deen</Text>
+                <Text style={styles.titleText}>Explore Deen</Text>
+                <Text style={styles.subtitleText}>Tools to elevate your daily practice</Text>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
                 <View style={styles.exploreSection}>
                     {/* Hero Tile: Ask AiDeen */}
-                    <TouchableOpacity style={styles.heroTile} onPress={() => router.push('/discover/ask')} activeOpacity={0.9}>
+                    <TouchableOpacity
+                        style={styles.heroTile}
+                        onPress={() => router.push('/discover/ask' as any)}
+                        activeOpacity={0.9}
+                    >
                         <LinearGradient
-                            colors={['rgba(201, 168, 76, 0.12)', 'rgba(31, 78, 61, 0.05)']}
+                            colors={['#11d452', '#0a9a3b']}
                             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                             style={styles.heroGradient}
                         >
                             <View style={styles.heroContent}>
                                 <View style={styles.heroIconBox}>
-                                    <Feather name="message-circle" size={30} color="#C9A84C" />
+                                    <View style={styles.whiteCircle}>
+                                        <Feather name="message-circle" size={32} color="#11d452" />
+                                    </View>
                                 </View>
                                 <View style={styles.heroTextContent}>
                                     <Text style={styles.heroTitle}>Ask AiDeen</Text>
-                                    <Text style={styles.heroSubtitle}>Your intelligent Islamic companion. Ask questions, seek guidance, and explore fatwas instantly.</Text>
+                                    <Text style={styles.heroSubtitle}>Your intelligent Islamic companion. Seek guidance and explore fatwas instantly.</Text>
                                 </View>
                             </View>
-                            <Feather name="arrow-up-right" size={24} color="#C9A84C" style={styles.heroArrow} />
+                            <Feather name="arrow-up-right" size={24} color="#FFFFFF" style={styles.heroArrow} />
                         </LinearGradient>
                     </TouchableOpacity>
+
+                    <Text style={styles.sectionTitle}>Daily Tools</Text>
 
                     {/* Grid Tiles Row 1 */}
                     <View style={styles.gridRow}>
                         {/* Halal Places */}
-                        <TouchableOpacity style={styles.gridTile} onPress={() => router.push('/discover/halal')} activeOpacity={0.9}>
-                            <LinearGradient
-                                colors={['rgba(0,0,0,0.05)', 'rgba(255, 255, 255, 0.01)']}
-                                style={styles.gridGradient}
-                            >
-                                <View style={[styles.gridIconBox, { backgroundColor: 'rgba(229, 62, 62, 0.1)' }]}>
-                                    <Feather name="map-pin" size={24} color="#E53E3E" />
+                        <TouchableOpacity style={styles.gridTile} onPress={() => router.push('/discover/halal' as any)} activeOpacity={0.9}>
+                            <View style={styles.cardHeader}>
+                                <View style={[styles.gridIconBox, { backgroundColor: '#fee2e2' }]}>
+                                    <Feather name="map-pin" size={22} color="#ef4444" />
                                 </View>
+                            </View>
+                            <View style={styles.cardBody}>
                                 <Text style={styles.gridTitle}>Halal Places</Text>
                                 <Text style={styles.gridSubtitle}>Find food & mosques near you</Text>
-                            </LinearGradient>
+                            </View>
                         </TouchableOpacity>
 
                         {/* Makkah Live */}
-                        <TouchableOpacity style={styles.gridTile} onPress={() => router.push('/discover/live')} activeOpacity={0.9}>
-                            <LinearGradient
-                                colors={['rgba(0,0,0,0.05)', 'rgba(255, 255, 255, 0.01)']}
-                                style={styles.gridGradient}
-                            >
-                                <View style={[styles.gridIconBox, { backgroundColor: 'rgba(49, 130, 206, 0.1)' }]}>
-                                    <Feather name="video" size={24} color="#3182CE" />
+                        <TouchableOpacity style={styles.gridTile} onPress={() => router.push('/discover/live' as any)} activeOpacity={0.9}>
+                            <View style={styles.cardHeader}>
+                                <View style={[styles.gridIconBox, { backgroundColor: '#dbeafe' }]}>
+                                    <Feather name="video" size={22} color="#3b82f6" />
                                 </View>
+                            </View>
+                            <View style={styles.cardBody}>
                                 <Text style={styles.gridTitle}>Makkah Live</Text>
                                 <Text style={styles.gridSubtitle}>Holy streams active 24/7</Text>
-                            </LinearGradient>
+                            </View>
                         </TouchableOpacity>
                     </View>
 
                     {/* Grid Tiles Row 2 */}
                     <View style={styles.gridRow}>
                         {/* Ramadan Tracker */}
-                        <TouchableOpacity style={styles.gridTile} onPress={() => router.push('/discover/ramadan')} activeOpacity={0.9}>
-                            <LinearGradient
-                                colors={['rgba(201, 168, 76, 0.08)', 'rgba(201, 168, 76, 0.02)']}
-                                style={styles.gridGradient}
-                            >
-                                <View style={[styles.gridIconBox, { backgroundColor: 'rgba(201, 168, 76, 0.12)' }]}>
-                                    <Feather name="moon" size={24} color="#C9A84C" />
+                        <TouchableOpacity style={styles.gridTile} onPress={() => router.push('/discover/ramadan' as any)} activeOpacity={0.9}>
+                            <View style={styles.cardHeader}>
+                                <View style={[styles.gridIconBox, { backgroundColor: '#fef9c3' }]}>
+                                    <Feather name="moon" size={22} color="#eab308" />
                                 </View>
+                            </View>
+                            <View style={styles.cardBody}>
                                 <Text style={styles.gridTitle}>Ramadan</Text>
                                 <Text style={styles.gridSubtitle}>Sehri, Iftar & fast tracker</Text>
-                            </LinearGradient>
+                            </View>
                         </TouchableOpacity>
 
                         {/* Recitation */}
-                        <TouchableOpacity style={styles.gridTile} onPress={() => router.push('/discover/recitation')} activeOpacity={0.9}>
-                            <LinearGradient
-                                colors={['rgba(46, 204, 113, 0.07)', 'rgba(46, 204, 113, 0.01)']}
-                                style={styles.gridGradient}
-                            >
-                                <View style={[styles.gridIconBox, { backgroundColor: 'rgba(46, 204, 113, 0.1)' }]}>
-                                    <Feather name="mic" size={24} color="#2ECC71" />
+                        <TouchableOpacity style={styles.gridTile} onPress={() => router.push('/discover/recitation' as any)} activeOpacity={0.9}>
+                            <View style={styles.cardHeader}>
+                                <View style={[styles.gridIconBox, { backgroundColor: '#dcfce7' }]}>
+                                    <Feather name="mic" size={22} color="#22c55e" />
                                 </View>
+                            </View>
+                            <View style={styles.cardBody}>
                                 <Text style={styles.gridTitle}>Recitation</Text>
                                 <Text style={styles.gridSubtitle}>AI tajweed correction</Text>
-                            </LinearGradient>
+                            </View>
                         </TouchableOpacity>
                     </View>
 
-                    {/* Extra tools / knowledge */}
-                    <TouchableOpacity style={[styles.heroTile, { borderColor: 'rgba(0,0,0,0.05)' }]} onPress={() => router.push('/discover/articles')} activeOpacity={0.9}>
-                        <LinearGradient
-                            colors={['rgba(0,0,0,0.05)', 'rgba(255, 255, 255, 0.01)']}
-                            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                            style={styles.heroGradient}
-                        >
-                            <View style={styles.heroContent}>
-                                <View style={[styles.heroIconBox, { backgroundColor: 'rgba(0,0,0,0.05)' }]}>
-                                    <Feather name="book-open" size={28} color="#1A1A1A" />
-                                </View>
-                                <View style={styles.heroTextContent}>
-                                    <Text style={styles.heroTitle}>Islamic Library</Text>
-                                    <Text style={styles.heroSubtitle}>Read articles, historical contexts, and daily short essays on Islamic behavior.</Text>
-                                </View>
-                            </View>
-                            <Feather name="arrow-right" size={20} color="#5E5C58" style={styles.heroArrow} />
-                        </LinearGradient>
+                    {/* Islamic Knowledge */}
+                    <TouchableOpacity style={styles.horizontalTile} onPress={() => router.push('/discover/articles' as any)} activeOpacity={0.9}>
+                        <View style={[styles.horizontalIconBox, { backgroundColor: '#f3f4f6' }]}>
+                            <Feather name="book-open" size={24} color="#1f2937" />
+                        </View>
+                        <View style={styles.horizontalTextContent}>
+                            <Text style={styles.horizontalTitle}>Islamic Library</Text>
+                            <Text style={styles.horizontalSubtitle}>Read articles & daily short essays on Deen.</Text>
+                        </View>
+                        <Feather name="chevron-right" size={20} color="#9ca3af" />
                     </TouchableOpacity>
 
                 </View>
@@ -132,29 +128,28 @@ export default function DiscoverScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FDF8F0',
+        backgroundColor: '#f6f8f6',
     },
     scrollContent: {
         paddingBottom: 40,
         width: '100%',
     },
     header: {
-        marginTop: 20,
+        marginTop: 10,
         marginBottom: 20,
         paddingHorizontal: 24,
         width: '100%',
     },
     titleText: {
         color: '#1A1A1A',
-        fontSize: 34,
-        fontWeight: '300',
-        letterSpacing: 0.5,
+        fontSize: 32,
+        fontWeight: 'bold',
+        letterSpacing: -0.5,
     },
     subtitleText: {
-        color: '#5E5C58',
+        color: '#6B7280',
         fontSize: 16,
-        letterSpacing: 0.5,
-        marginTop: 6,
+        marginTop: 4,
     },
     exploreSection: {
         paddingHorizontal: 20,
@@ -164,43 +159,57 @@ const styles = StyleSheet.create({
         width: '100%',
         borderRadius: 24,
         overflow: 'hidden',
-        marginBottom: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(201, 168, 76, 0.3)',
+        marginBottom: 24,
+        shadowColor: '#11d452',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 16,
+        elevation: 6,
     },
     heroGradient: {
         padding: 24,
     },
     heroContent: {
-        flexDirection: 'column',
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     heroIconBox: {
+        marginRight: 20,
+    },
+    whiteCircle: {
         width: 64,
         height: 64,
-        borderRadius: 20,
-        backgroundColor: 'rgba(201, 168, 76, 0.1)',
+        borderRadius: 32,
+        backgroundColor: '#FFFFFF',
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 20,
     },
     heroTextContent: {
+        flex: 1,
         paddingRight: 20,
     },
     heroTitle: {
-        color: '#1A1A1A',
-        fontSize: 26,
-        fontWeight: '500',
-        marginBottom: 8,
+        color: '#FFFFFF',
+        fontSize: 24,
+        fontWeight: 'bold',
+        marginBottom: 4,
     },
     heroSubtitle: {
-        color: '#5E5C58',
-        fontSize: 15,
-        lineHeight: 24,
+        color: 'rgba(255, 255, 255, 0.9)',
+        fontSize: 14,
+        lineHeight: 20,
     },
     heroArrow: {
         position: 'absolute',
         top: 24,
         right: 24,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#1f2937',
+        marginBottom: 16,
+        paddingLeft: 4,
     },
     gridRow: {
         flexDirection: 'row',
@@ -210,34 +219,74 @@ const styles = StyleSheet.create({
     },
     gridTile: {
         flex: 1,
+        backgroundColor: '#FFFFFF',
         borderRadius: 24,
-        overflow: 'hidden',
+        padding: 20,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
+        borderColor: 'rgba(0,0,0,0.03)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.04,
+        shadowRadius: 10,
+        elevation: 2,
     },
-    gridGradient: {
-        padding: 24,
-        alignItems: 'flex-start',
-        height: 190,
-    },
-    gridIconBox: {
-        width: 52,
-        height: 52,
-        borderRadius: 16,
-        backgroundColor: 'rgba(0,0,0,0.05)',
-        alignItems: 'center',
-        justifyContent: 'center',
+    cardHeader: {
         marginBottom: 20,
     },
+    gridIconBox: {
+        width: 48,
+        height: 48,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    cardBody: {
+        flex: 1,
+    },
     gridTitle: {
-        color: '#1A1A1A',
+        color: '#111827',
         fontSize: 18,
-        fontWeight: '500',
-        marginBottom: 8,
+        fontWeight: 'bold',
+        marginBottom: 6,
     },
     gridSubtitle: {
-        color: '#5E5C58',
+        color: '#6B7280',
+        fontSize: 12,
+        lineHeight: 18,
+    },
+    horizontalTile: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        padding: 16,
+        marginTop: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.03)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.03,
+        shadowRadius: 5,
+    },
+    horizontalIconBox: {
+        width: 48,
+        height: 48,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 16,
+    },
+    horizontalTextContent: {
+        flex: 1,
+    },
+    horizontalTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#111827',
+        marginBottom: 2,
+    },
+    horizontalSubtitle: {
         fontSize: 13,
-        lineHeight: 20,
+        color: '#6B7280',
     },
 });

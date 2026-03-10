@@ -1,6 +1,7 @@
 {
     "cli": {
-        "version": ">= 18.0.5"
+        "version": ">= 18.0.5",
+        "appVersionSource": "local"
     },
     "build": {
         "development": {
@@ -8,17 +9,38 @@
             "distribution": "internal",
             "android": {
                 "buildType": "apk"
+            },
+            "ios": {
+                "simulator": false
+            }
+        },
+        "simulator": {
+            "ios": {
+                "simulator": true
+            }
+        },
+        "dev-simulator": {
+            "developmentClient": true,
+            "ios": {
+                "simulator": true,
+                "buildConfiguration": "Debug"
             }
         },
         "preview": {
             "distribution": "internal",
             "android": {
                 "buildType": "apk"
+            },
+            "ios": {
+                "buildConfiguration": "Release"
             }
         },
         "production": {
             "android": {
                 "buildType": "apk"
+            },
+            "ios": {
+                "buildConfiguration": "Release"
             }
         }
     },

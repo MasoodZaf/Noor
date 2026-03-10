@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, ActivityIndicator, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Dimensions, ActivityIndicator, Platform, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,6 +15,15 @@ const MECCA_LAT = 21.422487;
 const MECCA_LON = 39.826206;
 
 const ALADHAN_QIBLA = 'https://api.aladhan.com/v1/qibla';
+
+// ── Sensor smoothing constants ─────────────────────────────────────────────────
+// EMA alpha: lower = smoother but slower to respond, higher = faster but noisier
+// Android sensors are much noisier — use lower alpha
+const ALPHA = Platform.OS === 'android' ? 0.12 : 0.25;
+// Minimum ms between heading state updates (throttle)
+const MIN_UPDATE_MS = Platform.OS === 'android' ? 48 : 30;
+// Alignment tolerance in degrees — Android needs wider window
+const ALIGN_THRESHOLD = Platform.OS === 'android' ? 5 : 3;
 
 const reverseGeocode = async (lat: number, lon: number): Promise<{ locality: string; countryCode: string }> => {
     const res = await fetch(
@@ -40,6 +49,25 @@ export default function QiblaScreen() {
     const [cityName, setCityName] = useState('');
     const [qiblaSource, setQiblaSource] = useState<'api' | 'cache' | 'offline'>('api');
     const [errorMsg, setErrorMsg] = useState('');
+    // 0=unreliable 1=low 2=medium 3=high (Android only; iOS always 3)
+    const [sensorAccuracy, setSensorAccuracy] = useState(3);
+
+    // EMA state stored in refs (no re-render on each sensor tick)
+    const smoothedSinRef = useRef(0);
+    const smoothedCosRef = useRef(1); // initialise pointing North
+    const lastUpdateRef  = useRef(0);
+
+    const calculateDistance = (lat1: number, lon1: number) => {
+        const getRad = (v: number) => (v * Math.PI) / 180;
+        const R = 6371; // km
+        const dLat = getRad(MECCA_LAT - lat1);
+        const dLon = getRad(MECCA_LON - lon1);
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(getRad(lat1)) * Math.cos(getRad(MECCA_LAT)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    };
 
     const calculateQibla = (lat1: number, lon1: number) => {
         const toRad = (val: number) => (val * Math.PI) / 180;
@@ -54,18 +82,6 @@ export default function QiblaScreen() {
 
         let bearing = toDeg(Math.atan2(y, x));
         return (bearing + 360) % 360;
-    };
-
-    const calculateDistance = (lat1: number, lon1: number) => {
-        const getRad = (v: number) => (v * Math.PI) / 180;
-        const R = 6371; // km
-        const dLat = getRad(MECCA_LAT - lat1);
-        const dLon = getRad(MECCA_LON - lon1);
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(getRad(lat1)) * Math.cos(getRad(MECCA_LAT)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
     };
 
     useEffect(() => {
@@ -83,23 +99,19 @@ export default function QiblaScreen() {
             try {
                 location = await Location.getCurrentPositionAsync({});
             } catch (error) {
-                console.warn("Location unavailable for Qibla, falling back to Makkah", error);
                 location = { coords: { latitude: 21.4225, longitude: 39.8262 } };
             }
             const { latitude, longitude } = location.coords;
 
             if (isMounted) {
-                // BigDataCloud: district-level reverse geocoding, global precision
                 try {
                     const geo = await reverseGeocode(latitude, longitude);
                     if (isMounted && geo.locality) {
                         setCityName(geo.countryCode ? `${geo.locality}, ${geo.countryCode}` : geo.locality);
                     }
-                } catch (_) { /* silently skip */ }
+                } catch (_) { }
 
                 const cacheKey = qiblaCacheKey(latitude, longitude);
-
-                // 1. Try AsyncStorage cache
                 let qiblaSet = false;
                 try {
                     const cached = await AsyncStorage.getItem(cacheKey);
@@ -113,7 +125,6 @@ export default function QiblaScreen() {
                     }
                 } catch (_) { }
 
-                // 2. Fetch from AlAdhan Qibla API
                 if (!qiblaSet) {
                     try {
                         const qiblaRes = await fetch(`${ALADHAN_QIBLA}/${latitude}/${longitude}`);
@@ -124,18 +135,12 @@ export default function QiblaScreen() {
                                 setQiblaDirection(dir);
                                 setQiblaSource('api');
                             }
-                            // Cache for future visits
                             AsyncStorage.setItem(cacheKey, String(dir)).catch(() => { });
                             qiblaSet = true;
-                        } else {
-                            throw new Error("Invalid Qibla API response");
                         }
-                    } catch (e) {
-                        console.warn("Falling back to local math for Qibla", e);
-                    }
+                    } catch (e) { }
                 }
 
-                // 3. Offline math fallback
                 if (!qiblaSet && isMounted) {
                     setQiblaDirection(calculateQibla(latitude, longitude));
                     setQiblaSource('offline');
@@ -146,11 +151,34 @@ export default function QiblaScreen() {
             }
 
             headingSub = await Location.watchHeadingAsync((headingData) => {
-                const rawAngle = headingData.trueHeading >= 0 ? headingData.trueHeading : headingData.magHeading;
-                if (isMounted) setHeading(rawAngle);
+                // Throttle: skip updates that arrive too quickly
+                const now = Date.now();
+                if (now - lastUpdateRef.current < MIN_UPDATE_MS) return;
+                lastUpdateRef.current = now;
+
+                // Prefer trueHeading (includes magnetic declination); fall back to magHeading
+                const rawAngle = headingData.trueHeading >= 0
+                    ? headingData.trueHeading
+                    : headingData.magHeading;
+                if (rawAngle < 0) return; // sensor not ready yet
+
+                // EMA filter on sin/cos components — correctly handles 0°/360° wrap
+                const rawRad = (rawAngle * Math.PI) / 180;
+                smoothedSinRef.current = ALPHA * Math.sin(rawRad) + (1 - ALPHA) * smoothedSinRef.current;
+                smoothedCosRef.current = ALPHA * Math.cos(rawRad) + (1 - ALPHA) * smoothedCosRef.current;
+
+                let smoothed = (Math.atan2(smoothedSinRef.current, smoothedCosRef.current) * 180) / Math.PI;
+                if (smoothed < 0) smoothed += 360;
+
+                if (isMounted) {
+                    setHeading(smoothed);
+                    // accuracy is 0–3 on Android; iOS doesn't populate it reliably
+                    if (Platform.OS === 'android' && headingData.accuracy !== undefined) {
+                        setSensorAccuracy(headingData.accuracy);
+                    }
+                }
             });
 
-            // If the component already unmounted during the async setup
             if (!isMounted && headingSub) {
                 headingSub.remove();
             }
@@ -164,12 +192,11 @@ export default function QiblaScreen() {
         };
     }, []);
 
-    // Is the phone actively pointing at Kaaba?
-    const dif = Math.abs((heading - qiblaDirection) % 360);
-    // Suppress vibration triggers until location is fully acquired
-    const isAligned = locationReady && (dif < 3 || dif > 357);
+    const dif = Math.abs(((heading - qiblaDirection) % 360 + 360) % 360);
+    const normalizedDif = dif > 180 ? 360 - dif : dif;
+    const isAligned = locationReady && normalizedDif < ALIGN_THRESHOLD;
+    const needsCalibration = Platform.OS === 'android' && sensorAccuracy < 2;
 
-    // Physical locking mechanism haptic feedback
     useEffect(() => {
         if (isAligned) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -179,7 +206,7 @@ export default function QiblaScreen() {
     if (errorMsg) {
         return (
             <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
-                <Feather name="alert-triangle" size={50} color="#E53E3E" />
+                <Feather name="alert-triangle" size={50} color="#ef4444" />
                 <Text style={styles.errorText}>{errorMsg}</Text>
             </View>
         );
@@ -188,62 +215,54 @@ export default function QiblaScreen() {
     if (!locationReady) {
         return (
             <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
-                <ActivityIndicator size="large" color="#C9A84C" />
+                <ActivityIndicator size="large" color="#11d452" />
                 <Text style={styles.locatingText}>Calibrating Sensors...</Text>
             </View>
         );
     }
+
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Qibla Compass</Text>
-                <Text style={styles.headerSubtitle}>
-                    {cityName ? cityName : 'Locate the Kaaba instantly anywhere.'}
-                </Text>
+                <View style={styles.locationPill}>
+                    <Feather name="map-pin" size={14} color="#11d452" />
+                    <Text style={styles.headerSubtitle}>
+                        {cityName ? cityName : 'Locating...'}
+                    </Text>
+                </View>
             </View>
 
             <View style={styles.compassContainer}>
-                {/* SVG implementation ensures flawless geometry rendering and zero clipping */}
                 <Svg width={width * 0.9} height={width * 0.9} viewBox="0 0 400 400">
-
-                    {/* Central Gradient Definitions */}
                     <Defs>
                         <RadialGradient id="glowG" cx="50%" cy="50%" rx="50%" ry="50%">
-                            <Stop offset="0%" stopColor="#C9A84C" stopOpacity="0.3" />
-                            <Stop offset="100%" stopColor="#C9A84C" stopOpacity="0" />
+                            <Stop offset="0%" stopColor={isAligned ? "#11d452" : "#facc15"} stopOpacity="0.2" />
+                            <Stop offset="100%" stopColor={isAligned ? "#11d452" : "#facc15"} stopOpacity="0" />
                         </RadialGradient>
-                        <SvgLinearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <Stop offset="0%" stopColor="#FFD700" />
-                            <Stop offset="100%" stopColor="#C9A84C" />
+                        <SvgLinearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <Stop offset="0%" stopColor="#22c55e" />
+                            <Stop offset="100%" stopColor="#11d452" />
                         </SvgLinearGradient>
-                        <SvgLinearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <Stop offset="0%" stopColor="#0F9A5A" />
-                            <Stop offset="100%" stopColor="#1F4E3D" />
-                        </SvgLinearGradient>
-                        <SvgLinearGradient id="redGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <Stop offset="0%" stopColor="#FF5A5F" />
-                            <Stop offset="100%" stopColor="#E53E3E" />
+                        <SvgLinearGradient id="yellowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <Stop offset="0%" stopColor="#facc15" />
+                            <Stop offset="100%" stopColor="#eab308" />
                         </SvgLinearGradient>
                     </Defs>
 
-                    {/* Glow Effect behind compass if aligned */}
+                    {/* Outer Glow */}
+                    <Circle cx="200" cy="200" r="180" fill="url(#glowG)" />
+
+                    {/* Outer Ring */}
+                    <Circle cx="200" cy="200" r="170" stroke="#E8EBE8" strokeWidth="2" fill="none" />
+
+                    {/* Aligned Accent Ring */}
                     {isAligned && (
-                        <Circle cx="200" cy="200" r="200" fill="url(#glowG)" />
+                        <Circle cx="200" cy="200" r="170" stroke="#11d452" strokeWidth="4" fill="none" />
                     )}
 
-                    {/* Outer frame */}
-                    <Circle cx="200" cy="200" r="180" stroke="rgba(255, 255, 255, 0.08)" strokeWidth="2" fill="url(#emeraldGrad)" fillOpacity="0.05" />
-
-                    {/* Inner Track */}
-                    <Circle cx="200" cy="200" r="140" stroke="rgba(201, 168, 76, 0.1)" strokeWidth="1" fill="none" />
-
-                    {isAligned && (
-                        <Circle cx="200" cy="200" r="180" stroke="url(#goldGrad)" strokeWidth="4" fill="none" />
-                    )}
-
-                    {/* Rotation wrapper to orient compass housing so North is strictly "up" (inverse of phone heading) */}
+                    {/* Rotation wrapper */}
                     <G transform={`rotate(${-heading}, 200, 200)`}>
-
                         {/* Dial Marks */}
                         {Array.from({ length: 72 }).map((_, i) => {
                             const angle = i * 5;
@@ -255,105 +274,117 @@ export default function QiblaScreen() {
                                     key={i}
                                     x1="200" y1={isMedium ? 30 : 35}
                                     x2="200" y2="45"
-                                    stroke={isMajor ? "#E53E3E" : isMedium ? "rgba(201, 168, 76, 0.5)" : "rgba(255, 255, 255, 0.15)"}
+                                    stroke={isMajor ? "#ef4444" : isMedium ? "#1A1A1A" : "#9ca3af"}
                                     strokeWidth={isMajor ? 4 : isMedium ? 2 : 1}
                                     transform={`rotate(${angle} 200 200)`}
                                 />
                             );
                         })}
 
-                        {/* Exact Cardinal Letters anchored perfectly */}
-                        <SvgText x="199" y="25" fill="url(#redGrad)" fontSize="24" fontWeight="800" textAnchor="middle">N</SvgText>
-                        <SvgText x="382" y="206" fill="#1A1A1A" fontSize="18" fontWeight="600" textAnchor="middle">E</SvgText>
-                        <SvgText x="200" y="394" fill="#1A1A1A" fontSize="18" fontWeight="600" textAnchor="middle">S</SvgText>
-                        <SvgText x="18" y="206" fill="#1A1A1A" fontSize="18" fontWeight="600" textAnchor="middle">W</SvgText>
+                        {/* Cardinal Letters */}
+                        <SvgText x="199" y="25" fill="#ef4444" fontSize="26" fontWeight="900" textAnchor="middle">N</SvgText>
+                        <SvgText x="382" y="206" fill="#1A1A1A" fontSize="18" fontWeight="700" textAnchor="middle">E</SvgText>
+                        <SvgText x="200" y="394" fill="#1A1A1A" fontSize="18" fontWeight="700" textAnchor="middle">S</SvgText>
+                        <SvgText x="18" y="206" fill="#1A1A1A" fontSize="18" fontWeight="700" textAnchor="middle">W</SvgText>
 
-                        {/* Qibla Indicator Arrow rotated exactly relative to true North */}
+                        {/* Qibla Indicator Arrow */}
                         <G transform={`rotate(${qiblaDirection}, 200, 200)`}>
+                            <Line x1="200" y1="200" x2="200" y2="100" stroke={isAligned ? "#11d452" : "#facc15"} strokeWidth="4" strokeDasharray="6,4" />
 
-                            {/* Target Ray Line */}
-                            <Line x1="200" y1="200" x2="200" y2="80" stroke={isAligned ? "url(#goldGrad)" : "rgba(201, 168, 76, 0.3)"} strokeWidth="3" strokeDasharray="4,4" />
-
-                            {/* Pointer Head */}
-                            <Path d="M188 85 L200 60 L212 85 Z" fill={isAligned ? "url(#goldGrad)" : "#1A1A1A"} />
-
-                            {/* Kaaba floating icon at target bounds */}
-                            <G transform="translate(186, 25)">
-                                <Rect width="28" height="30" fill="#FDF8F0" stroke={isAligned ? "url(#goldGrad)" : "rgba(255,255,255,0.7)"} strokeWidth="2" rx="3" />
-                                {/* Kiswah Gold lines */}
-                                <Line x1="0" y1="8" x2="28" y2="8" stroke={isAligned ? "url(#goldGrad)" : "rgba(255,255,255,0.7)"} strokeWidth="2" />
-                                <Line x1="0" y1="12" x2="28" y2="12" stroke={isAligned ? "url(#goldGrad)" : "rgba(255,255,255,0.5)"} strokeWidth="1" />
+                            <G transform="translate(186, 40)">
+                                <Rect width="28" height="30" fill="#1A1A1A" rx="4" />
+                                <Rect width="28" height="6" y="8" fill="#facc15" />
+                                <Path d="M14 0 L28 0 L28 10 L14 10 Z" fill="#facc15" opacity="0.3" />
                             </G>
                         </G>
                     </G>
 
-                    {/* Central Anchor Pin (Fixed relative to the screen, does not rotate) */}
-                    <G transform="translate(200, 200)">
-                        <Circle cx="0" cy="0" r="14" fill="#1F4E3D" stroke="url(#goldGrad)" strokeWidth="2" />
-                        <Circle cx="0" cy="0" r="5" fill="#FFD700" />
-                        <Line x1="0" y1="-8" x2="0" y2="-120" stroke="url(#goldGrad)" strokeWidth="1" opacity="0.8" />
-                        <Path d="M-6 -120 L0 -130 L6 -120 Z" fill="url(#goldGrad)" opacity="0.8" />
-                    </G>
+                    {/* Center Point */}
+                    <Circle cx="200" cy="200" r="10" fill="#FFFFFF" stroke="#1A1A1A" strokeWidth="3" />
+                    <Circle cx="200" cy="200" r="3" fill="#11d452" />
                 </Svg>
             </View>
 
-            <View style={styles.infoWrapper}>
-                <LinearGradient
-                    colors={['rgba(0,0,0,0.05)', 'rgba(255, 255, 255, 0.01)']}
-                    style={styles.infoCard}
-                >
-                    <View style={styles.infoBlock}>
-                        <Text style={styles.infoLabel}>Distance</Text>
-                        <Text style={styles.infoData}>{distance} <Text style={styles.smTxt}>KM</Text></Text>
+            {/* Calibration warning — Android only, shown when accuracy is low */}
+            {needsCalibration && (
+                <View style={styles.calibrationBanner}>
+                    <Feather name="alert-circle" size={16} color="#f59e0b" />
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.calibrationTitle}>Sensor needs calibration</Text>
+                        <Text style={styles.calibrationSub}>Move your phone in a figure-8 motion to improve accuracy</Text>
                     </View>
-                    <View style={styles.divider} />
-                    <View style={styles.infoBlock}>
-                        <Text style={styles.infoLabel}>Qibla</Text>
-                        <Text style={[styles.infoData, isAligned && { color: '#C9A84C' }]}>
-                            {Math.round(qiblaDirection)}°
-                        </Text>
-                        <Text style={styles.sourceTag}>
-                            {qiblaSource === 'api' ? '· Live' : qiblaSource === 'cache' ? '· Cached' : '· Offline'}
-                        </Text>
+                    <View style={styles.accuracyDots}>
+                        {[0, 1, 2].map(i => (
+                            <View key={i} style={[styles.accuracyDot, { backgroundColor: i < sensorAccuracy ? '#22c55e' : '#D1D5DB' }]} />
+                        ))}
                     </View>
-                    <View style={styles.divider} />
-                    <View style={styles.infoBlock}>
-                        <Text style={styles.infoLabel}>Heading</Text>
-                        <Text style={[styles.infoData, isAligned && { color: '#C9A84C' }]}>
-                            {Math.round(heading)}°
-                        </Text>
-                    </View>
-                </LinearGradient>
-
-                <View style={[styles.statusPill, isAligned && styles.statusPillAligned]}>
-                    <Feather name={isAligned ? "check-circle" : "compass"} size={16} color={isAligned ? "#FDF8F0" : "#C9A84C"} style={{ marginRight: 8 }} />
-                    <Text style={[styles.statusText, isAligned && styles.statusTextAligned]}>
-                        {isAligned ? 'Qibla found. You are aligned.' : 'Rotate Phone to point at Kaaba.'}
-                    </Text>
                 </View>
+            )}
+
+            <View style={styles.footerSection}>
+                <View style={styles.metricsRow}>
+                    <View style={styles.metricCard}>
+                        <Text style={styles.metricLabel}>Distance</Text>
+                        <Text style={styles.metricValue}>{distance}</Text>
+                        <Text style={styles.metricUnit}>kilometers</Text>
+                    </View>
+                    <View style={styles.metricCard}>
+                        <Text style={styles.metricLabel}>Direction</Text>
+                        <Text style={[styles.metricValue, isAligned && { color: '#11d452' }]}>{Math.round(qiblaDirection)}°</Text>
+                        <Text style={styles.metricUnit}>{qiblaSource} source</Text>
+                    </View>
+                </View>
+
+                <TouchableOpacity
+                    activeOpacity={0.9}
+                    style={[styles.statusBanner, isAligned ? styles.statusAligned : styles.statusSearching]}
+                >
+                    <Feather name={isAligned ? "check-circle" : "compass"} size={22} color="#FFFFFF" />
+                    <View style={styles.statusTextContainer}>
+                        <Text style={styles.statusTitle}>
+                            {isAligned ? 'Perfectly Aligned' : 'Searching for Qibla'}
+                        </Text>
+                        <Text style={styles.statusSubtitle}>
+                            {isAligned
+                                ? 'You are facing the Kaaba.'
+                                : `${Math.round(normalizedDif)}° off — rotate your phone slowly.`}
+                        </Text>
+                    </View>
+                </TouchableOpacity>
             </View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FDF8F0' },
-    locatingText: { color: '#5E5C58', fontSize: 16, marginTop: 20 },
-    errorText: { color: '#E53E3E', fontSize: 16, marginTop: 10, textAlign: 'center', paddingHorizontal: 40 },
-    header: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 10 },
-    headerTitle: { color: '#1A1A1A', fontSize: 32, fontWeight: '300', letterSpacing: 0.5 },
-    headerSubtitle: { color: '#5E5C58', fontSize: 15, marginTop: 4 },
+    container: { flex: 1, backgroundColor: '#f6f8f6' },
+    header: { paddingHorizontal: 24, paddingTop: 10, marginBottom: 10 },
+    headerTitle: { color: '#1A1A1A', fontSize: 32, fontWeight: 'bold', letterSpacing: -0.5 },
+    locationPill: { flexDirection: 'row', alignItems: 'center', marginTop: 4, opacity: 0.8 },
+    headerSubtitle: { color: '#1A1A1A', fontSize: 14, marginLeft: 6, fontWeight: '500' },
     compassContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    infoWrapper: { paddingHorizontal: 24, paddingBottom: 50 },
-    infoCard: { flexDirection: 'row', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)', marginBottom: 20 },
-    infoBlock: { flex: 1, alignItems: 'center' },
-    divider: { width: 1, backgroundColor: 'rgba(0,0,0,0.08)' },
-    infoLabel: { color: '#5E5C58', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
-    infoData: { color: '#1A1A1A', fontSize: 28, fontWeight: '300', fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-light' },
-    smTxt: { fontSize: 14, color: '#5E5C58' },
-    sourceTag: { color: '#5E5C58', fontSize: 10, marginTop: 2 },
-    statusPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 30, backgroundColor: 'rgba(201, 168, 76, 0.1)', borderWidth: 1, borderColor: 'rgba(201, 168, 76, 0.3)' },
-    statusText: { color: '#C9A84C', fontSize: 15, fontWeight: '600' },
-    statusPillAligned: { backgroundColor: '#C9A84C' },
-    statusTextAligned: { color: '#FDF8F0' }
+    locatingText: { color: '#1A1A1A', fontSize: 16, marginTop: 24, fontWeight: '600' },
+    errorText: { color: '#ef4444', fontSize: 16, marginTop: 10, textAlign: 'center', paddingHorizontal: 40 },
+    footerSection: { paddingHorizontal: 24, paddingBottom: 40 },
+    metricsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, gap: 12 },
+    metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 16, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 8 },
+    metricLabel: { color: '#9ca3af', fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', marginBottom: 4 },
+    metricValue: { color: '#111827', fontSize: 24, fontWeight: '800' },
+    metricUnit: { color: '#6B7280', fontSize: 10, fontWeight: '600', marginTop: 2 },
+    calibrationBanner: {
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        marginHorizontal: 24, marginBottom: 12,
+        backgroundColor: '#FEF3C7', borderRadius: 16,
+        padding: 12, borderWidth: 1, borderColor: '#FDE68A',
+    },
+    calibrationTitle: { fontSize: 13, fontWeight: '700', color: '#92400E' },
+    calibrationSub: { fontSize: 11, color: '#B45309', lineHeight: 16, marginTop: 1 },
+    accuracyDots: { flexDirection: 'row', gap: 4, alignItems: 'center' },
+    accuracyDot: { width: 8, height: 8, borderRadius: 4 },
+    statusBanner: { flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 24, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16 },
+    statusAligned: { backgroundColor: '#11d452', shadowColor: '#11d452' },
+    statusSearching: { backgroundColor: '#111827', shadowColor: '#000' },
+    statusTextContainer: { marginLeft: 16 },
+    statusTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
+    statusSubtitle: { color: 'rgba(255,255,255,0.8)', fontSize: 13 },
 });

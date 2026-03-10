@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, ScrollView,
-    Platform, Animated, Easing, Alert,
+    Platform, Animated, Easing, Alert, BackHandler,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
@@ -75,6 +75,23 @@ export default function RecitationScreen() {
     const recordingRef = useRef<Audio.Recording | null>(null);
     const wsRef = useRef<WebSocket | null>(null);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const goBack = useCallback(() => {
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)/discover' as any);
+    }, [router]);
+
+    // Android hardware back button — intercept so it pops the Stack, not the Tab
+    useFocusEffect(
+        useCallback(() => {
+            if (Platform.OS !== 'android') return;
+            const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+                goBack();
+                return true;
+            });
+            return () => sub.remove();
+        }, [goBack])
+    );
 
     // Waveform bars animation
     const bars = useRef(Array.from({ length: 24 }, () => new Animated.Value(4))).current;
@@ -253,7 +270,7 @@ export default function RecitationScreen() {
         <View style={[styles.container, { paddingTop: insets.top }]}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                <TouchableOpacity onPress={goBack} style={styles.backBtn}>
                     <Feather name="chevron-left" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>

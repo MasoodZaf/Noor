@@ -66,17 +66,17 @@ export default function QuranIndexScreen() {
                 {/* Hifz Tracker Action Banner */}
                 <TouchableOpacity style={styles.hifzBanner} onPress={() => router.push('/quran/hifz')}>
                     <View style={styles.hifzBannerLeft}>
-                        <Feather name="trending-up" size={24} color="#C9A84C" />
+                        <Feather name="trending-up" size={24} color="#11d452" />
                         <View style={{ marginLeft: 16 }}>
                             <Text style={styles.hifzBannerTitle}>Hifz Progress</Text>
                             <Text style={styles.hifzBannerSub}>Track memorization using SRS</Text>
                         </View>
                     </View>
-                    <Feather name="chevron-right" size={20} color="#5E5C58" />
+                    <Feather name="chevron-right" size={20} color="#8A8A8A" />
                 </TouchableOpacity>
 
                 <View style={styles.searchBar}>
-                    <Feather name="search" size={20} color="#5E5C58" style={styles.searchIcon} />
+                    <Feather name="search" size={20} color="#8A8A8A" style={styles.searchIcon} />
                     <TextInput
                         style={styles.searchInput}
                         placeholder="Search Surah or Juz..."
@@ -124,11 +124,11 @@ export default function QuranIndexScreen() {
                         >
                             <View style={styles.itemLeft}>
                                 <View style={styles.numberOrb}>
-                                    <Text style={styles.numberText}>{surah.id}</Text>
+                                    <Text style={styles.numberText}>{surah.number}</Text>
                                 </View>
                                 <View>
                                     <Text style={styles.engName}>{surah.name_english}</Text>
-                                    <Text style={styles.subtext}>{surah.revelation_type.toUpperCase()} • {surah.total_ayahs} VERSES</Text>
+                                    <Text style={styles.subtext}>{surah.revelation_type.toUpperCase()} • {surah.ayah_count} VERSES</Text>
                                 </View>
                             </View>
                             <Text style={styles.arabicName}>{surah.name_arabic}</Text>
@@ -143,7 +143,7 @@ export default function QuranIndexScreen() {
                                 onPress={() => router.push(`/quran/juz/${juzNum}`)}
                             >
                                 <Text style={styles.juzTitle}>Juz {juzNum}</Text>
-                                <Feather name="book-open" size={16} color="#C9A84C" />
+                                <Feather name="book-open" size={16} color="#11d452" />
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -156,14 +156,14 @@ export default function QuranIndexScreen() {
                                 onPress={() => router.push(`/quran/tafseer/${tafseer.id}`)}
                             >
                                 <View style={styles.tafseerIconBox}>
-                                    <Feather name="book" size={20} color="#C9A84C" />
+                                    <Feather name="book" size={20} color="#11d452" />
                                 </View>
                                 <View style={styles.tafseerInfo}>
                                     <Text style={styles.tafseerTitle}>{tafseer.title}</Text>
                                     <Text style={styles.tafseerAuthor}>{tafseer.author}</Text>
                                     <Text style={styles.tafseerDesc} numberOfLines={2}>{tafseer.desc}</Text>
                                 </View>
-                                <Feather name="chevron-right" size={20} color="#5E5C58" />
+                                <Feather name="chevron-right" size={20} color="#8A8A8A" />
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -176,7 +176,7 @@ export default function QuranIndexScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FDF8F0',
+        backgroundColor: '#f6f8f6',
     },
     header: {
         paddingHorizontal: 24,
@@ -187,21 +187,25 @@ const styles = StyleSheet.create({
     },
     headerTitle: {
         fontSize: 28,
-        fontWeight: '300',
+        fontWeight: 'bold',
         color: '#1A1A1A',
         marginBottom: 20,
-        letterSpacing: 0.5,
+        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
     },
     hifzBanner: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        backgroundColor: '#FFFFFF',
         borderWidth: 1,
-        borderColor: 'rgba(201, 168, 76, 0.3)',
+        borderColor: 'rgba(0,0,0,0.05)',
         borderRadius: 16,
         padding: 16,
         marginBottom: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
     },
     hifzBannerLeft: {
         flexDirection: 'row',
@@ -214,17 +218,19 @@ const styles = StyleSheet.create({
         marginBottom: 2,
     },
     hifzBannerSub: {
-        color: '#5E5C58',
+        color: '#8A8A8A',
         fontSize: 13,
     },
     searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.05)',
+        backgroundColor: '#FFFFFF',
         borderRadius: 12,
         paddingHorizontal: 16,
         height: 48,
         marginBottom: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
     },
     searchIcon: {
         marginRight: 10,
@@ -236,41 +242,44 @@ const styles = StyleSheet.create({
     },
     tabContainer: {
         flexDirection: 'row',
-        backgroundColor: 'rgba(255,255,255,0.03)',
-        borderRadius: 10,
+        backgroundColor: 'transparent',
         padding: 4,
     },
     tabBtn: {
         flex: 1,
         alignItems: 'center',
         paddingVertical: 10,
-        borderRadius: 8,
+        borderBottomWidth: 2,
+        borderColor: 'transparent',
     },
     tabBtnActive: {
-        backgroundColor: 'rgba(201, 168, 76, 0.1)',
-        borderWidth: 1,
-        borderColor: 'rgba(201, 168, 76, 0.2)',
+        borderColor: '#11d452',
     },
     tabText: {
-        color: '#5E5C58',
+        color: '#8A8A8A',
         fontSize: 14,
         fontWeight: '600',
     },
     tabTextActive: {
-        color: '#C9A84C',
+        color: '#11d452',
+        fontWeight: 'bold',
     },
     listContent: {
         paddingHorizontal: 20,
         paddingTop: 10,
         paddingBottom: 40,
+        gap: 12,
     },
     listItem: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0,0,0,0.05)',
+        paddingHorizontal: 16,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
     },
     itemLeft: {
         flexDirection: 'row',
@@ -278,34 +287,33 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     numberOrb: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(17, 212, 82, 0.1)', // #11d452 with 10% opacity
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
     },
     numberText: {
-        color: '#1A1A1A',
-        fontSize: 13,
-        fontWeight: '600',
+        color: '#11d452',
+        fontSize: 14,
+        fontWeight: 'bold',
     },
     engName: {
         color: '#1A1A1A',
         fontSize: 16,
-        fontWeight: '500',
+        fontWeight: 'bold',
         marginBottom: 4,
+        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
     },
     subtext: {
-        color: '#5E5C58',
+        color: '#8A8A8A',
         fontSize: 11,
         letterSpacing: 0.5,
     },
     arabicName: {
-        color: '#C9A84C',
-        fontSize: 20,
+        color: '#11d452',
+        fontSize: 22,
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
         fontWeight: '600',
     },
@@ -330,7 +338,7 @@ const styles = StyleSheet.create({
     juzTitle: {
         color: '#1A1A1A',
         fontSize: 16,
-        fontWeight: '500',
+        fontWeight: 'bold',
     },
     tafseerList: {
         paddingTop: 10,
@@ -344,12 +352,16 @@ const styles = StyleSheet.create({
         padding: 16,
         borderWidth: 1,
         borderColor: 'rgba(0,0,0,0.05)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
     },
     tafseerIconBox: {
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: 'rgba(201, 168, 76, 0.1)',
+        backgroundColor: 'rgba(17, 212, 82, 0.1)',
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 16,
@@ -361,17 +373,17 @@ const styles = StyleSheet.create({
     tafseerTitle: {
         color: '#1A1A1A',
         fontSize: 16,
-        fontWeight: '600',
+        fontWeight: 'bold',
         marginBottom: 4,
     },
     tafseerAuthor: {
-        color: '#C9A84C',
+        color: '#11d452',
         fontSize: 13,
-        fontWeight: '500',
+        fontWeight: 'bold',
         marginBottom: 4,
     },
     tafseerDesc: {
-        color: '#5E5C58',
+        color: '#8A8A8A',
         fontSize: 12,
         lineHeight: 18,
     }

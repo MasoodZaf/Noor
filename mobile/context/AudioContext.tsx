@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useRef, useState } from 'react';
-import { Audio } from 'expo-av';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
+import { AudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 interface AudioState {
     isPlaying: boolean;
@@ -8,13 +9,15 @@ interface AudioState {
     reciter: string;
     positionMs: number;
     durationMs: number;
+    sourceId: string | number | null;
+    sourceCategory: string | null;
 }
 
 interface AudioContextType {
     audioState: AudioState;
-    soundRef: React.MutableRefObject<Audio.Sound | null>;
+    soundRef: React.MutableRefObject<AudioPlayer | null>;
     setAudioState: React.Dispatch<React.SetStateAction<AudioState>>;
-    stopAudio: () => Promise<void>;
+    stopAudio: () => void;
 }
 
 const DEFAULT_STATE: AudioState = {
@@ -24,18 +27,38 @@ const DEFAULT_STATE: AudioState = {
     reciter: 'Mishary Al-Afasy',
     positionMs: 0,
     durationMs: 1,
+    sourceId: null,
+    sourceCategory: null,
 };
 
 const AudioContext = createContext<AudioContextType | null>(null);
 
 export function AudioProvider({ children }: { children: React.ReactNode }) {
     const [audioState, setAudioState] = useState<AudioState>(DEFAULT_STATE);
-    const soundRef = useRef<Audio.Sound | null>(null);
+    const soundRef = useRef<AudioPlayer | null>(null);
 
-    const stopAudio = async () => {
+    // Initialize audio session once — options differ per platform
+    useEffect(() => {
+        if (Platform.OS === 'ios') {
+            setAudioModeAsync({
+                playsInSilentMode: true,       // iOS only — play even when ring/mute switch is off
+                shouldPlayInBackground: false,
+                interruptionMode: 'doNotMix',
+            }).catch(() => {});
+        } else {
+            // Android: playsInSilentMode not supported
+            // shouldRouteThroughEarpiece: false → use loudspeaker (STREAM_MUSIC), not earpiece
+            setAudioModeAsync({
+                shouldPlayInBackground: false,
+                shouldRouteThroughEarpiece: false,
+                interruptionMode: 'duckOthers',
+            }).catch(() => {});
+        }
+    }, []);
+
+    const stopAudio = () => {
         if (soundRef.current) {
-            await soundRef.current.stopAsync().catch(() => {});
-            await soundRef.current.unloadAsync().catch(() => {});
+            try { soundRef.current.remove(); } catch {}
             soundRef.current = null;
         }
         setAudioState(DEFAULT_STATE);

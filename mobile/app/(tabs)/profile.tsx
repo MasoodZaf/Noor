@@ -297,7 +297,14 @@ export default function ProfileScreen() {
 
                 <TouchableOpacity
                     style={styles.logoutBtn}
-                    onPress={() => supabase.auth.signOut()}
+                    onPress={() => Alert.alert(
+                        'Sign Out',
+                        'Are you sure you want to sign out? Your local progress will remain on this device.',
+                        [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Sign Out', style: 'destructive', onPress: () => supabase.auth.signOut() },
+                        ]
+                    )}
                 >
                     <Feather name="log-out" size={18} color="#E53E3E" style={{ marginRight: 8 }} />
                     <Text style={styles.logoutBtnText}>Sign Out Securely</Text>

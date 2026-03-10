@@ -1,13 +1,19 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, Platform } from 'react-native';
+import { View, Platform, LogBox } from 'react-native';
 import { DatabaseProvider } from '../context/DatabaseContext';
 import { LanguageProvider } from '../context/LanguageContext';
 import { AudioProvider } from '../context/AudioContext';
 import MiniAudioPlayer from '../components/MiniAudioPlayer';
 import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
+
+// Suppress Expo Go Android warning about push notifications (expected — we use a dev build for production)
+LogBox.ignoreLogs([
+    'expo-notifications: Android Push notifications',
+    'expo-notifications: Push notifications',
+]);
 
 // Configure how notifications should behave when received while the app is in the foreground
 Notifications.setNotificationHandler({

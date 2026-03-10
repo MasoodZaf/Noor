@@ -14,22 +14,24 @@ export default function TabLayout() {
             screenOptions={{
                 headerShown: false,
                 tabBarStyle: {
-                    backgroundColor: '#123D26', // Deep green theme background
+                    backgroundColor: '#FFFFFF', // New Lively White
                     borderTopWidth: 1,
-                    borderTopColor: 'rgba(0,0,0,0.05)',
-                    elevation: 0,
-                    shadowOpacity: 0,
-                    height: Platform.OS === 'ios' ? 85 + insets.bottom : 80, // Increased Android height to 80
-                    paddingTop: 12,
-                    paddingBottom: Platform.OS === 'ios' ? insets.bottom + 8 : 16, // Added paddingBottom for Android to clear bottom
+                    borderTopColor: 'rgba(0,0,0,0.03)',
+                    elevation: 10,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: -4 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 10,
+                    height: Platform.OS === 'ios' ? 88 + insets.bottom : 64 + insets.bottom,
+                    paddingTop: 8,
+                    paddingBottom: Platform.OS === 'ios' ? insets.bottom + 8 : insets.bottom + 10,
                 },
-                tabBarActiveTintColor: '#C9A84C', // Gold
-                tabBarInactiveTintColor: '#5E5C58', // Placeholder grey
+                tabBarActiveTintColor: '#11d452', // Lively Green
+                tabBarInactiveTintColor: '#9ca3af', // Subtle Grey
                 tabBarLabelStyle: {
-                    fontSize: 10,
-                    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif',
-                    fontWeight: '500',
-                    marginTop: 6,
+                    fontSize: 11,
+                    fontWeight: '700',
+                    marginTop: 4,
                 },
             }}
         >
@@ -38,7 +40,7 @@ export default function TabLayout() {
                 options={{
                     title: 'Home',
                     tabBarIcon: ({ color, size }) => (
-                        <Feather name="home" size={22} color={color} />
+                        <Feather name="home" size={24} color={color} />
                     ),
                 }}
             />
@@ -47,7 +49,7 @@ export default function TabLayout() {
                 options={{
                     title: 'Quran',
                     tabBarIcon: ({ color, size }) => (
-                        <Feather name="book-open" size={22} color={color} />
+                        <Feather name="book-open" size={24} color={color} />
                     ),
                 }}
             />
@@ -56,7 +58,7 @@ export default function TabLayout() {
                 options={{
                     title: 'Hadith',
                     tabBarIcon: ({ color, size }) => (
-                        <Feather name="file-text" size={22} color={color} />
+                        <Feather name="file-text" size={24} color={color} />
                     ),
                 }}
             />
@@ -65,7 +67,7 @@ export default function TabLayout() {
                 options={{
                     title: 'Qaida',
                     tabBarIcon: ({ color, size }) => (
-                        <Feather name="smile" size={22} color={color} />
+                        <Feather name="smile" size={24} color={color} />
                     ),
                 }}
             />
@@ -74,7 +76,7 @@ export default function TabLayout() {
                 options={{
                     title: 'Discover',
                     tabBarIcon: ({ color, size }) => (
-                        <Feather name="globe" size={22} color={color} />
+                        <Feather name="globe" size={24} color={color} />
                     ),
                 }}
             />
@@ -83,7 +85,7 @@ export default function TabLayout() {
                 options={{
                     title: 'Qibla',
                     tabBarIcon: ({ color, size }) => (
-                        <Feather name="compass" size={22} color={color} />
+                        <Feather name="compass" size={24} color={color} />
                     ),
                 }}
             />
@@ -92,7 +94,7 @@ export default function TabLayout() {
                 options={{
                     title: 'Profile',
                     tabBarIcon: ({ color, size }) => (
-                        <Feather name="user" size={22} color={color} />
+                        <Feather name="user" size={24} color={color} />
                     ),
                 }}
             />

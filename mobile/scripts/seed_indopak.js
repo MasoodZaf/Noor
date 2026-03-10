@@ -1,3 +1,4 @@
+
 const sqlite3 = require('sqlite3').verbose();
 const https = require('https');
 const db = new sqlite3.Database('assets/noor.db');

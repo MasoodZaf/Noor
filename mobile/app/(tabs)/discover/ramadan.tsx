@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
-    ActivityIndicator, Platform, Alert,
+    ActivityIndicator, Platform, Alert, BackHandler,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -78,6 +78,16 @@ function ProgressRing({ pct, size, color }: { pct: number; size: number; color: 
 export default function RamadanScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+
+    const goBack = useCallback(() => {
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)/discover' as any);
+    }, [router]);
+    useFocusEffect(useCallback(() => {
+        if (Platform.OS !== 'android') return;
+        const sub = BackHandler.addEventListener('hardwareBackPress', () => { goBack(); return true; });
+        return () => sub.remove();
+    }, [goBack]));
 
     const [loading, setLoading] = useState(true);
     const [timings, setTimings] = useState<Timings | null>(null);
@@ -230,7 +240,7 @@ export default function RamadanScreen() {
         <View style={[styles.container, { paddingTop: insets.top }]}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                <TouchableOpacity onPress={goBack} style={styles.backBtn}>
                     <Feather name="chevron-left" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
                 <View>

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, BackHandler } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ARTICLES = [
@@ -87,6 +87,19 @@ export default function ArticlesScreen() {
     const [search, setSearch] = useState('');
     const [activeCategory, setActiveCategory] = useState('All');
 
+    const goBack = useCallback(() => {
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)/discover' as any);
+    }, [router]);
+
+    useFocusEffect(
+        useCallback(() => {
+            if (Platform.OS !== 'android') return;
+            const sub = BackHandler.addEventListener('hardwareBackPress', () => { goBack(); return true; });
+            return () => sub.remove();
+        }, [goBack])
+    );
+
     const filtered = ARTICLES.filter(a => {
         const matchesCat = activeCategory === 'All' || a.category === activeCategory;
         const matchesSearch = !search.trim() || a.title.toLowerCase().includes(search.toLowerCase()) || a.excerpt.toLowerCase().includes(search.toLowerCase());
@@ -96,7 +109,7 @@ export default function ArticlesScreen() {
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                <TouchableOpacity onPress={goBack} style={styles.backBtn}>
                     <Feather name="chevron-left" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Islamic Library</Text>

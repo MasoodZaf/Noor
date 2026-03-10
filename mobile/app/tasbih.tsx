@@ -1,322 +1,443 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Animated, Easing } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+    View, Text, StyleSheet, TouchableWithoutFeedback, TouchableOpacity,
+    Dimensions, Platform, Animated, ScrollView, BackHandler,
+} from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const PRESETS = [
-    { id: 'subhanallah', label: 'Subhanallah', target: 33, arabic: 'سُبْحَانَ ٱللَّٰهِ' },
+    { id: 'subhanallah',  label: 'Subhanallah',  target: 33,  arabic: 'سُبْحَانَ ٱللَّٰهِ' },
     { id: 'alhamdulillah', label: 'Alhamdulillah', target: 33, arabic: 'ٱلْحَمْدُ لِلَّٰهِ' },
-    { id: 'allahuakbar', label: 'Allahu Akbar', target: 34, arabic: 'اللَّهُ أَكْبَرُ' },
-    { id: 'custom', label: 'Custom', target: 100, arabic: 'أَسْتَغْفِرُ اللَّهَ' },
+    { id: 'allahuakbar',  label: 'Allahu Akbar', target: 34,  arabic: 'اللَّهُ أَكْبَرُ' },
+    { id: 'custom',       label: 'Custom',        target: 100, arabic: 'أَسْتَغْفِرُ اللَّهَ' },
 ];
 
+// ── Arc geometry ───────────────────────────────────────────────────────────────
+// The arc fills the bottom portion of the screen.
+// Quadratic bezier: left-off-screen → apex at top-center → right-off-screen
+const ARC_H = Math.min(Math.round(height * 0.38), 310);
+const P0 = { x: -55, y: ARC_H - 8 };
+const P1 = { x: width / 2, y: ARC_H * 0.14 };      // apex
+const P2 = { x: width + 55, y: ARC_H - 8 };
+
+const bezier = (t: number) => {
+    const mt = 1 - t;
+    return {
+        x: mt * mt * P0.x + 2 * mt * t * P1.x + t * t * P2.x,
+        y: mt * mt * P0.y + 2 * mt * t * P1.y + t * t * P2.y,
+    };
+};
+
+const ARC_PATH = `M ${P0.x} ${P0.y} Q ${P1.x} ${P1.y} ${P2.x} ${P2.y}`;
+
+// ── Bead layout ────────────────────────────────────────────────────────────────
+const VISIBLE = 11;   // beads visible at once
+const BEAD_R  = 23;   // bead radius dp
+const T_START = 0.07;
+const T_END   = 0.93;
+const T_STEP  = (T_END - T_START) / (VISIBLE - 1);
+
+// Pre-compute fixed bead centres on the bezier
+const BEAD_POS = Array.from({ length: VISIBLE }, (_, i) =>
+    bezier(T_START + i * T_STEP)
+);
+
+// ── Component ─────────────────────────────────────────────────────────────────
 export default function TasbihScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
 
+    const goBack = useCallback(() => {
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)' as any);
+    }, [router]);
+    useFocusEffect(useCallback(() => {
+        if (Platform.OS !== 'android') return;
+        const sub = BackHandler.addEventListener('hardwareBackPress', () => { goBack(); return true; });
+        return () => sub.remove();
+    }, [goBack]));
+
     const [count, setCount] = useState(0);
     const [activePreset, setActivePreset] = useState(PRESETS[0]);
 
-    // Animations
-    const scaleAnim = useRef(new Animated.Value(1)).current;
-    const progressAnim = useRef(new Animated.Value(0)).current;
+    // Use ref so rapid taps always read the latest count without stale closure
+    const countRef = useRef(0);
 
-    // Smoothly animate the ring when count changes
+    const inRoundCount  = count % activePreset.target;
+    const roundNum      = Math.floor(count / activePreset.target);
+    const inWindowCount = inRoundCount % VISIBLE; // 0-based index of the "next" bead
+
+    // Per-bead scale + glow animated values
+    const beadScales = useRef(
+        Array.from({ length: VISIBLE }, () => new Animated.Value(1))
+    ).current;
+    const beadGlows = useRef(
+        Array.from({ length: VISIBLE }, () => new Animated.Value(0))
+    ).current;
+
+    // ── Persistence ────────────────────────────────────────────────────────────
     useEffect(() => {
-        const progress = Math.min(count / activePreset.target, 1);
-        Animated.timing(progressAnim, {
-            toValue: progress,
-            duration: 300,
-            easing: Easing.out(Easing.ease),
-            useNativeDriver: true, // For strokeDashoffset, useNativeDriver might not work perfectly with SVGs but we map it through state or setNativeProps if needed, actually we might need a listener or just let React re-render. Since it's SVG, we can't use native driver for strokeDashoffset directly without createAnimatedComponent.
-        }).start();
-    }, [count, activePreset]);
+        AsyncStorage.getItem(`@tasbih_${activePreset.id}`).then(val => {
+            const loaded = val !== null ? parseInt(val, 10) : 0;
+            countRef.current = loaded;
+            setCount(loaded);
+        });
+    }, [activePreset.id]);
 
+    useEffect(() => {
+        AsyncStorage.setItem(`@tasbih_${activePreset.id}`, String(count));
+    }, [count, activePreset.id]);
+
+    // ── Press handler ──────────────────────────────────────────────────────────
     const handlePress = () => {
-        // Haptic feedback
         if (Platform.OS !== 'web') {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-            // Heavy feedback on completion of target
-            if (count + 1 === activePreset.target) {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            }
         }
 
+        // Animate the bead currently being counted
+        const current   = countRef.current;
+        const beadIdx   = (current % activePreset.target) % VISIBLE;
+
+        // Scale: pop up then settle
+        beadScales[beadIdx].stopAnimation();
+        Animated.sequence([
+            Animated.spring(beadScales[beadIdx], {
+                toValue: 1.55,
+                useNativeDriver: true,
+                friction: 3,
+                tension: 280,
+            }),
+            Animated.spring(beadScales[beadIdx], {
+                toValue: 1,
+                useNativeDriver: true,
+                friction: 6,
+                tension: 120,
+            }),
+        ]).start();
+
+        // Glow: flash then fade
+        beadGlows[beadIdx].setValue(1);
+        Animated.timing(beadGlows[beadIdx], {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: false,
+        }).start();
+
+        countRef.current = current + 1;
         setCount(prev => prev + 1);
 
-        // Pulse animation
-        scaleAnim.setValue(0.95);
-        Animated.spring(scaleAnim, {
-            toValue: 1,
-            friction: 4,
-            tension: 50,
-            useNativeDriver: true,
-        }).start();
+        // Target-complete haptic
+        if ((current + 1) % activePreset.target === 0 && Platform.OS !== 'web') {
+            setTimeout(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success), 80);
+        }
     };
 
     const handleReset = () => {
+        countRef.current = 0;
         setCount(0);
+        beadScales.forEach(s => s.setValue(1));
+        beadGlows.forEach(g => g.setValue(0));
         if (Platform.OS !== 'web') {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         }
     };
 
-    const handlePresetChange = (preset: typeof PRESETS[0]) => {
-        setActivePreset(preset);
-        setCount(0);
-    };
-
-    const radius = width * 0.35;
-    const strokeWidth = 10;
-    const circumference = 2 * Math.PI * radius;
-    const progress = Math.min(count / activePreset.target, 1);
-    const strokeDashoffset = circumference - (progress * circumference);
-
+    // ── Render ─────────────────────────────────────────────────────────────────
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
+
+            {/* ── Header ── */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Feather name="chevron-left" size={28} color="#E8E6E1" />
+                <TouchableOpacity onPress={goBack} style={styles.headerBtn}>
+                    <Feather name="arrow-left" size={22} color="#2C2C2C" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Tasbih</Text>
-                <View style={{ width: 40 }} />
-            </View>
-
-            <View style={styles.content}>
-                <View style={styles.arabicContainer}>
-                    <Text style={styles.arabicText}>{activePreset.arabic}</Text>
-                    <Text style={styles.translationText}>{activePreset.label}</Text>
-                </View>
-
-                <Animated.View style={[styles.counterWrapper, { transform: [{ scale: scaleAnim }] }]}>
-                    <Svg width={width} height={width} viewBox={`0 0 ${width} ${width}`}>
-                        <Defs>
-                            <LinearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <Stop offset="0%" stopColor="#f2930d" />
-                                <Stop offset="100%" stopColor="#ffb347" />
-                            </LinearGradient>
-                        </Defs>
-
-                        <Circle
-                            cx={width / 2}
-                            cy={width / 2}
-                            r={radius}
-                            stroke="rgba(0, 0, 0, 0.05)"
-                            strokeWidth={strokeWidth}
-                            fill="none"
-                        />
-
-                        <Circle
-                            cx={width / 2}
-                            cy={width / 2}
-                            r={radius}
-                            stroke="url(#goldGradient)"
-                            strokeWidth={strokeWidth}
-                            fill="none"
-                            strokeDasharray={circumference}
-                            strokeDashoffset={strokeDashoffset}
-                            strokeLinecap="round"
-                            transform={`rotate(-90 ${width / 2} ${width / 2})`}
-                        />
-                    </Svg>
-
-                    <TouchableOpacity
-                        style={styles.tapArea}
-                        activeOpacity={0.8}
-                        onPress={handlePress}
-                    >
-                        <View style={styles.tapInner}>
-                            <Text style={styles.countText}>{count}</Text>
-                            <Text style={styles.targetText}>/ {activePreset.target}</Text>
-                        </View>
-                    </TouchableOpacity>
-                </Animated.View>
-
-                <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
-                    <Feather name="refresh-ccw" size={20} color="#8A8A8A" />
+                <TouchableOpacity onPress={handleReset} style={styles.headerBtn}>
+                    <Feather name="refresh-cw" size={19} color="#2C2C2C" />
                 </TouchableOpacity>
-
-                <View style={styles.presetsContainer}>
-                    {PRESETS.map((preset) => (
-                        <TouchableOpacity
-                            key={preset.id}
-                            style={[
-                                styles.presetCard,
-                                activePreset.id === preset.id && styles.presetCardActive
-                            ]}
-                            onPress={() => handlePresetChange(preset)}
-                        >
-                            <Text style={[
-                                styles.presetLabel,
-                                activePreset.id === preset.id && styles.presetLabelActive
-                            ]}>
-                                {preset.label}
-                            </Text>
-                            <Text style={[
-                                styles.presetTarget,
-                                activePreset.id === preset.id && styles.presetTargetActive
-                            ]}>
-                                {preset.target}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
             </View>
+
+            {/* ── Preset pills ── */}
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={{ flexGrow: 0 }}
+                contentContainerStyle={styles.presetRow}
+            >
+                {PRESETS.map(preset => (
+                    <TouchableOpacity
+                        key={preset.id}
+                        style={[styles.pill, activePreset.id === preset.id && styles.pillActive]}
+                        onPress={() => setActivePreset(preset)}
+                    >
+                        <Text style={[styles.pillText, activePreset.id === preset.id && styles.pillTextActive]}>
+                            {preset.label}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
+
+            {/* ── Tap area (counter + beads) ── */}
+            <TouchableWithoutFeedback onPress={handlePress}>
+                <View style={styles.mainArea}>
+
+                    {/* Arabic dhikr */}
+                    <Text style={styles.arabicText}>{activePreset.arabic}</Text>
+
+                    {/* Count N/target */}
+                    <Text style={styles.countText}>{inRoundCount}/{activePreset.target}</Text>
+
+                    {/* Round label */}
+                    <View style={styles.roundRow}>
+                        <Text style={styles.roundText}>Round {roundNum + 1}</Text>
+                        <Feather name="edit-2" size={13} color="#4AADA0" style={{ marginLeft: 5 }} />
+                    </View>
+
+                    {/* ── Arc + pearl beads ── */}
+                    <View style={styles.arcContainer}>
+                        {/* Teal string */}
+                        <Svg
+                            width={width}
+                            height={ARC_H}
+                            style={StyleSheet.absoluteFill}
+                            pointerEvents="none"
+                        >
+                            <Path
+                                d={ARC_PATH}
+                                stroke="#5BBDB5"
+                                strokeWidth={2.2}
+                                fill="none"
+                                opacity={0.5}
+                            />
+                        </Svg>
+
+                        {/* Pearl beads */}
+                        {BEAD_POS.map((pos, i) => {
+                            const isCounted = i < inWindowCount;
+                            const isNext    = i === inWindowCount;
+
+                            const glowColor = beadGlows[i].interpolate({
+                                inputRange:  [0, 1],
+                                outputRange: ['rgba(91,189,181,0)', 'rgba(91,189,181,0.55)'],
+                            });
+
+                            return (
+                                <Animated.View
+                                    key={i}
+                                    style={[
+                                        styles.beadOuter,
+                                        {
+                                            left: pos.x - BEAD_R,
+                                            top:  pos.y - BEAD_R,
+                                            transform: [{ scale: beadScales[i] }],
+                                            // iOS shadow — colour changes with state
+                                            shadowColor: isCounted ? '#2E8B84' : '#8B7045',
+                                        },
+                                    ]}
+                                >
+                                    {/* Glow ring (fades in/out on tap) */}
+                                    <Animated.View
+                                        style={[
+                                            styles.beadGlow,
+                                            { backgroundColor: glowColor },
+                                        ]}
+                                        pointerEvents="none"
+                                    />
+
+                                    {/* Pearl body (overflow hidden so highlight clips) */}
+                                    <View style={[
+                                        styles.beadBody,
+                                        {
+                                            backgroundColor: isCounted
+                                                ? '#9FD5CF'     // teal pearl (counted)
+                                                : '#EDE5CC',    // cream pearl (uncounted)
+                                            borderColor: isCounted
+                                                ? 'rgba(74,173,160,0.28)'
+                                                : 'rgba(180,155,100,0.25)',
+                                        },
+                                    ]}>
+                                        {/* Top-left highlight spot → gives 3-D pearl look */}
+                                        <View style={[
+                                            styles.beadHighlight,
+                                            isCounted && { backgroundColor: 'rgba(255,255,255,0.42)' },
+                                        ]} />
+                                        {/* Bottom-right shadow crescent */}
+                                        <View style={[
+                                            styles.beadShadowCrescent,
+                                            isCounted && { backgroundColor: 'rgba(30,110,105,0.18)' },
+                                        ]} />
+                                    </View>
+                                </Animated.View>
+                            );
+                        })}
+                    </View>
+
+                    {/* Tap hint */}
+                    <Text style={styles.tapHint}>Tap anywhere to count</Text>
+                </View>
+            </TouchableWithoutFeedback>
         </View>
     );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FDF8F0',
+        backgroundColor: '#FAF7EF',
     },
+
+    // ── Header ──
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        height: 60,
+        height: 52,
     },
-    backButton: {
+    headerBtn: {
         width: 40,
         height: 40,
+        borderRadius: 20,
         alignItems: 'center',
         justifyContent: 'center',
-        marginLeft: -10,
     },
     headerTitle: {
-        color: '#1A1A1A',
         fontSize: 18,
         fontWeight: '600',
-        letterSpacing: 0.5,
+        color: '#1A1A1A',
+        letterSpacing: 0.2,
     },
-    content: {
+
+    // ── Presets ──
+    presetRow: {
+        paddingHorizontal: 20,
+        paddingTop: 4,
+        paddingBottom: 14,
+        gap: 8,
+    },
+    pill: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1.5,
+        borderColor: '#E4DCC8',
+    },
+    pillActive: {
+        backgroundColor: '#4AADA0',
+        borderColor: '#4AADA0',
+    },
+    pillText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#5A5040',
+    },
+    pillTextActive: {
+        color: '#FFFFFF',
+    },
+
+    // ── Main content ──
+    mainArea: {
         flex: 1,
         alignItems: 'center',
-        justifyContent: 'flex-start',
-        paddingTop: 40,
-    },
-    arabicContainer: {
-        alignItems: 'center',
-        marginBottom: 40,
-        height: 100,
-        justifyContent: 'center',
+        paddingTop: 10,
     },
     arabicText: {
-        color: '#1A1A1A',
-        fontSize: 42,
+        fontSize: 34,
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
-        marginBottom: 8,
-    },
-    translationText: {
-        color: '#8A8A8A',
-        fontSize: 16,
-        letterSpacing: 0.5,
-        fontWeight: '500',
-    },
-    counterWrapper: {
-        width: width,
-        height: width,
-        alignItems: 'center',
-        justifyContent: 'center',
-        position: 'relative',
-    },
-    tapArea: {
-        position: 'absolute',
-        width: width * 0.55,
-        height: width * 0.55,
-        borderRadius: width * 0.275,
-        backgroundColor: '#FFFFFF',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.02)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.05,
-        shadowRadius: 20,
-    },
-    tapInner: {
-        alignItems: 'center',
+        color: '#2C2C2C',
+        marginBottom: 18,
+        textAlign: 'center',
     },
     countText: {
+        fontSize: 70,
+        fontWeight: '200',
         color: '#1A1A1A',
-        fontSize: 72,
-        fontWeight: '300',
-        letterSpacing: -2,
+        letterSpacing: -1,
+        lineHeight: 78,
     },
-    targetText: {
-        color: '#f2930d',
-        fontSize: 18,
-        fontWeight: '700',
-        marginTop: -5,
-    },
-    resetButton: {
-        marginTop: -10,
-        padding: 15,
-        borderRadius: 30,
-        backgroundColor: '#FFFFFF',
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.02)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 5,
-    },
-    presetsContainer: {
+    roundRow: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'center',
-        gap: 12,
-        paddingHorizontal: 20,
-        marginTop: 40,
-    },
-    presetCard: {
-        width: (width - 60) / 2,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 16,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.02)',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.03,
-        shadowRadius: 4,
-    },
-    presetCardActive: {
-        backgroundColor: '#FFF8F0',
-        borderColor: 'rgba(242, 147, 13, 0.3)',
-        transform: [{ scale: 1.02 }],
-        shadowColor: '#f2930d',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 10,
-    },
-    presetLabel: {
-        color: '#1A1A1A',
-        fontSize: 15,
-        fontWeight: '600',
+        marginTop: 6,
         marginBottom: 6,
     },
-    presetLabelActive: {
-        color: '#f2930d',
-        fontWeight: '700',
-    },
-    presetTarget: {
-        color: '#8A8A8A',
-        fontSize: 12,
+    roundText: {
+        fontSize: 15,
         fontWeight: '600',
-        letterSpacing: 1,
+        color: '#4AADA0',
     },
-    presetTargetActive: {
-        color: '#1A1A1A',
+    tapHint: {
+        fontSize: 12,
+        color: '#B0A88A',
+        fontWeight: '500',
+        letterSpacing: 0.3,
+        marginTop: 10,
+    },
+
+    // ── Arc ──
+    arcContainer: {
+        position: 'relative',
+        width: width,
+        height: ARC_H,
+        marginTop: 4,
+    },
+
+    // ── Bead layers ──
+    // Outer: handles shadow + scale transform (no overflow:hidden so shadow shows)
+    beadOuter: {
+        position: 'absolute',
+        width: BEAD_R * 2,
+        height: BEAD_R * 2,
+        borderRadius: BEAD_R,
+        shadowOffset: { width: 2, height: 4 },
+        shadowOpacity: 0.38,
+        shadowRadius: 6,
+        elevation: 5,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    // Glow ring — same size as bead, rendered behind body (sibling order)
+    beadGlow: {
+        position: 'absolute',
+        width: BEAD_R * 2 + 14,
+        height: BEAD_R * 2 + 14,
+        borderRadius: BEAD_R + 7,
+    },
+    // Pearl surface — overflow:hidden clips the highlight/shadow overlays
+    beadBody: {
+        width: BEAD_R * 2,
+        height: BEAD_R * 2,
+        borderRadius: BEAD_R,
+        overflow: 'hidden',
+        borderWidth: 1,
+    },
+    // Top-left bright spot (simulates specular reflection on a sphere)
+    beadHighlight: {
+        position: 'absolute',
+        width: BEAD_R * 0.72,
+        height: BEAD_R * 0.56,
+        borderRadius: BEAD_R * 0.3,
+        backgroundColor: 'rgba(255,255,255,0.65)',
+        top: BEAD_R * 0.1,
+        left: BEAD_R * 0.12,
+    },
+    // Bottom-right dark crescent (simulates shadow on the opposite side of the sphere)
+    beadShadowCrescent: {
+        position: 'absolute',
+        width: BEAD_R * 1.1,
+        height: BEAD_R * 0.9,
+        borderRadius: BEAD_R * 0.55,
+        backgroundColor: 'rgba(100,80,30,0.15)',
+        bottom: -BEAD_R * 0.1,
+        right: -BEAD_R * 0.1,
     },
 });
