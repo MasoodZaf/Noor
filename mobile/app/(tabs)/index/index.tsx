@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, TouchableOpacity, Animated, Easing, Modal, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, TouchableOpacity, Animated, Easing, Modal, Switch, Linking, Image } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -11,14 +11,263 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDatabase } from '../../../context/DatabaseContext';
+import { sanitizeArabicText } from '../../../utils/arabic';
+import { useTheme } from '../../../context/ThemeContext';
+import { useNetworkMode } from '../../../context/NetworkModeContext';
+import { useLanguage } from '../../../context/LanguageContext';
 
 // ─── AlAdhan API ──────────────────────────────────────────────────────────────
 const ALADHAN_API = 'https://api.aladhan.com/v1';
 
 // ─── Prayer settings persistence ─────────────────────────────────────────────
-const PRAYER_SETTINGS_KEY = '@prayer_settings';
-const NOTIF_PREFS_KEY = '@notif_prefs';
+const PRAYER_SETTINGS_KEY = '@noor/prayer_settings';
+const NOTIF_PREFS_KEY = '@noor/notif_prefs';
 const DEFAULT_NOTIF_PREFS = { fajr: true, dhuhr: true, asr: true, maghrib: true, isha: true };
+
+// ─── Prayer notification i18n ─────────────────────────────────────────────────
+type NotifLang = 'english' | 'urdu' | 'indonesian' | 'french' | 'bengali' | 'turkish';
+
+// Prayer display names per language
+const PRAYER_DISPLAY_NAMES: Record<NotifLang, Record<string, string>> = {
+    english:    { fajr: 'Fajr',  dhuhr: 'Dhuhr',  asr: 'Asr',    maghrib: 'Maghrib', isha: 'Isha'   },
+    urdu:       { fajr: 'فجر',   dhuhr: 'ظہر',    asr: 'عصر',    maghrib: 'مغرب',    isha: 'عشاء'   },
+    indonesian: { fajr: 'Subuh', dhuhr: 'Zuhur',  asr: 'Asar',   maghrib: 'Magrib',  isha: 'Isya'   },
+    french:     { fajr: 'Fajr',  dhuhr: 'Dhuhr',  asr: 'Asr',    maghrib: 'Maghrib', isha: 'Isha'   },
+    bengali:    { fajr: 'ফজর',   dhuhr: 'যোহর',   asr: 'আসর',    maghrib: 'মাগরিব',  isha: 'এশা'    },
+    turkish:    { fajr: 'Sabah', dhuhr: 'Öğle',   asr: 'İkindi', maghrib: 'Akşam',   isha: 'Yatsı'  },
+};
+
+// Notification UI strings per language
+// {name} is replaced at runtime with the prayer name in that language
+const NOTIF_UI: Record<NotifLang, { title: string; body: string; fajrRise: string }> = {
+    english:    { title: '🕌 Time for {name}',          body: 'It is time to pray {name}.',                    fajrRise: 'Rise for the dawn prayer.'              },
+    urdu:       { title: '🕌 {name} کا وقت',            body: '{name} کی نماز کا وقت ہو گیا ہے۔',              fajrRise: 'فجر کی نماز کے لیے اٹھیں۔'              },
+    indonesian: { title: '🕌 Waktu {name}',              body: 'Sudah waktunya shalat {name}.',                 fajrRise: 'Bangunlah untuk shalat Subuh.'           },
+    french:     { title: "🕌 L'heure de {name}",         body: "Il est l'heure de prier {name}.",               fajrRise: "Levez-vous pour la prière de l'aube."   },
+    bengali:    { title: '🕌 {name} এর সময়',            body: '{name} নামাজের সময় হয়েছে।',                    fajrRise: 'ফজরের নামাজের জন্য উঠুন।'              },
+    turkish:    { title: '🕌 {name} Vakti',              body: '{name} namazı için vakit girdi.',                fajrRise: 'Sabah namazı için kalkın.'              },
+};
+
+// Ayah / Hadith quotes per language per prayer
+const PRAYER_QUOTES: Record<NotifLang, Record<string, string[]>> = {
+    english: {
+        fajr:    [
+            '📖 "Indeed, the recitation of dawn is ever witnessed [by the angels]." (17:78)',
+            '📖 "Glorify your Lord before the rising of the sun." (20:130)',
+            '🕌 The Prophet ﷺ said: "The two rak\'ahs of Fajr are better than the world and all it contains." (Muslim)',
+            '🕌 The Prophet ﷺ said: "Whoever prays Fajr is under the protection of Allah." (Muslim)',
+        ],
+        dhuhr:   [
+            '📖 "Maintain with care the obligatory prayers and stand before Allah, devoutly obedient." (2:238)',
+            '📖 "Recite what has been revealed to you of the Book and establish prayer." (29:45)',
+            '🕌 The Prophet ﷺ said: "The gates of Heaven are opened at noon." (Abu Dawud)',
+            '📖 "Indeed, prayer has been enjoined on the believers at fixed times." (4:103)',
+        ],
+        asr:     [
+            '📖 "Guard strictly the prayers, especially the middle prayer." (2:238)',
+            '📖 "Exalt Allah before the rising of the sun and before its setting." (50:39)',
+            '🕌 The Prophet ﷺ said: "Whoever misses Asr, it is as if he has lost his family and wealth." (Bukhari)',
+            '🕌 The Prophet ﷺ said: "Angels assemble together at Asr and Fajr." (Bukhari)',
+        ],
+        maghrib: [
+            '📖 "Glorify Allah when you reach the evening and when you reach the morning." (30:17)',
+            '📖 "Establish prayer at the decline of the sun till the darkness of the night." (17:78)',
+            '🕌 The Prophet ﷺ said: "My nation will remain upon goodness as long as they hasten to break the fast." (Bukhari)',
+            '🕌 The Prophet ﷺ said: "Do not delay three things — prayer when its time comes." (Tirmidhi)',
+        ],
+        isha:    [
+            '📖 "Prostrate to Him in the night and glorify Him a long part of the night." (76:26)',
+            '📖 "From the night, pray as additional worship for you." (17:79)',
+            '🕌 The Prophet ﷺ said: "The most burdensome prayers for hypocrites are Isha and Fajr — if they knew what is in them, they would come even crawling." (Bukhari)',
+            '🕌 The Prophet ﷺ said: "Whoever prays Isha in congregation is as if he prayed half the night." (Muslim)',
+        ],
+    },
+    urdu: {
+        fajr:    [
+            '📖 "بیشک فجر کی قرأت میں فرشتے حاضر ہوتے ہیں۔" (17:78)',
+            '📖 "سورج طلوع ہونے سے پہلے اپنے رب کی تسبیح کرو۔" (20:130)',
+            '🕌 نبی ﷺ نے فرمایا: "فجر کی دو رکعتیں دنیا اور اس کی ہر چیز سے بہتر ہیں۔" (مسلم)',
+            '🕌 نبی ﷺ نے فرمایا: "جو فجر کی نماز پڑھے وہ اللہ کی حفاظت میں ہے۔" (مسلم)',
+        ],
+        dhuhr:   [
+            '📖 "نمازوں کی حفاظت کرو اور درمیانی نماز کی بھی۔" (2:238)',
+            '📖 "کتاب میں سے جو تم پر وحی کی گئی ہے اسے پڑھو اور نماز قائم کرو۔" (29:45)',
+            '🕌 نبی ﷺ نے فرمایا: "ظہر کے وقت جنت کے دروازے کھلتے ہیں۔" (ابو داود)',
+            '📖 "بے شک نماز مومنوں پر مقررہ اوقات میں فرض ہے۔" (4:103)',
+        ],
+        asr:     [
+            '📖 "نمازوں کی حفاظت کرو اور خاص طور پر درمیانی نماز کی۔" (2:238)',
+            '📖 "سورج غروب ہونے سے پہلے اپنے رب کی تسبیح کرو۔" (50:39)',
+            '🕌 نبی ﷺ نے فرمایا: "جس نے عصر کی نماز چھوڑی اس کا عمل اکارت ہو گیا۔" (بخاری)',
+            '🕌 نبی ﷺ نے فرمایا: "فرشتے عصر اور فجر میں اکٹھے ہوتے ہیں۔" (بخاری)',
+        ],
+        maghrib: [
+            '📖 "اللہ کی تسبیح کرو شام کو اور صبح کو۔" (30:17)',
+            '📖 "سورج کے ڈھلنے سے رات کی تاریکی تک نماز قائم کرو۔" (17:78)',
+            '🕌 نبی ﷺ نے فرمایا: "میری امت اس وقت تک خیر پر رہے گی جب تک افطار میں جلدی کرتی رہے۔" (بخاری)',
+            '🕌 نبی ﷺ نے فرمایا: "تین چیزوں میں دیر نہ کرو — نماز جب اس کا وقت آ جائے۔" (ترمذی)',
+        ],
+        isha:    [
+            '📖 "رات کے ایک حصے میں اسے سجدہ کرو اور رات کو اس کی تسبیح کرو۔" (76:26)',
+            '📖 "رات کے ایک حصے میں اضافی عبادت کے طور پر نماز پڑھو۔" (17:79)',
+            '🕌 نبی ﷺ نے فرمایا: "منافقوں پر سب سے بھاری نمازیں عشاء اور فجر ہیں — اگر انہیں معلوم ہوتا تو گھٹنوں کے بل چل کر آتے۔" (بخاری)',
+            '🕌 نبی ﷺ نے فرمایا: "جو عشاء کی نماز جماعت سے پڑھے، اسے آدھی رات کے قیام کا ثواب ملتا ہے۔" (مسلم)',
+        ],
+    },
+    indonesian: {
+        fajr:    [
+            '📖 "Sesungguhnya shalat Subuh itu disaksikan oleh para malaikat." (17:78)',
+            '📖 "Bertasbihlah memuji Tuhanmu sebelum matahari terbit." (20:130)',
+            '🕌 Nabi ﷺ bersabda: "Dua rakaat Subuh lebih baik dari dunia dan seisinya." (Muslim)',
+            '🕌 Nabi ﷺ bersabda: "Siapa yang shalat Subuh maka ia dalam perlindungan Allah." (Muslim)',
+        ],
+        dhuhr:   [
+            '📖 "Peliharalah semua shalat dan shalat wustha, dan berdirilah karena Allah dengan khusyu." (2:238)',
+            '📖 "Bacalah apa yang telah diwahyukan kepadamu dan dirikanlah shalat." (29:45)',
+            '🕌 Nabi ﷺ bersabda: "Pintu-pintu surga dibuka pada tengah hari." (Abu Dawud)',
+            '📖 "Sesungguhnya shalat itu kewajiban atas orang mukmin pada waktu yang ditentukan." (4:103)',
+        ],
+        asr:     [
+            '📖 "Peliharalah semua shalat, terutama shalat wustha (Asar)." (2:238)',
+            '📖 "Bertasbihlah memuji Tuhanmu sebelum matahari terbenam." (50:39)',
+            '🕌 Nabi ﷺ bersabda: "Siapa yang meninggalkan Asar, amalannya akan terhapus." (Bukhari)',
+            '🕌 Nabi ﷺ bersabda: "Para malaikat berkumpul pada shalat Asar dan Subuh." (Bukhari)',
+        ],
+        maghrib: [
+            '📖 "Bertasbihlah kepada Allah pada waktu sore dan pagi hari." (30:17)',
+            '📖 "Dirikanlah shalat sejak matahari tergelincir hingga gelap malam." (17:78)',
+            '🕌 Nabi ﷺ bersabda: "Umatku dalam kebaikan selama menyegerakan berbuka puasa." (Bukhari)',
+            '🕌 Nabi ﷺ bersabda: "Jangan menunda tiga hal — shalat ketika waktunya tiba." (Tirmidzi)',
+        ],
+        isha:    [
+            '📖 "Sujudlah kepada-Nya pada sebagian malam dan sucikanlah Dia waktu yang panjang." (76:26)',
+            '📖 "Shalatlah pada sebagian malam sebagai ibadah tambahan bagimu." (17:79)',
+            '🕌 Nabi ﷺ bersabda: "Shalat paling berat bagi munafik adalah Isya dan Subuh — jika mereka tahu pahalanya, mereka datang meskipun merangkak." (Bukhari)',
+            '🕌 Nabi ﷺ bersabda: "Siapa yang shalat Isya berjamaah, seolah ia shalat separuh malam." (Muslim)',
+        ],
+    },
+    french: {
+        fajr:    [
+            '📖 "Certes, la récitation de l\'aube est attestée par les anges." (17:78)',
+            '📖 "Glorifie ton Seigneur avant le lever du soleil." (20:130)',
+            '🕌 Le Prophète ﷺ a dit : "Les deux rak\'as de Fajr valent mieux que le monde entier." (Muslim)',
+            '🕌 Le Prophète ﷺ a dit : "Quiconque prie Fajr est sous la protection d\'Allah." (Muslim)',
+        ],
+        dhuhr:   [
+            '📖 "Observez scrupuleusement les prières et tenez-vous debout devant Allah avec dévotion." (2:238)',
+            '📖 "Récite ce qui t\'a été révélé du Livre et accomplis la prière." (29:45)',
+            '🕌 Le Prophète ﷺ a dit : "Les portes du Paradis s\'ouvrent à l\'heure de midi." (Abu Dawud)',
+            '📖 "La prière est une obligation à des horaires déterminés pour les croyants." (4:103)',
+        ],
+        asr:     [
+            '📖 "Observez scrupuleusement les prières, surtout la prière du milieu." (2:238)',
+            '📖 "Glorifie ton Seigneur avant le coucher du soleil." (50:39)',
+            '🕌 Le Prophète ﷺ a dit : "Celui qui manque Asr est comme s\'il avait perdu sa famille et ses biens." (Bukhari)',
+            '🕌 Le Prophète ﷺ a dit : "Les anges se rassemblent lors de Asr et Fajr." (Bukhari)',
+        ],
+        maghrib: [
+            '📖 "Glorifiez Allah le soir et le matin." (30:17)',
+            '📖 "Accomplissez la prière depuis le déclin du soleil jusqu\'à l\'obscurité de la nuit." (17:78)',
+            '🕌 Le Prophète ﷺ a dit : "Ma communauté restera dans le bien tant qu\'elle s\'empresse de rompre le jeûne." (Bukhari)',
+            '🕌 Le Prophète ﷺ a dit : "Ne tardez pas pour la prière quand son heure arrive." (Tirmidhi)',
+        ],
+        isha:    [
+            '📖 "Prosterne-toi devant Lui une partie de la nuit et glorifie-Le longuement." (76:26)',
+            '📖 "Prie une partie de la nuit comme adoration supplémentaire pour toi." (17:79)',
+            '🕌 Le Prophète ﷺ a dit : "Les prières les plus lourdes pour les hypocrites sont Isha et Fajr — s\'ils savaient, ils viendraient en rampant." (Bukhari)',
+            '🕌 Le Prophète ﷺ a dit : "Celui qui prie Isha en congrégation est comme s\'il avait prié la moitié de la nuit." (Muslim)',
+        ],
+    },
+    bengali: {
+        fajr:    [
+            '📖 "নিশ্চয়ই ফজরের কুরআন পাঠ সাক্ষ্য হয় — ফেরেশতারা তাতে উপস্থিত থাকে।" (17:78)',
+            '📖 "সূর্যোদয়ের পূর্বে তোমার রবের প্রশংসাসহ তাসবিহ করো।" (20:130)',
+            '🕌 নবী ﷺ বলেছেন: "ফজরের দুই রাকাত দুনিয়া ও তার সব কিছুর চেয়ে উত্তম।" (মুসলিম)',
+            '🕌 নবী ﷺ বলেছেন: "যে ফজর নামাজ আদায় করে, সে আল্লাহর হেফাজতে থাকে।" (মুসলিম)',
+        ],
+        dhuhr:   [
+            '📖 "সকল নামাজ এবং মধ্যবর্তী নামাজ যত্নসহকারে আদায় করো।" (2:238)',
+            '📖 "তোমার প্রতি যা ওহী করা হয়েছে তা পাঠ করো এবং নামাজ কায়েম করো।" (29:45)',
+            '🕌 নবী ﷺ বলেছেন: "দুপুরে জান্নাতের দরজাগুলো খুলে দেওয়া হয়।" (আবু দাউদ)',
+            '📖 "নিশ্চয়ই নামাজ মুমিনদের উপর নির্ধারিত সময়ে ফরজ।" (4:103)',
+        ],
+        asr:     [
+            '📖 "সকল নামাজ বিশেষত মধ্যবর্তী নামাজ যত্নসহকারে আদায় করো।" (2:238)',
+            '📖 "সূর্যাস্তের পূর্বে তোমার রবের তাসবিহ করো।" (50:39)',
+            '🕌 নবী ﷺ বলেছেন: "যে আসরের নামাজ বাদ দিল, তার আমল বিনষ্ট হয়ে গেল।" (বুখারী)',
+            '🕌 নবী ﷺ বলেছেন: "ফেরেশতারা আসর ও ফজরে একত্রিত হয়।" (বুখারী)',
+        ],
+        maghrib: [
+            '📖 "সন্ধ্যায় ও সকালে আল্লাহর তাসবিহ করো।" (30:17)',
+            '📖 "সূর্য ঢলে পড়ার সময় থেকে রাতের অন্ধকার পর্যন্ত নামাজ কায়েম করো।" (17:78)',
+            '🕌 নবী ﷺ বলেছেন: "আমার উম্মত ততক্ষণ কল্যাণে থাকবে যতক্ষণ ইফতারে তাড়াহুড়া করবে।" (বুখারী)',
+            '🕌 নবী ﷺ বলেছেন: "তিনটি বিষয়ে বিলম্ব করো না — নামাজের সময় হলে নামাজ।" (তিরমিযী)',
+        ],
+        isha:    [
+            '📖 "রাতের একাংশে তাঁকে সিজদা করো এবং দীর্ঘ রজনীতে তাঁর তাসবিহ করো।" (76:26)',
+            '📖 "রাতের কিছু অংশে অতিরিক্ত ইবাদত হিসেবে নামাজ আদায় করো।" (17:79)',
+            '🕌 নবী ﷺ বলেছেন: "মুনাফিকদের জন্য সবচেয়ে ভারী নামাজ এশা ও ফজর — যদি তারা জানত, হামাগুড়ি দিয়ে হলেও আসত।" (বুখারী)',
+            '🕌 নবী ﷺ বলেছেন: "যে জামাতে এশা পড়ে, সে যেন অর্ধেক রাত কিয়াম করল।" (মুসলিম)',
+        ],
+    },
+    turkish: {
+        fajr:    [
+            '📖 "Sabah namazının kılınması, şüphesiz melekler tarafından şahit olunan bir ibadettir." (17:78)',
+            '📖 "Güneş doğmadan önce Rabbini övgüyle tesbih et." (20:130)',
+            '🕌 Hz. Peygamber ﷺ buyurdu: "Sabah namazının iki rekatı, dünya ve içindekilerden daha hayırlıdır." (Müslim)',
+            '🕌 Hz. Peygamber ﷺ buyurdu: "Kim sabah namazını kılarsa Allah\'ın koruması altındadır." (Müslim)',
+        ],
+        dhuhr:   [
+            '📖 "Namazlara, özellikle orta namaza devam edin ve Allah\'a gönülden boyun eğerek durun." (2:238)',
+            '📖 "Sana Kitap\'tan vahyedileni oku ve namazı kıl." (29:45)',
+            '🕌 Hz. Peygamber ﷺ buyurdu: "Öğle vaktinde cennetin kapıları açılır." (Ebu Davud)',
+            '📖 "Şüphesiz namaz, müminlere belirli vakitlerde farz kılınmıştır." (4:103)',
+        ],
+        asr:     [
+            '📖 "Namazlara ve özellikle orta namaza (İkindi) devam edin." (2:238)',
+            '📖 "Güneş batmadan önce Rabbini övgüyle tesbih et." (50:39)',
+            '🕌 Hz. Peygamber ﷺ buyurdu: "İkindi namazını terk eden ailesi ve malını kaybetmiş gibidir." (Buhari)',
+            '🕌 Hz. Peygamber ﷺ buyurdu: "Melekler İkindi ve Sabah namazlarında bir araya gelir." (Buhari)',
+        ],
+        maghrib: [
+            '📖 "Allah\'ı akşam ve sabah vakti tesbih edin." (30:17)',
+            '📖 "Güneşin kaymasından gecenin karanlığına kadar namaz kılın." (17:78)',
+            '🕌 Hz. Peygamber ﷺ buyurdu: "Ümmetim iftar etmekte aceleci oldukça hayır üzere olacaktır." (Buhari)',
+            '🕌 Hz. Peygamber ﷺ buyurdu: "Üç şeyi geciktirmeyin — vakti gelince namazı." (Tirmizi)',
+        ],
+        isha:    [
+            '📖 "Gecenin bir bölümünde O\'na secde et ve O\'nu uzun uzun tesbih et." (76:26)',
+            '📖 "Gecenin bir kısmında sana özgü nafile bir namaz kıl." (17:79)',
+            '🕌 Hz. Peygamber ﷺ buyurdu: "Münafıklara en ağır gelen namaz Yatsı ve Sabah\'tır — kıymetini bilselerdi emekleyerek bile gelirlerdi." (Buhari)',
+            '🕌 Hz. Peygamber ﷺ buyurdu: "Yatsı namazını cemaatle kılan, gecenin yarısını namazla geçirmiş gibidir." (Müslim)',
+        ],
+    },
+};
+
+const getPrayerQuote = (prayerId: string, lang: NotifLang): string => {
+    const langQuotes = PRAYER_QUOTES[lang] ?? PRAYER_QUOTES['english'];
+    const quotes = langQuotes[prayerId] ?? langQuotes['fajr'];
+    return quotes[Math.floor(Math.random() * quotes.length)];
+};
+
+const buildNotifContent = (prayerId: string, lang: NotifLang) => {
+    const ui = NOTIF_UI[lang] ?? NOTIF_UI['english'];
+    const name = (PRAYER_DISPLAY_NAMES[lang] ?? PRAYER_DISPLAY_NAMES['english'])[prayerId] ?? prayerId;
+    const quote = getPrayerQuote(prayerId, lang);
+    return {
+        title: ui.title.replace('{name}', name),
+        body: `${ui.body.replace('{name}', name)}\n\n${quote}`,
+    };
+};
+
+const buildFajrRiseContent = (lang: NotifLang) => {
+    const ui = NOTIF_UI[lang] ?? NOTIF_UI['english'];
+    const quote = getPrayerQuote('fajr', lang);
+    return {
+        title: (NOTIF_UI[lang] ?? NOTIF_UI['english']).title.replace('{name}', (PRAYER_DISPLAY_NAMES[lang] ?? PRAYER_DISPLAY_NAMES['english'])['fajr']),
+        body: `${ui.fajrRise}\n\n${quote}`,
+    };
+};
 
 // ─── Quick actions with fixed Islamic-themed gradients ────────────────────────
 const QUICK_ACTIONS = [
@@ -27,6 +276,16 @@ const QUICK_ACTIONS = [
     { title: 'Zakat',   icon: 'heart',      route: '/zakat',  gradient: ['#92650A', '#C9A84C'] as const },
     { title: 'Duas',    icon: 'book-open',  route: '/duas',   gradient: ['#1B3A6B', '#2B6CB0'] as const },
 ];
+
+// ─── Famous mosque watermark images (replace PNGs in assets/mosques/ with real photos) ──
+const MOSQUE_IMAGES = [
+    { key: 'haram',   label: 'Badshahi Mosque, Lahore',          source: require('../../../assets/mosques/masjid_al_haram.png') },
+    { key: 'nabawi',  label: 'Badshahi Mosque, Lahore',          source: require('../../../assets/mosques/masjid_nabawi.png')   },
+    { key: 'aqsa',    label: 'Al Jabbar Mosque, Bandung',        source: require('../../../assets/mosques/al_aqsa.png')          },
+    { key: 'blue',    label: 'Blue Mosque, Istanbul',            source: require('../../../assets/mosques/blue_mosque.png')      },
+    { key: 'zayed',   label: 'Badshahi Mosque, Lahore',          source: require('../../../assets/mosques/sheikh_zayed.png')     },
+];
+const MOSQUE_CYCLE_MS = 8000; // rotate every 8 seconds
 
 // ─── Calculation methods exposed to users ────────────────────────────────────
 // id: -1 = Auto (country-based), others map to AlAdhan method IDs
@@ -77,8 +336,11 @@ const DEFAULT_METHOD = { method: 3, school: 0 }; // MWL fallback
 
 // Cache key includes method+school so changing settings doesn't serve stale data
 const prayerCacheKey = (lat: number, lng: number, method: number, school: number) => {
-    const date = new Date().toISOString().split('T')[0];
-    return `@prayer_${date}_${Math.round(lat * 100)}_${Math.round(lng * 100)}_m${method}_s${school}`;
+    // Use local date (not UTC) so the cache resets at local midnight, not UTC midnight.
+    // UTC date can be "tomorrow" for UTC+ timezones in the evening, causing stale prayers.
+    const d = new Date();
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return `@noor/prayer_${date}_${Math.round(lat * 100)}_${Math.round(lng * 100)}_m${method}_s${school}`;
 };
 
 const fetchAlAdhan = async (lat: number, lng: number, method: number, school: number, date?: Date) => {
@@ -96,6 +358,9 @@ export default function HomeScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { db } = useDatabase();
+    const { theme } = useTheme();
+    const { isOfflineMode } = useNetworkMode();
+    const { language } = useLanguage();
 
     const [loading, setLoading] = useState(true);
     const [prayers, setPrayers] = useState<any[]>([]);
@@ -122,21 +387,86 @@ export default function HomeScreen() {
     // Notification prefs
     const [showNotifModal, setShowNotifModal] = useState(false);
     const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>(DEFAULT_NOTIF_PREFS);
+    const [notifPermDenied, setNotifPermDenied] = useState(false);
+
+    // IANA timezone for the prayer location (e.g. "America/Los_Angeles").
+    // Comes from AlAdhan API meta.timezone — includes DST, unlike a raw longitude offset.
+    const [locationTimezone, setLocationTimezone] = useState<string | null>(null);
 
     // Refs for cross-call persistence without triggering re-renders
     const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
     const autoMethodRef = useRef<{ method: number; school: number }>(DEFAULT_METHOD);
     const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const tomorrowFajrRef = useRef<Date | null>(null);
+    // Store effective method/school so the timer can reload prayers when a prayer time passes
+    const effectiveMethodRef = useRef<number>(DEFAULT_METHOD.method);
+    const effectiveSchoolRef = useRef<number>(DEFAULT_METHOD.school);
 
     const pulseAnim = useRef(new Animated.Value(0)).current;
 
-    const todayStorageKey = `prayers_completed_${new Date().toDateString()}`;
+    // ── Mosque watermark cycling ──────────────────────────────────────────────
+    const [mosqueIndex, setMosqueIndex] = useState(0);
+    const mosqueAnim = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+        const cycle = setInterval(() => {
+            Animated.timing(mosqueAnim, {
+                toValue: 0,
+                duration: 700,
+                useNativeDriver: true,
+            }).start(() => {
+                setMosqueIndex(prev => (prev + 1) % MOSQUE_IMAGES.length);
+                Animated.timing(mosqueAnim, {
+                    toValue: 1,
+                    duration: 700,
+                    useNativeDriver: true,
+                }).start();
+            });
+        }, MOSQUE_CYCLE_MS);
+        return () => clearInterval(cycle);
+    }, []);
+
+    // Detect whether the device is set to 24-hour time.
+    // Format a known 1 PM time and check if AM/PM appears — if not, device uses 24-hour.
+    const deviceUses24Hour = !new Intl.DateTimeFormat(undefined, { hour: 'numeric' })
+        .format(new Date(2000, 0, 1, 13))
+        .match(/[AP]M/i);
+
+    // Helper: format a Date using the correct timezone + device hour format.
+    const formatPrayerTime = (d: Date, tz?: string | null, fallbackOffsetMinutes?: number): string => {
+        if (tz) {
+            try {
+                return new Intl.DateTimeFormat(undefined, {
+                    hour: '2-digit', minute: '2-digit',
+                    hour12: !deviceUses24Hour,
+                    timeZone: tz,
+                }).format(d);
+            } catch { /* fall through */ }
+        }
+        // Fallback: moment with explicit UTC offset
+        const offset = fallbackOffsetMinutes ?? (-new Date().getTimezoneOffset());
+        return moment(d).utcOffset(offset).format(deviceUses24Hour ? 'HH:mm' : 'hh:mm A');
+    };
+
+    // When the IANA timezone arrives from AlAdhan API, re-format all prayer times.
+    // This corrects DST errors from the initial longitude-based estimate
+    // (e.g. PST vs PDT for San Francisco in spring/summer).
+    useEffect(() => {
+        if (!locationTimezone || prayers.length === 0) return;
+        setPrayers(prev => prev.map(p => ({
+            ...p,
+            time: formatPrayerTime(p.date, locationTimezone),
+        })));
+    }, [locationTimezone]);
+
+    // Computed fresh each time so prayer tracking resets correctly after midnight
+    const getTodayStorageKey = () => `prayers_completed_${new Date().toDateString()}`;
 
     const loadCompletedPrayers = async () => {
         try {
-            const stored = await AsyncStorage.getItem(todayStorageKey);
+            const stored = await AsyncStorage.getItem(getTodayStorageKey());
             if (stored) setCompletedPrayers(JSON.parse(stored));
+            else setCompletedPrayers([]); // new day — clear yesterday's completions
         } catch { }
     };
 
@@ -144,18 +474,23 @@ export default function HomeScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         const newList = completedPrayers.includes(id) ? completedPrayers.filter(p => p !== id) : [...completedPrayers, id];
         setCompletedPrayers(newList);
-        try { await AsyncStorage.setItem(todayStorageKey, JSON.stringify(newList)); } catch { }
+        try { await AsyncStorage.setItem(getTodayStorageKey(), JSON.stringify(newList)); } catch { }
     };
 
     const getGreeting = () => {
         const hour = new Date().getHours();
-        if (hour < 12) return 'Good Morning';
-        if (hour < 17) return 'Good Afternoon';
-        return 'Good Evening';
+        if (hour >= 4 && hour < 12) return 'Sabah al-Khayr';      // morning
+        if (hour >= 12 && hour < 17) return 'As-Salamu Alaykum';   // afternoon
+        if (hour >= 17 && hour < 20) return "Masa' al-Khayr";      // evening
+        return 'As-Salamu Alaykum';                                  // night
     };
 
     // ── Core prayer loading — called on mount and when settings change ─────────
     const loadPrayers = useCallback(async (lat: number, lng: number, method: number, school: number) => {
+        // Persist effective method/school so the countdown timer can reload on prayer change
+        effectiveMethodRef.current = method;
+        effectiveSchoolRef.current = school;
+
         // Clear any existing countdown timer
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
 
@@ -176,16 +511,18 @@ export default function HomeScreen() {
 
         // ── Daily cache (includes method+school so method changes bust cache) ──
         const cacheKey = prayerCacheKey(lat, lng, method, school);
+        let cachedTimezone: string | null = null;
         try {
             const cached = await AsyncStorage.getItem(cacheKey);
             if (cached) {
-                const { prayers: cp, hijri: ch, tomorrowFajrMs } = JSON.parse(cached);
+                const { prayers: cp, hijri: ch, tomorrowFajrMs, timezone: tz } = JSON.parse(cached);
                 todayPrayers = {
                     Fajr: new Date(cp.Fajr), Dhuhr: new Date(cp.Dhuhr),
                     Asr: new Date(cp.Asr), Maghrib: new Date(cp.Maghrib), Isha: new Date(cp.Isha),
                 };
                 hijriString = ch;
                 tomorrowFajr = tomorrowFajrMs ? new Date(tomorrowFajrMs) : null;
+                if (tz) { cachedTimezone = tz; setLocationTimezone(tz); }
             }
         } catch { }
 
@@ -211,30 +548,104 @@ export default function HomeScreen() {
                 tomorrowFajrMs: tomorrowFajr?.getTime() ?? null,
             })).catch(() => {});
 
-            // Try to enrich hijri string from AlAdhan in background (non-blocking)
-            fetchAlAdhan(lat, lng, method, school).then(td => {
+            // Enrich Hijri date + get IANA timezone from AlAdhan in background (non-blocking).
+            // The timezone is used to re-format prayer times with correct DST handling.
+            // Skip in forced offline mode.
+            if (isOfflineMode) return;
+            fetchAlAdhan(lat, lng, method, school).then(async td => {
                 const h = td?.date?.hijri;
                 if (h) {
                     const richHijri = `${h.day} ${h.month.en} ${h.year} ${h.designation.abbreviated}`;
                     setHijriDate(richHijri);
                 }
-            }).catch(() => {});
+                const apiTz: string | undefined = td?.meta?.timezone;
+                if (apiTz && apiTz !== cachedTimezone) {
+                    setLocationTimezone(apiTz);
+                    // Persist timezone in the daily cache so next load is instant
+                    try {
+                        const existing = await AsyncStorage.getItem(cacheKey);
+                        if (existing) {
+                            await AsyncStorage.setItem(cacheKey, JSON.stringify({ ...JSON.parse(existing), timezone: apiTz }));
+                        }
+                    } catch { }
+                }
+            }).catch((e) => { console.warn('[Noor/AlAdhan] Background Hijri/timezone enrichment failed:', e); });
+        } else {
+            // Cache hit — still fetch AlAdhan in background to refresh timezone if missing
+            if (!cachedTimezone && !isOfflineMode) {
+                fetchAlAdhan(lat, lng, method, school).then(async td => {
+                    const h = td?.date?.hijri;
+                    if (h) {
+                        const richHijri = `${h.day} ${h.month.en} ${h.year} ${h.designation.abbreviated}`;
+                        setHijriDate(richHijri);
+                    }
+                    const apiTz: string | undefined = td?.meta?.timezone;
+                    if (apiTz) {
+                        setLocationTimezone(apiTz);
+                        try {
+                            const existing = await AsyncStorage.getItem(cacheKey);
+                            if (existing) {
+                                await AsyncStorage.setItem(cacheKey, JSON.stringify({ ...JSON.parse(existing), timezone: apiTz }));
+                            }
+                        } catch { }
+                    }
+                }).catch((e) => { console.warn('[Noor/AlAdhan] Background timezone cache-miss fetch failed:', e); });
+            }
         }
 
         setHijriDate(hijriString);
 
+        // Choose the right UTC offset for displaying prayer times.
+        //
+        // Problem: adhan.js computes correct UTC timestamps, but moment(date).format()
+        // uses the DEVICE timezone. If the device is in a different timezone from the
+        // prayer location (e.g. a developer in PKT testing with a San Francisco GPS fix),
+        // times display wildly wrong (all times shifted by the timezone difference).
+        //
+        // Fix: compare device timezone to the solar timezone of the location (lng / 15).
+        // • Within 90 minutes → device timezone is correct (handles DST, half-hour offsets
+        //   like India +5:30, Iran +3:30, and cities near timezone boundaries like Karachi).
+        // • Beyond 90 minutes → device is in a completely different region from the location;
+        //   fall back to the solar offset so times are at least in the right ballpark.
+        const deviceUtcOffsetMinutes   = -new Date().getTimezoneOffset();          // e.g. PKT = +300
+        // Solar estimate: clamp to valid UTC range (-720..+840) and handle the International
+        // Date Line wraparound (e.g. Chatham Islands lng≈-176° is actually UTC+12:45, not -12:00).
+        const rawSolarOffset = Math.round(lng / 15) * 60;
+        const altSolarOffset = rawSolarOffset < 0 ? rawSolarOffset + 1440 : rawSolarOffset - 1440;
+        const locationUtcOffsetMinutes = Math.abs(deviceUtcOffsetMinutes - rawSolarOffset) <= Math.abs(deviceUtcOffsetMinutes - altSolarOffset)
+            ? rawSolarOffset : altSolarOffset;
+        const tzOffsetMinutes =
+            Math.abs(deviceUtcOffsetMinutes - locationUtcOffsetMinutes) <= 90
+                ? deviceUtcOffsetMinutes   // device is local to the prayer location ✓
+                : locationUtcOffsetMinutes; // device is in a very different timezone
+        // Use the IANA timezone if already cached, otherwise fall back to offset estimate.
+        // formatPrayerTime also respects the device's 24hr/12hr preference.
+        const fmtTime = (d: Date) => formatPrayerTime(d, cachedTimezone, tzOffsetMinutes);
+
         const list = [
-            { id: 'fajr',    name: 'Fajr',    time: moment(todayPrayers.Fajr).format('hh:mm A'),    date: todayPrayers.Fajr,    icon: 'sunrise' },
-            { id: 'dhuhr',   name: 'Dhuhr',   time: moment(todayPrayers.Dhuhr).format('hh:mm A'),   date: todayPrayers.Dhuhr,   icon: 'sun' },
-            { id: 'asr',     name: 'Asr',     time: moment(todayPrayers.Asr).format('hh:mm A'),     date: todayPrayers.Asr,     icon: 'cloud' },
-            { id: 'maghrib', name: 'Maghrib', time: moment(todayPrayers.Maghrib).format('hh:mm A'), date: todayPrayers.Maghrib, icon: 'sunset' },
-            { id: 'isha',    name: 'Isha',    time: moment(todayPrayers.Isha).format('hh:mm A'),    date: todayPrayers.Isha,    icon: 'moon' },
+            { id: 'fajr',    name: 'Fajr',    time: fmtTime(todayPrayers.Fajr),    date: todayPrayers.Fajr,    icon: 'sunrise' },
+            { id: 'dhuhr',   name: 'Dhuhr',   time: fmtTime(todayPrayers.Dhuhr),   date: todayPrayers.Dhuhr,   icon: 'sun' },
+            { id: 'asr',     name: 'Asr',     time: fmtTime(todayPrayers.Asr),     date: todayPrayers.Asr,     icon: 'cloud' },
+            { id: 'maghrib', name: 'Maghrib', time: fmtTime(todayPrayers.Maghrib), date: todayPrayers.Maghrib, icon: 'sunset' },
+            { id: 'isha',    name: 'Isha',    time: fmtTime(todayPrayers.Isha),    date: todayPrayers.Isha,    icon: 'moon' },
         ];
+
+        // Compute sunrise (offline, no network) to define the Fajr window end
+        const sunriseMs = new PrayerTimes(coordinates, new Date(), offlineParams).sunrise.getTime();
+        const ishaEndMs = tomorrowFajr?.getTime()
+            ?? new PrayerTimes(coordinates, (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d; })(), offlineParams).fajr.getTime();
+        // Each prayer is "active" only within its designated time window:
+        // Fajr → sunrise | Dhuhr → Asr | Asr → Maghrib | Maghrib → Isha | Isha → next Fajr
+        const windowEnd: Record<string, number> = {
+            fajr: sunriseMs, dhuhr: todayPrayers.Asr.getTime(),
+            asr: todayPrayers.Maghrib.getTime(), maghrib: todayPrayers.Isha.getTime(), isha: ishaEndMs,
+        };
 
         let activePrayerId = 'none';
         let nextId = 'none';
         for (let i = 0; i < list.length; i++) {
-            if (nowTime >= list[i].date.getTime()) activePrayerId = list[i].id;
+            const s = list[i].date.getTime(), e = windowEnd[list[i].id];
+            if (nowTime >= s && nowTime < e) activePrayerId = list[i].id;
             if (nowTime < list[i].date.getTime() && nextId === 'none') nextId = list[i].id;
         }
 
@@ -251,8 +662,13 @@ export default function HomeScreen() {
             txtColor = '#1E293B'; subTxtColor = 'rgba(30,41,59,0.7)';
         } else if (activePrayerId === 'maghrib') {
             setEnvGradient(['#ff7e5f', '#feb47b', '#86a8e7']);
-        } else {
+        } else if (activePrayerId === 'isha') {
             setEnvGradient(['#3b458a', '#1e244d']);
+        } else {
+            // Between windows — morning gap (post-sunrise pre-Dhuhr) or pre-Fajr night
+            const h = new Date().getHours();
+            if (h >= 4 && h < 12) { setEnvGradient(['#a8d8ea', '#d4eaf0']); txtColor = '#1B3022'; subTxtColor = 'rgba(27,48,34,0.7)'; }
+            else { setEnvGradient(['#3b458a', '#1e244d']); }
         }
         setThemeTextColor(txtColor);
         setThemeSubTextColor(subTxtColor);
@@ -273,15 +689,15 @@ export default function HomeScreen() {
             } catch { }
             await Notifications.cancelAllScheduledNotificationsAsync();
             const nowMs = new Date().getTime();
+            // channelId 'adhan' is created in _layout.tsx with MAX importance + vibration (Android only)
+            const androidChannel = Platform.OS === 'android' ? { channelId: 'adhan' } : {};
+            const notifLang = (language as NotifLang) in NOTIF_UI ? (language as NotifLang) : 'english';
             for (const prayer of list) {
                 if (prefs[prayer.id] && prayer.date.getTime() > nowMs) {
                     try {
+                        const { title, body } = buildNotifContent(prayer.id, notifLang);
                         await Notifications.scheduleNotificationAsync({
-                            content: {
-                                title: `Time for ${prayer.name}`,
-                                body: `It is currently time to pray ${prayer.name}. Come to prayer, come to success.`,
-                                sound: true, color: '#C9A84C',
-                            },
+                            content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
                             trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: prayer.date },
                         });
                     } catch { }
@@ -289,8 +705,9 @@ export default function HomeScreen() {
             }
             if (prefs['fajr'] && tomorrowFajr && tomorrowFajr.getTime() > nowMs) {
                 try {
+                    const { title, body } = buildFajrRiseContent(notifLang);
                     await Notifications.scheduleNotificationAsync({
-                        content: { title: 'Time for Fajr', body: 'Fajr time has begun. Rise for prayer, come to success.', sound: true, color: '#C9A84C' },
+                        content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
                         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: tomorrowFajr },
                     });
                 } catch { }
@@ -316,18 +733,37 @@ export default function HomeScreen() {
             setNextPrayerName(activeNextId.charAt(0).toUpperCase() + activeNextId.slice(1));
         }
 
-        const previousMs = activePrayerId === 'none'
-            ? new Date().setHours(0, 0, 0, 0)
-            : list.find(p => p.id === activePrayerId)!.date.getTime();
+        let previousMs: number;
+        if (activePrayerId !== 'none') {
+            previousMs = list.find(p => p.id === activePrayerId)!.date.getTime();
+        } else {
+            // Use the end of the most recently completed prayer window as the ring "start"
+            let lastWinEnd = new Date().setHours(0, 0, 0, 0);
+            for (const p of list) { if (nowTime >= windowEnd[p.id]) lastWinEnd = windowEnd[p.id]; }
+            previousMs = lastWinEnd;
+        }
 
         const totalDuration = activeNextTime.getTime() - previousMs;
 
         const updateTimer = () => {
             const now = new Date().getTime();
             const diff = activeNextTime.getTime() - now;
+
+            // Keep greeting current throughout the day
+            setGreeting(getGreeting());
+
             if (diff <= 0) {
-                setCountdown('0h 0m');
-                setFillPercentage(1);
+                // A prayer time has passed — reload so hero, gradient, and list advance
+                if (coordsRef.current) {
+                    clearInterval(timerIntervalRef.current!);
+                    timerIntervalRef.current = null;
+                    const { lat, lng } = coordsRef.current;
+                    loadPrayers(lat, lng, effectiveMethodRef.current, effectiveSchoolRef.current);
+                } else {
+                    // No coords yet (edge case) — just show 0 until coords arrive
+                    setCountdown('0h 0m');
+                    setFillPercentage(1);
+                }
             } else {
                 const d = moment.duration(diff);
                 setCountdown(`${Math.floor(d.asHours())}h ${d.minutes()}m`);
@@ -342,16 +778,20 @@ export default function HomeScreen() {
 
     // ── Startup: daily aya + pulse animation + location → load prayers ─────────
     useEffect(() => {
+        let mounted = true;
         setGreeting(getGreeting());
 
         // Daily Aya — SQLite primary, no network required
         (async () => {
-            const dateStr = new Date().toISOString().split('T')[0];
-            const ayaKey = `@daily_aya_${dateStr}`;
+            const dateStr = new Date().toLocaleDateString('en-CA');
+            const ayaKey = `@noor/daily_aya_${dateStr}`;
             try {
                 const cached = await AsyncStorage.getItem(ayaKey);
+                if (!mounted) return;
                 if (cached) {
-                    setDayAya(JSON.parse(cached));
+                    try { setDayAya(JSON.parse(cached)); } catch {
+                        AsyncStorage.removeItem(ayaKey).catch(() => {});
+                    }
                     return;
                 }
                 if (!db) return;
@@ -366,9 +806,10 @@ export default function HomeScreen() {
                      ORDER BY a.id LIMIT 1 OFFSET ?`,
                     [globalAyahIdx - 1]
                 ) as any;
+                if (!mounted) return;
                 if (row) {
                     const aya = {
-                        arabic: row.text_arabic,
+                        arabic: sanitizeArabicText(row.text_arabic || ''),
                         translation: row.text_english,
                         surahName: row.name_english,
                         surahNumber: row.surah_id,
@@ -390,12 +831,16 @@ export default function HomeScreen() {
 
         // Load notification prefs
         AsyncStorage.getItem(NOTIF_PREFS_KEY).then(saved => {
-            if (saved) setNotifPrefs(JSON.parse(saved));
+            if (!mounted || !saved) return;
+            try { setNotifPrefs(JSON.parse(saved)); } catch {
+                AsyncStorage.removeItem(NOTIF_PREFS_KEY).catch(() => {});
+            }
         }).catch(() => { });
 
         // Location + prayer loading
         (async () => {
             const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
+            if (!mounted) return;
             if (locationStatus !== 'granted') {
                 setLocationName('Location Denied');
                 setLoading(false);
@@ -409,15 +854,16 @@ export default function HomeScreen() {
                 location = { coords: { latitude: 21.4225, longitude: 39.8262 } };
             }
 
+            if (!mounted) return;
             const { latitude, longitude } = location.coords;
 
             let isoCode = '';
             try {
                 const geo = await reverseGeocode(latitude, longitude);
-                setLocationName(geo.locality || 'Locating...');
+                if (mounted) setLocationName(geo.locality || 'Locating...');
                 isoCode = geo.countryCode;
             } catch {
-                setLocationName(latitude === 21.4225 ? 'Makkah' : 'Locating...');
+                if (mounted) setLocationName(latitude === 21.4225 ? 'Makkah' : 'Locating...');
             }
 
             // Store location for later (settings change re-fetch)
@@ -429,7 +875,7 @@ export default function HomeScreen() {
             let effectiveSchool = autoMethodRef.current.school;
             try {
                 const saved = await AsyncStorage.getItem(PRAYER_SETTINGS_KEY);
-                if (saved) {
+                if (mounted && saved) {
                     const s: { method: number; school: number } = JSON.parse(saved);
                     setPrayerSettings(s);
                     setDraftMethod(s.method);
@@ -441,10 +887,13 @@ export default function HomeScreen() {
                 }
             } catch { }
 
-            await loadPrayers(latitude, longitude, effectiveMethod, effectiveSchool);
+            if (mounted) await loadPrayers(latitude, longitude, effectiveMethod, effectiveSchool);
         })();
 
-        return () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); };
+        return () => {
+            mounted = false;
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+        };
     }, []);
 
     // ── Apply settings: save + re-fetch prayer times ───────────────────────────
@@ -467,14 +916,18 @@ export default function HomeScreen() {
         try { await AsyncStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(newPrefs)); } catch { }
 
         const { status } = await Notifications.getPermissionsAsync();
-        if (status !== 'granted') return;
+        if (status !== 'granted') { setNotifPermDenied(true); return; }
+        setNotifPermDenied(false);
         await Notifications.cancelAllScheduledNotificationsAsync();
         const nowMs = Date.now();
+        const androidChannel = Platform.OS === 'android' ? { channelId: 'adhan' } : {};
+        const notifLang = (language as NotifLang) in NOTIF_UI ? (language as NotifLang) : 'english';
         for (const prayer of prayers) {
             if (newPrefs[prayer.id] && prayer.date.getTime() > nowMs) {
                 try {
+                    const { title, body } = buildNotifContent(prayer.id, notifLang);
                     await Notifications.scheduleNotificationAsync({
-                        content: { title: `Time for ${prayer.name}`, body: `It is time to pray ${prayer.name}. Come to prayer, come to success.`, sound: true, color: '#C9A84C' },
+                        content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
                         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: prayer.date },
                     });
                 } catch { }
@@ -482,8 +935,49 @@ export default function HomeScreen() {
         }
         if (newPrefs['fajr'] && tomorrowFajrRef.current && tomorrowFajrRef.current.getTime() > nowMs) {
             try {
+                const { title, body } = buildFajrRiseContent(notifLang);
                 await Notifications.scheduleNotificationAsync({
-                    content: { title: 'Time for Fajr', body: 'Fajr time has begun. Rise for prayer, come to success.', sound: true, color: '#C9A84C' },
+                    content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
+                    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: tomorrowFajrRef.current },
+                });
+            } catch { }
+        }
+    };
+
+    // Master toggle — turns ALL prayers on or off in one tap
+    const allRemindersOn = Object.values(notifPrefs).every(v => v);
+
+    const toggleAllNotif = async () => {
+        const newValue = !allRemindersOn;
+        const newPrefs = Object.fromEntries(Object.keys(notifPrefs).map(k => [k, newValue]));
+        setNotifPrefs(newPrefs);
+        try { await AsyncStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(newPrefs)); } catch { }
+
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status !== 'granted') { setNotifPermDenied(true); return; }
+        setNotifPermDenied(false);
+        await Notifications.cancelAllScheduledNotificationsAsync();
+        if (!newValue) return; // all turned off — no need to schedule
+
+        const nowMs = Date.now();
+        const androidChannel = Platform.OS === 'android' ? { channelId: 'adhan' } : {};
+        const notifLang = (language as NotifLang) in NOTIF_UI ? (language as NotifLang) : 'english';
+        for (const prayer of prayers) {
+            if (prayer.date.getTime() > nowMs) {
+                try {
+                    const { title, body } = buildNotifContent(prayer.id, notifLang);
+                    await Notifications.scheduleNotificationAsync({
+                        content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
+                        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: prayer.date },
+                    });
+                } catch { }
+            }
+        }
+        if (tomorrowFajrRef.current && tomorrowFajrRef.current.getTime() > nowMs) {
+            try {
+                const { title, body } = buildFajrRiseContent(notifLang);
+                await Notifications.scheduleNotificationAsync({
+                    content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
                     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: tomorrowFajrRef.current },
                 });
             } catch { }
@@ -507,8 +1001,29 @@ export default function HomeScreen() {
 
     if (loading) {
         return (
-            <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
-                <ActivityIndicator size="large" color="#FF9A9E" />
+            <View style={[styles.container, { alignItems: 'center', justifyContent: 'center', backgroundColor: theme.bg }]}>
+                <ActivityIndicator size="large" color={theme.accent} />
+            </View>
+        );
+    }
+
+    if (locationName === 'Location Denied') {
+        return (
+            <View style={[styles.container, { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, backgroundColor: theme.bg }]}>
+                <Feather name="map-pin" size={48} color={theme.textTertiary} style={{ marginBottom: 20 }} />
+                <Text style={{ fontSize: 18, fontWeight: '600', color: theme.textPrimary, textAlign: 'center', marginBottom: 10 }}>
+                    Location Access Required
+                </Text>
+                <Text style={{ fontSize: 14, color: theme.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 28 }}>
+                    Falah needs your location to calculate accurate prayer times. Please enable location permission in Settings.
+                </Text>
+                <TouchableOpacity
+                    onPress={() => Linking.openSettings()}
+                    style={{ backgroundColor: theme.gold, paddingVertical: 13, paddingHorizontal: 32, borderRadius: 24 }}
+                    activeOpacity={0.8}
+                >
+                    <Text style={{ color: theme.textInverse, fontWeight: '600', fontSize: 15 }}>Open Settings</Text>
+                </TouchableOpacity>
             </View>
         );
     }
@@ -518,25 +1033,25 @@ export default function HomeScreen() {
         : CALC_METHODS.find(m => m.id === prayerSettings.method)?.name ?? 'Custom';
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: theme.bg }]}>
             {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+            <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: theme.bg }]}>
                 <View style={styles.headerLeft}>
-                    <View style={[styles.profileAvatar, { backgroundColor: 'rgba(244, 209, 37, 0.2)' }]}>
+                    <View style={[styles.profileAvatar, { backgroundColor: theme.accentLight }]}>
                         <Feather name="user" size={24} color={envGradient[0]} />
                     </View>
                     <View>
-                        <Text style={styles.headerTitle}>Noor</Text>
-                        <Text style={styles.headerSubtitle}>{greeting}</Text>
+                        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Falah</Text>
+                        <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>{greeting}</Text>
                     </View>
                 </View>
                 <View style={styles.headerRight}>
                     <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/(tabs)/discover/ask' as any)}>
-                        <Feather name="search" size={20} color="#1A1A1A" />
+                        <Feather name="search" size={20} color={theme.textPrimary} />
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.iconBtn, { marginLeft: 8 }]} onPress={() => setShowNotifModal(true)}>
-                        <Feather name="bell" size={20} color="#1A1A1A" />
-                        {Object.values(notifPrefs).some(v => v) && <View style={styles.notificationDot} />}
+                        <Feather name="bell" size={20} color={theme.textPrimary} />
+                        {Object.values(notifPrefs).some(v => v) && <View style={[styles.notificationDot, { borderColor: theme.bg }]} />}
                     </TouchableOpacity>
                 </View>
             </View>
@@ -546,27 +1061,59 @@ export default function HomeScreen() {
                 {/* Prayer Hero */}
                 <View style={styles.heroSection}>
                     <LinearGradient colors={envGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroCard}>
+                        {/* Mosque watermark */}
+                        <View style={styles.mosqueWatermarkContainer}>
+                            <Animated.Image
+                                source={MOSQUE_IMAGES[mosqueIndex].source}
+                                style={[styles.mosqueWatermarkImage, { opacity: mosqueAnim }]}
+                                resizeMode="cover"
+                            />
+                        </View>
                         <Feather name={prayers.find(p => p.id === currentPrayerId)?.icon || 'sun'} size={200} color="rgba(0,0,0,0.06)" style={styles.heroBgIcon} />
                         <View style={styles.heroContent}>
                             <View style={styles.heroTag}>
-                                <Feather name="sun" size={14} color={themeTextColor} />
-                                <Text style={[styles.heroTagText, { color: themeTextColor }]}>CURRENT PRAYER</Text>
+                                <Feather name={currentPrayerId !== 'none' ? 'sun' : 'clock'} size={14} color={themeTextColor} />
+                                <Text style={[styles.heroTagText, { color: themeTextColor }]}>
+                                    {currentPrayerId !== 'none' ? 'CURRENT PRAYER' : 'NEXT PRAYER'}
+                                </Text>
                             </View>
                             <Text style={[styles.heroPrayerName, { color: themeTextColor }]}>
-                                {currentPrayerId && currentPrayerId !== 'none' ? prayers.find(p => p.id === currentPrayerId)?.name : 'Isha'}
+                                {currentPrayerId !== 'none' ? prayers.find(p => p.id === currentPrayerId)?.name : nextPrayerName}
                             </Text>
                             <Text style={[styles.heroPrayerTime, { color: themeTextColor }]}>
-                                {currentPrayerId && currentPrayerId !== 'none' ? prayers.find(p => p.id === currentPrayerId)?.time : ''}
+                                {currentPrayerId !== 'none'
+                                    ? prayers.find(p => p.id === currentPrayerId)?.time
+                                    : prayers.find(p => p.name === nextPrayerName)?.time ?? ''}
                             </Text>
                             <View style={[styles.heroNextBox, { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
                                 <View style={styles.heroNextLeft}>
                                     <Feather name="clock" size={16} color={themeTextColor} />
                                     <Text style={[styles.heroNextText, { color: themeTextColor }]}>Next: {nextPrayerName} in {countdown}</Text>
                                 </View>
-                                <TouchableOpacity style={[styles.heroRemindBtn, { backgroundColor: '#142d1a' }]}>
-                                    <Text style={[styles.heroRemindBtnText, { color: '#FFFFFF' }]}>REMIND ME</Text>
+                                <TouchableOpacity
+                                    style={[styles.heroRemindBtn, {
+                                        backgroundColor: allRemindersOn ? '#2ECC94' : '#142d1a',
+                                    }]}
+                                    onPress={() => {
+                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                        toggleAllNotif();
+                                    }}
+                                >
+                                    <Feather
+                                        name={allRemindersOn ? 'bell' : 'bell-off'}
+                                        size={13}
+                                        color="#FFFFFF"
+                                        style={{ marginRight: 5 }}
+                                    />
+                                    <Text style={[styles.heroRemindBtnText, { color: '#FFFFFF' }]}>
+                                        {allRemindersOn ? 'ALL ON' : 'REMIND ALL'}
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
+                            {/* Mosque label */}
+                            <Animated.Text style={[styles.mosqueLabel, { opacity: mosqueAnim }]}>
+                                🕌 {MOSQUE_IMAGES[mosqueIndex].label}
+                            </Animated.Text>
                         </View>
                     </LinearGradient>
                 </View>
@@ -581,7 +1128,7 @@ export default function HomeScreen() {
                                         <Feather name={tool.icon as any} size={26} color="#FFFFFF" />
                                     </LinearGradient>
                                 </TouchableOpacity>
-                                <Text style={styles.quickToolText}>{tool.title}</Text>
+                                <Text style={[styles.quickToolText, { color: theme.textPrimary }]}>{tool.title}</Text>
                             </View>
                         ))}
                     </View>
@@ -590,48 +1137,69 @@ export default function HomeScreen() {
                 {/* Prayer Times List */}
                 <View style={styles.prayersListContainer}>
                     <View style={styles.prayersListHeader}>
-                        <Text style={styles.prayerListTitle}>Prayer Times</Text>
+                        <Text style={[styles.prayerListTitle, { color: theme.textPrimary }]}>Prayer Times</Text>
                         {/* Location tag + settings gear */}
                         <View style={styles.prayerHeaderRight}>
                             <View style={styles.locationTag}>
                                 <Feather name="map-pin" size={12} color={envGradient[0]} style={{ marginRight: 4 }} />
                                 <Text style={[styles.locationTagName, { color: envGradient[0] }]}>{locationName}</Text>
                             </View>
-                            <TouchableOpacity style={styles.settingsGear} onPress={openPrayerSettings}>
-                                <Feather name="settings" size={16} color="#5A5A5A" />
+                            <TouchableOpacity style={[styles.settingsGear, { backgroundColor: theme.bgSecondary }]} onPress={openPrayerSettings}>
+                                <Feather name="settings" size={16} color={theme.textSecondary} />
                             </TouchableOpacity>
                         </View>
                     </View>
 
                     {/* Active calculation method pill */}
-                    <TouchableOpacity style={styles.methodPill} onPress={openPrayerSettings}>
-                        <Feather name="sliders" size={11} color="#5A5A5A" />
-                        <Text style={styles.methodPillText}>{currentMethodName}</Text>
-                        <Feather name="chevron-right" size={11} color="#A0A0A0" />
+                    <TouchableOpacity style={[styles.methodPill, { backgroundColor: theme.bgSecondary }]} onPress={openPrayerSettings}>
+                        <Feather name="sliders" size={11} color={theme.textSecondary} />
+                        <Text style={[styles.methodPillText, { color: theme.textSecondary }]}>{currentMethodName}</Text>
+                        <Feather name="chevron-right" size={11} color={theme.textTertiary} />
                     </TouchableOpacity>
 
                     <View style={styles.prayersList}>
                         {prayers.map((prayer) => {
-                            const isActive = prayer.id === currentPrayerId || (currentPrayerId === 'none' && prayer.id === 'isha');
+                            const isActive = prayer.id === currentPrayerId;
+                            // When no prayer window is active, highlight the upcoming prayer
+                            const isNextUp = currentPrayerId === 'none' && prayer.isNext;
                             return (
                                 <View
                                     key={prayer.name}
                                     style={[
                                         styles.prayerListItem,
-                                        isActive && [styles.prayerListItemActive, { borderColor: envGradient[0], backgroundColor: 'rgba(244, 209, 37, 0.15)' }]
+                                        { backgroundColor: theme.bgCard, borderColor: theme.border },
+                                        isActive && [styles.prayerListItemActive, { borderColor: envGradient[0], backgroundColor: 'rgba(244, 209, 37, 0.12)' }],
+                                        isNextUp && [styles.prayerListItemActive, { borderColor: theme.accent + '90', backgroundColor: theme.accentLight }],
                                     ]}
                                 >
                                     <View style={styles.prayerListLeft}>
-                                        <Feather name={prayer.icon as any} size={20} color={isActive ? envGradient[0] : '#A0A0A0'} />
-                                        <Text style={[styles.prayerListName, isActive && { color: '#1A1A1A', fontWeight: 'bold' }]}>
+                                        <Feather name={prayer.icon as any} size={20} color={isActive ? envGradient[0] : isNextUp ? theme.accent : theme.textTertiary} />
+                                        <Text style={[styles.prayerListName, { color: theme.textPrimary }, (isActive || isNextUp) && { color: theme.textPrimary, fontWeight: 'bold' }]}>
                                             {prayer.name}
                                         </Text>
                                     </View>
                                     <View style={styles.prayerListRight}>
-                                        <Text style={[styles.prayerListTime, isActive && { color: '#1A1A1A', fontWeight: 'bold' }]}>
+                                        <Text style={[styles.prayerListTime, { color: theme.textSecondary }, (isActive || isNextUp) && { color: theme.textPrimary, fontWeight: 'bold' }]}>
                                             {prayer.time}
                                         </Text>
-                                        {isActive && <Feather name="bell" size={14} color={envGradient[0]} style={{ marginLeft: 8 }} />}
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                toggleNotif(prayer.id);
+                                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                            }}
+                                            style={styles.bellToggleBtn}
+                                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                        >
+                                            <Feather
+                                                name={notifPrefs[prayer.id] ? 'bell' : 'bell-off'}
+                                                size={16}
+                                                color={
+                                                    notifPrefs[prayer.id]
+                                                        ? (isActive ? envGradient[0] : isNextUp ? theme.accent : theme.gold)
+                                                        : theme.textTertiary
+                                                }
+                                            />
+                                        </TouchableOpacity>
                                     </View>
                                 </View>
                             );
@@ -642,17 +1210,17 @@ export default function HomeScreen() {
                 {/* Verse of the Day */}
                 {dayAya && (
                     <View style={styles.verseSection}>
-                        <Text style={styles.prayerListTitle}>Verse of the Day</Text>
-                        <View style={styles.verseCard}>
-                            <Text style={styles.verseArabicText}>{dayAya.arabic}</Text>
-                            <Text style={styles.verseText}>"{dayAya.translation}"</Text>
-                            <View style={styles.verseFooter}>
-                                <Text style={[styles.verseRef, { color: envGradient[0] }]}>
+                        <Text style={[styles.prayerListTitle, { color: theme.textPrimary }]}>Verse of the Day</Text>
+                        <View style={[styles.verseCard, { backgroundColor: theme.bgCard, borderColor: theme.border, borderWidth: 1 }]}>
+                            <Text style={[styles.verseArabicText, { color: theme.textPrimary }]}>{dayAya.arabic}</Text>
+                            <Text style={[styles.verseText, { color: theme.textSecondary }]}>"{dayAya.translation}"</Text>
+                            <View style={[styles.verseFooter, { borderTopColor: theme.border }]}>
+                                <Text style={[styles.verseRef, { color: theme.accent }]}>
                                     SURAH {dayAya.surahName.toUpperCase()} [{dayAya.surahNumber}:{dayAya.numberInSurah}]
                                 </Text>
                                 <View style={styles.verseActions}>
-                                    <Feather name="share-2" size={18} color="#FFFFFF" style={{ marginRight: 16 }} />
-                                    <Feather name="bookmark" size={18} color="#FFFFFF" />
+                                    <Feather name="share-2" size={18} color={theme.textSecondary} style={{ marginRight: 16 }} />
+                                    <Feather name="bookmark" size={18} color={theme.textSecondary} />
                                 </View>
                             </View>
                         </View>
@@ -668,15 +1236,15 @@ export default function HomeScreen() {
                 onRequestClose={() => setShowNotifModal(false)}
             >
                 <View style={styles.sheetOverlay}>
-                    <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}>
-                        <View style={styles.sheetHandle} />
+                    <View style={[styles.sheet, { paddingBottom: insets.bottom + 24, backgroundColor: theme.bgCard }]}>
+                        <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
                         <View style={styles.sheetHeaderRow}>
                             <View>
-                                <Text style={styles.sheetTitle}>Prayer Notifications</Text>
-                                <Text style={styles.sheetSubtitle}>Toggle alerts for each prayer</Text>
+                                <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>Prayer Notifications</Text>
+                                <Text style={[styles.sheetSubtitle, { color: theme.textSecondary }]}>Toggle alerts for each prayer</Text>
                             </View>
-                            <TouchableOpacity onPress={() => setShowNotifModal(false)} style={styles.sheetCloseBtn}>
-                                <Feather name="x" size={20} color="#1A1A1A" />
+                            <TouchableOpacity onPress={() => setShowNotifModal(false)} style={[styles.sheetCloseBtn, { backgroundColor: theme.bgSecondary }]}>
+                                <Feather name="x" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
                         {[
@@ -686,27 +1254,38 @@ export default function HomeScreen() {
                             { id: 'maghrib', name: 'Maghrib', icon: 'sunset',  time: prayers.find(p => p.id === 'maghrib')?.time },
                             { id: 'isha',    name: 'Isha',    icon: 'moon',    time: prayers.find(p => p.id === 'isha')?.time },
                         ].map(p => (
-                            <View key={p.id} style={styles.notifRow}>
-                                <View style={[styles.notifIcon, { backgroundColor: notifPrefs[p.id] ? '#f4d12520' : '#F0EDE620' }]}>
-                                    <Feather name={p.icon as any} size={18} color={notifPrefs[p.id] ? '#f4d125' : '#B0A88A'} />
+                            <View key={p.id} style={[styles.notifRow, { borderBottomColor: theme.border }]}>
+                                <View style={[styles.notifIcon, { backgroundColor: notifPrefs[p.id] ? theme.accentLight : theme.bgSecondary }]}>
+                                    <Feather name={p.icon as any} size={18} color={notifPrefs[p.id] ? theme.gold : theme.textTertiary} />
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.notifPrayerName}>{p.name}</Text>
-                                    {p.time && <Text style={styles.notifPrayerTime}>{p.time}</Text>}
+                                    <Text style={[styles.notifPrayerName, { color: theme.textPrimary }]}>{p.name}</Text>
+                                    {p.time && <Text style={[styles.notifPrayerTime, { color: theme.textSecondary }]}>{p.time}</Text>}
                                 </View>
                                 <Switch
                                     value={!!notifPrefs[p.id]}
                                     onValueChange={() => toggleNotif(p.id)}
-                                    trackColor={{ false: '#E4DCC8', true: '#f4d125' }}
-                                    thumbColor={notifPrefs[p.id] ? '#FFFFFF' : '#FFFFFF'}
-                                    ios_backgroundColor="#E4DCC8"
+                                    trackColor={{ false: theme.border, true: theme.gold }}
+                                    thumbColor={'#FFFFFF'}
+                                    ios_backgroundColor={theme.border}
                                 />
                             </View>
                         ))}
-                        <View style={styles.notifFooter}>
-                            <Feather name="info" size={13} color="#B0A88A" />
-                            <Text style={styles.notifFooterText}>Notifications require device permission to be granted.</Text>
-                        </View>
+                        {notifPermDenied ? (
+                            <TouchableOpacity
+                                style={[styles.notifFooter, { backgroundColor: theme.accentLight, borderRadius: 10, padding: 10 }]}
+                                onPress={() => Linking.openSettings()}
+                                activeOpacity={0.8}
+                            >
+                                <Feather name="alert-circle" size={13} color={theme.gold} />
+                                <Text style={[styles.notifFooterText, { color: theme.gold }]}>Permission denied — tap to open Settings and enable notifications.</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <View style={styles.notifFooter}>
+                                <Feather name="info" size={13} color={theme.textTertiary} />
+                                <Text style={[styles.notifFooterText, { color: theme.textTertiary }]}>Notifications require device permission to be granted.</Text>
+                            </View>
+                        )}
                     </View>
                 </View>
             </Modal>
@@ -719,43 +1298,47 @@ export default function HomeScreen() {
                 onRequestClose={() => setShowPrayerSettings(false)}
             >
                 <View style={styles.sheetOverlay}>
-                    <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}>
+                    <View style={[styles.sheet, { paddingBottom: insets.bottom + 24, backgroundColor: theme.bgCard }]}>
                         {/* Handle */}
-                        <View style={styles.sheetHandle} />
+                        <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
 
                         {/* Header */}
                         <View style={styles.sheetHeaderRow}>
                             <View>
-                                <Text style={styles.sheetTitle}>Prayer Time Settings</Text>
-                                <Text style={styles.sheetSubtitle}>Changes apply immediately</Text>
+                                <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>Prayer Time Settings</Text>
+                                <Text style={[styles.sheetSubtitle, { color: theme.textSecondary }]}>Changes apply immediately</Text>
                             </View>
-                            <TouchableOpacity onPress={() => setShowPrayerSettings(false)} style={styles.sheetCloseBtn}>
-                                <Feather name="x" size={20} color="#1A1A1A" />
+                            <TouchableOpacity onPress={() => setShowPrayerSettings(false)} style={[styles.sheetCloseBtn, { backgroundColor: theme.bgSecondary }]}>
+                                <Feather name="x" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
 
                         {/* Calculation Method */}
-                        <Text style={styles.sheetSectionLabel}>CALCULATION METHOD</Text>
+                        <Text style={[styles.sheetSectionLabel, { color: theme.textSecondary }]}>CALCULATION METHOD</Text>
                         <ScrollView style={styles.methodScrollList} showsVerticalScrollIndicator={false} nestedScrollEnabled>
                             {CALC_METHODS.map(m => {
                                 const isSelected = draftMethod === m.id;
                                 return (
                                     <TouchableOpacity
                                         key={m.id}
-                                        style={[styles.methodRow, isSelected && styles.methodRowActive]}
+                                        style={[
+                                            styles.methodRow,
+                                            { backgroundColor: theme.bgSecondary },
+                                            isSelected && [styles.methodRowActive, { backgroundColor: theme.accentLight, borderColor: theme.gold }]
+                                        ]}
                                         onPress={() => setDraftMethod(m.id)}
                                         activeOpacity={0.7}
                                     >
-                                        <View style={[styles.methodRadio, isSelected && styles.methodRadioActive]}>
-                                            {isSelected && <View style={styles.methodRadioDot} />}
+                                        <View style={[styles.methodRadio, { borderColor: theme.border }, isSelected && [styles.methodRadioActive, { borderColor: theme.gold }]]}>
+                                            {isSelected && <View style={[styles.methodRadioDot, { backgroundColor: theme.gold }]} />}
                                         </View>
                                         <View style={{ flex: 1 }}>
-                                            <Text style={[styles.methodName, isSelected && { color: '#1A1A1A', fontWeight: '700' }]}>
+                                            <Text style={[styles.methodName, { color: theme.textSecondary }, isSelected && { color: theme.textPrimary, fontWeight: '700' }]}>
                                                 {m.name}
                                             </Text>
-                                            <Text style={styles.methodRegion}>{m.region}</Text>
+                                            <Text style={[styles.methodRegion, { color: theme.textTertiary }]}>{m.region}</Text>
                                         </View>
-                                        {isSelected && <Feather name="check" size={16} color="#f4d125" />}
+                                        {isSelected && <Feather name="check" size={16} color={theme.gold} />}
                                     </TouchableOpacity>
                                 );
                             })}
@@ -764,29 +1347,37 @@ export default function HomeScreen() {
                         {/* Asr Juristic Method (only when a specific method is chosen) */}
                         {draftMethod !== -1 && (
                             <View>
-                                <Text style={[styles.sheetSectionLabel, { marginTop: 16 }]}>ASR CALCULATION</Text>
+                                <Text style={[styles.sheetSectionLabel, { marginTop: 16, color: theme.textSecondary }]}>ASR CALCULATION</Text>
                                 <View style={styles.asrToggleContainer}>
                                     <TouchableOpacity
-                                        style={[styles.asrOption, draftSchool === 0 && styles.asrOptionActive]}
+                                        style={[
+                                            styles.asrOption,
+                                            { backgroundColor: theme.bgSecondary },
+                                            draftSchool === 0 && [styles.asrOptionActive, { backgroundColor: theme.accentLight, borderColor: theme.gold }]
+                                        ]}
                                         onPress={() => setDraftSchool(0)}
                                     >
-                                        <Text style={[styles.asrOptionTitle, draftSchool === 0 && styles.asrOptionTitleActive]}>Standard</Text>
-                                        <Text style={styles.asrOptionSub}>Shafi'i · Maliki · Hanbali</Text>
+                                        <Text style={[styles.asrOptionTitle, { color: theme.textSecondary }, draftSchool === 0 && [styles.asrOptionTitleActive, { color: theme.textPrimary }]]}>Standard</Text>
+                                        <Text style={[styles.asrOptionSub, { color: theme.textTertiary }]}>Shafi'i · Maliki · Hanbali</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
-                                        style={[styles.asrOption, draftSchool === 1 && styles.asrOptionActive]}
+                                        style={[
+                                            styles.asrOption,
+                                            { backgroundColor: theme.bgSecondary },
+                                            draftSchool === 1 && [styles.asrOptionActive, { backgroundColor: theme.accentLight, borderColor: theme.gold }]
+                                        ]}
                                         onPress={() => setDraftSchool(1)}
                                     >
-                                        <Text style={[styles.asrOptionTitle, draftSchool === 1 && styles.asrOptionTitleActive]}>Hanafi</Text>
-                                        <Text style={styles.asrOptionSub}>Later Asr time</Text>
+                                        <Text style={[styles.asrOptionTitle, { color: theme.textSecondary }, draftSchool === 1 && [styles.asrOptionTitleActive, { color: theme.textPrimary }]]}>Hanafi</Text>
+                                        <Text style={[styles.asrOptionSub, { color: theme.textTertiary }]}>Later Asr time</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
                         )}
 
                         {/* Apply button */}
-                        <TouchableOpacity style={styles.applyBtn} onPress={applyPrayerSettings}>
-                            <Text style={styles.applyBtnText}>Apply Settings</Text>
+                        <TouchableOpacity style={[styles.applyBtn, { backgroundColor: theme.accent }]} onPress={applyPrayerSettings}>
+                            <Text style={[styles.applyBtnText, { color: theme.textInverse }]}>Apply Settings</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -796,28 +1387,30 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FDF8F0' },
+    container: { flex: 1 },
     header: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        paddingHorizontal: 20, paddingBottom: 16,
-        backgroundColor: 'rgba(253, 248, 240, 0.95)', zIndex: 10,
+        paddingHorizontal: 20, paddingBottom: 16, zIndex: 10,
     },
     headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     profileAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-    headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#1A1A1A', letterSpacing: -0.5 },
-    headerSubtitle: { fontSize: 13, color: '#8A8A8A', fontWeight: '500' },
+    headerTitle: { fontSize: 20, fontWeight: 'bold', letterSpacing: -0.5 },
+    headerSubtitle: { fontSize: 13, fontWeight: '500' },
     headerRight: { flexDirection: 'row', alignItems: 'center' },
     iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', position: 'relative' },
-    notificationDot: { position: 'absolute', top: 10, right: 12, width: 8, height: 8, borderRadius: 4, backgroundColor: '#E53E3E', borderWidth: 1, borderColor: '#FDF8F0' },
-    notifRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F0EDE6' },
+    notificationDot: { position: 'absolute', top: 10, right: 12, width: 8, height: 8, borderRadius: 4, backgroundColor: '#E53E3E', borderWidth: 1 },
+    notifRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, borderBottomWidth: 1 },
     notifIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    notifPrayerName: { fontSize: 15, fontWeight: '700', color: '#1A1A1A' },
-    notifPrayerTime: { fontSize: 12, color: '#8A8A8A', marginTop: 1 },
+    notifPrayerName: { fontSize: 15, fontWeight: '700' },
+    notifPrayerTime: { fontSize: 12, marginTop: 1 },
     notifFooter: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 16, paddingHorizontal: 4 },
-    notifFooterText: { flex: 1, fontSize: 11, color: '#B0A88A', lineHeight: 16 },
+    notifFooterText: { flex: 1, fontSize: 11, lineHeight: 16 },
     scrollContent: { flexGrow: 1, paddingBottom: 100 },
     heroSection: { paddingHorizontal: 16, paddingTop: 8 },
     heroCard: { borderRadius: 24, padding: 24, overflow: 'hidden', position: 'relative', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 16 },
+    mosqueWatermarkContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.18, borderRadius: 24, overflow: 'hidden' },
+    mosqueWatermarkImage: { width: '100%', height: '100%' },
+    mosqueLabel: { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.75)', marginTop: 14, letterSpacing: 0.3 },
     heroBgIcon: { position: 'absolute', top: -40, right: -40 },
     heroContent: { position: 'relative', zIndex: 2 },
     heroTag: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
@@ -825,9 +1418,9 @@ const styles = StyleSheet.create({
     heroPrayerName: { fontSize: 42, fontWeight: 'bold', letterSpacing: -1, marginBottom: 4 },
     heroPrayerTime: { fontSize: 18, fontWeight: '500', marginBottom: 32 },
     heroNextBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 8, paddingLeft: 16, borderRadius: 30 },
-    heroNextLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    heroNextText: { fontSize: 14, fontWeight: '700' },
-    heroRemindBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
+    heroNextLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, marginRight: 8 },
+    heroNextText: { fontSize: 14, fontWeight: '700', flexShrink: 1 },
+    heroRemindBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, flexShrink: 0, flexDirection: 'row', alignItems: 'center' },
     heroRemindBtnText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
     quickActionsContainer: { marginTop: 24, paddingHorizontal: 16 },
     quickActionsGrid: { flexDirection: 'row', justifyContent: 'center', gap: 16 },
@@ -839,57 +1432,58 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.18, shadowRadius: 8, elevation: 5,
     },
     quickToolIconBg: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    quickToolText: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
+    quickToolText: { fontSize: 13, fontWeight: '700' },
     prayersListContainer: { marginTop: 32, paddingHorizontal: 16 },
     prayersListHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-    prayerListTitle: { fontSize: 18, fontWeight: 'bold', color: '#1A1A1A' },
+    prayerListTitle: { fontSize: 18, fontWeight: 'bold' },
     prayerHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     locationTag: { flexDirection: 'row', alignItems: 'center' },
     locationTagName: { fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5 },
-    settingsGear: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#EFEFEF', alignItems: 'center', justifyContent: 'center' },
+    settingsGear: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
     methodPill: {
         flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
-        backgroundColor: '#EFEFEF', paddingHorizontal: 10, paddingVertical: 5,
+        paddingHorizontal: 10, paddingVertical: 5,
         borderRadius: 20, marginBottom: 14,
     },
-    methodPillText: { fontSize: 11, color: '#5A5A5A', fontWeight: '600' },
+    methodPillText: { fontSize: 11, fontWeight: '600' },
     prayersList: { gap: 12 },
-    prayerListItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 20, backgroundColor: '#FFFFFF', borderRadius: 999, borderWidth: 1, borderColor: 'rgba(0,0,0,0.03)', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4 },
+    prayerListItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 20, borderRadius: 999, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4 },
     prayerListItemActive: { borderWidth: 2 },
     prayerListLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-    prayerListName: { fontSize: 16, fontWeight: '600', color: '#1A1A1A' },
-    prayerListRight: { flexDirection: 'row', alignItems: 'center' },
-    prayerListTime: { fontSize: 15, fontWeight: '500', color: '#5A5A5A' },
+    prayerListName: { fontSize: 16, fontWeight: '600' },
+    prayerListRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    prayerListTime: { fontSize: 15, fontWeight: '500' },
+    bellToggleBtn: { padding: 2 },
     verseSection: { marginTop: 32, paddingHorizontal: 16 },
-    verseCard: { backgroundColor: '#0E2B12', padding: 24, borderRadius: 20, marginTop: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
-    verseArabicText: { fontSize: 26, color: '#FFFFFF', lineHeight: 46, textAlign: 'right', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', marginBottom: 20 },
-    verseText: { fontSize: 16, fontWeight: '400', color: '#FFFFFF', lineHeight: 26, fontStyle: 'italic', marginBottom: 24 },
-    verseFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', paddingTop: 16 },
+    verseCard: { padding: 24, borderRadius: 20, marginTop: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
+    verseArabicText: { fontSize: 26, lineHeight: 46, textAlign: 'right', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', marginBottom: 20 },
+    verseText: { fontSize: 16, fontWeight: '400', lineHeight: 26, fontStyle: 'italic', marginBottom: 24 },
+    verseFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, paddingTop: 16 },
     verseRef: { fontSize: 12, fontWeight: 'bold', letterSpacing: 1 },
     verseActions: { flexDirection: 'row', alignItems: 'center' },
     // ── Prayer Settings Sheet ─────────────────────────────────────────────────
     sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-    sheet: { backgroundColor: '#FAFAFA', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 12, maxHeight: '85%' },
-    sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 20 },
+    sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 12, maxHeight: '85%' },
+    sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
     sheetHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
-    sheetTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A1A' },
-    sheetSubtitle: { fontSize: 12, color: '#8A8A8A', marginTop: 2 },
-    sheetCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#EFEFEF', alignItems: 'center', justifyContent: 'center' },
-    sheetSectionLabel: { fontSize: 11, fontWeight: '700', color: '#8A8A8A', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 },
+    sheetTitle: { fontSize: 18, fontWeight: '700' },
+    sheetSubtitle: { fontSize: 12, marginTop: 2 },
+    sheetCloseBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    sheetSectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 },
     methodScrollList: { maxHeight: 280, marginBottom: 4 },
-    methodRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, marginBottom: 4, backgroundColor: '#F4F4F4' },
-    methodRowActive: { backgroundColor: 'rgba(244, 209, 37, 0.15)', borderWidth: 1.5, borderColor: '#f4d125' },
-    methodRadio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#CCCCCC', alignItems: 'center', justifyContent: 'center' },
-    methodRadioActive: { borderColor: '#f4d125' },
-    methodRadioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#f4d125' },
-    methodName: { fontSize: 14, color: '#3A3A3A', fontWeight: '500' },
-    methodRegion: { fontSize: 11, color: '#9A9A9A', marginTop: 1 },
+    methodRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, marginBottom: 4 },
+    methodRowActive: { borderWidth: 1.5 },
+    methodRadio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+    methodRadioActive: {},
+    methodRadioDot: { width: 10, height: 10, borderRadius: 5 },
+    methodName: { fontSize: 14, fontWeight: '500' },
+    methodRegion: { fontSize: 11, marginTop: 1 },
     asrToggleContainer: { flexDirection: 'row', gap: 10 },
-    asrOption: { flex: 1, paddingVertical: 14, paddingHorizontal: 12, borderRadius: 14, backgroundColor: '#F4F4F4', alignItems: 'center' },
-    asrOptionActive: { backgroundColor: 'rgba(244, 209, 37, 0.15)', borderWidth: 1.5, borderColor: '#f4d125' },
-    asrOptionTitle: { fontSize: 14, fontWeight: '600', color: '#5A5A5A' },
-    asrOptionTitleActive: { color: '#1A1A1A' },
-    asrOptionSub: { fontSize: 11, color: '#9A9A9A', marginTop: 3, textAlign: 'center' },
-    applyBtn: { backgroundColor: '#1E293B', height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
-    applyBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+    asrOption: { flex: 1, paddingVertical: 14, paddingHorizontal: 12, borderRadius: 14, alignItems: 'center' },
+    asrOptionActive: { borderWidth: 1.5 },
+    asrOptionTitle: { fontSize: 14, fontWeight: '600' },
+    asrOptionTitleActive: {},
+    asrOptionSub: { fontSize: 11, marginTop: 3, textAlign: 'center' },
+    applyBtn: { height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+    applyBtnText: { fontSize: 15, fontWeight: '700' },
 });

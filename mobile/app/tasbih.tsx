@@ -9,6 +9,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Audio } from 'expo-av';
+import { useTheme } from '../context/ThemeContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -53,6 +55,7 @@ const BEAD_POS = Array.from({ length: VISIBLE }, (_, i) =>
 export default function TasbihScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { theme } = useTheme();
 
     const goBack = useCallback(() => {
         if (router.canGoBack()) router.back();
@@ -70,6 +73,32 @@ export default function TasbihScreen() {
     // Use ref so rapid taps always read the latest count without stale closure
     const countRef = useRef(0);
 
+    // ── Click sound ────────────────────────────────────────────────────────────
+    const soundRef = useRef<Audio.Sound | null>(null);
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                await Audio.setAudioModeAsync(
+                    Platform.OS === 'ios'
+                        ? { playsInSilentModeIOS: true, allowsRecordingIOS: false }
+                        : { shouldDuckAndroid: false }
+                );
+                const { sound } = await Audio.Sound.createAsync(
+                    require('../assets/tasbih_click.wav'),
+                    { volume: 0.7 }
+                );
+                if (mounted) soundRef.current = sound;
+            } catch { /* sound is optional */ }
+        })();
+        return () => {
+            mounted = false;
+            soundRef.current?.unloadAsync();
+            soundRef.current = null;
+        };
+    }, []);
+
     const inRoundCount  = count % activePreset.target;
     const roundNum      = Math.floor(count / activePreset.target);
     const inWindowCount = inRoundCount % VISIBLE; // 0-based index of the "next" bead
@@ -82,9 +111,15 @@ export default function TasbihScreen() {
         Array.from({ length: VISIBLE }, () => new Animated.Value(0))
     ).current;
 
+    // Stop all bead animations on unmount to prevent CPU waste
+    useEffect(() => () => {
+        beadScales.forEach(s => s.stopAnimation());
+        beadGlows.forEach(g => g.stopAnimation());
+    }, []);
+
     // ── Persistence ────────────────────────────────────────────────────────────
     useEffect(() => {
-        AsyncStorage.getItem(`@tasbih_${activePreset.id}`).then(val => {
+        AsyncStorage.getItem(`@noor/tasbih_${activePreset.id}`).then(val => {
             const loaded = val !== null ? parseInt(val, 10) : 0;
             countRef.current = loaded;
             setCount(loaded);
@@ -92,7 +127,7 @@ export default function TasbihScreen() {
     }, [activePreset.id]);
 
     useEffect(() => {
-        AsyncStorage.setItem(`@tasbih_${activePreset.id}`, String(count));
+        AsyncStorage.setItem(`@noor/tasbih_${activePreset.id}`, String(count));
     }, [count, activePreset.id]);
 
     // ── Press handler ──────────────────────────────────────────────────────────
@@ -100,6 +135,10 @@ export default function TasbihScreen() {
         if (Platform.OS !== 'web') {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
+
+        // Play click sound (rewind to start for rapid taps)
+        soundRef.current?.replayAsync().catch(() => {});
+
 
         // Animate the bead currently being counted
         const current   = countRef.current;
@@ -151,16 +190,16 @@ export default function TasbihScreen() {
 
     // ── Render ─────────────────────────────────────────────────────────────────
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
 
             {/* ── Header ── */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={goBack} style={styles.headerBtn}>
-                    <Feather name="arrow-left" size={22} color="#2C2C2C" />
+                    <Feather name="arrow-left" size={22} color={theme.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Tasbih</Text>
+                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Tasbih</Text>
                 <TouchableOpacity onPress={handleReset} style={styles.headerBtn}>
-                    <Feather name="refresh-cw" size={19} color="#2C2C2C" />
+                    <Feather name="refresh-cw" size={19} color={theme.textPrimary} />
                 </TouchableOpacity>
             </View>
 
@@ -174,10 +213,10 @@ export default function TasbihScreen() {
                 {PRESETS.map(preset => (
                     <TouchableOpacity
                         key={preset.id}
-                        style={[styles.pill, activePreset.id === preset.id && styles.pillActive]}
+                        style={[styles.pill, { backgroundColor: theme.bgCard, borderColor: theme.border }, activePreset.id === preset.id && { backgroundColor: theme.gold, borderColor: theme.gold }]}
                         onPress={() => setActivePreset(preset)}
                     >
-                        <Text style={[styles.pillText, activePreset.id === preset.id && styles.pillTextActive]}>
+                        <Text style={[styles.pillText, { color: theme.textSecondary }, activePreset.id === preset.id && { color: theme.textInverse }]}>
                             {preset.label}
                         </Text>
                     </TouchableOpacity>
@@ -189,15 +228,15 @@ export default function TasbihScreen() {
                 <View style={styles.mainArea}>
 
                     {/* Arabic dhikr */}
-                    <Text style={styles.arabicText}>{activePreset.arabic}</Text>
+                    <Text style={[styles.arabicText, { color: theme.textPrimary }]}>{activePreset.arabic}</Text>
 
                     {/* Count N/target */}
-                    <Text style={styles.countText}>{inRoundCount}/{activePreset.target}</Text>
+                    <Text style={[styles.countText, { color: theme.textPrimary }]}>{inRoundCount}/{activePreset.target}</Text>
 
                     {/* Round label */}
                     <View style={styles.roundRow}>
-                        <Text style={styles.roundText}>Round {roundNum + 1}</Text>
-                        <Feather name="edit-2" size={13} color="#4AADA0" style={{ marginLeft: 5 }} />
+                        <Text style={[styles.roundText, { color: theme.gold }]}>Round {roundNum + 1}</Text>
+                        <Feather name="edit-2" size={13} color={theme.gold} style={{ marginLeft: 5 }} />
                     </View>
 
                     {/* ── Arc + pearl beads ── */}
@@ -280,7 +319,7 @@ export default function TasbihScreen() {
                     </View>
 
                     {/* Tap hint */}
-                    <Text style={styles.tapHint}>Tap anywhere to count</Text>
+                    <Text style={[styles.tapHint, { color: theme.textTertiary }]}>Tap anywhere to count</Text>
                 </View>
             </TouchableWithoutFeedback>
         </View>
@@ -289,10 +328,7 @@ export default function TasbihScreen() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#FAF7EF',
-    },
+    container: { flex: 1 },
 
     // ── Header ──
     header: {
@@ -302,86 +338,28 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         height: 52,
     },
-    headerBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#1A1A1A',
-        letterSpacing: 0.2,
-    },
+    headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+    headerTitle: { fontSize: 18, fontWeight: '600', letterSpacing: 0.2 },
 
     // ── Presets ──
-    presetRow: {
-        paddingHorizontal: 20,
-        paddingTop: 4,
-        paddingBottom: 14,
-        gap: 8,
-    },
-    pill: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        backgroundColor: '#FFFFFF',
-        borderWidth: 1.5,
-        borderColor: '#E4DCC8',
-    },
-    pillActive: {
-        backgroundColor: '#4AADA0',
-        borderColor: '#4AADA0',
-    },
-    pillText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#5A5040',
-    },
-    pillTextActive: {
-        color: '#FFFFFF',
-    },
+    presetRow: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 14, gap: 8 },
+    pill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5 },
+    pillActive: {},
+    pillText: { fontSize: 13, fontWeight: '600' },
+    pillTextActive: {},
 
     // ── Main content ──
-    mainArea: {
-        flex: 1,
-        alignItems: 'center',
-        paddingTop: 10,
-    },
+    mainArea: { flex: 1, alignItems: 'center', paddingTop: 10 },
     arabicText: {
         fontSize: 34,
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
-        color: '#2C2C2C',
         marginBottom: 18,
         textAlign: 'center',
     },
-    countText: {
-        fontSize: 70,
-        fontWeight: '200',
-        color: '#1A1A1A',
-        letterSpacing: -1,
-        lineHeight: 78,
-    },
-    roundRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 6,
-        marginBottom: 6,
-    },
-    roundText: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#4AADA0',
-    },
-    tapHint: {
-        fontSize: 12,
-        color: '#B0A88A',
-        fontWeight: '500',
-        letterSpacing: 0.3,
-        marginTop: 10,
-    },
+    countText: { fontSize: 70, fontWeight: '200', letterSpacing: -1, lineHeight: 78 },
+    roundRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, marginBottom: 6 },
+    roundText: { fontSize: 15, fontWeight: '600' },
+    tapHint: { fontSize: 12, fontWeight: '500', letterSpacing: 0.3, marginTop: 10 },
 
     // ── Arc ──
     arcContainer: {

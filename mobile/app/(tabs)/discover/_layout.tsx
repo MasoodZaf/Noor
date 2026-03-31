@@ -1,7 +1,9 @@
 import { Stack } from 'expo-router';
+import { useTheme } from '../../../context/ThemeContext';
 
 export default function DiscoverLayout() {
+    const { theme } = useTheme();
     return (
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FDF8F0' } }} />
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }} />
     );
 }

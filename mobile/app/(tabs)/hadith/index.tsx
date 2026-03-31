@@ -4,7 +4,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDatabase } from '../../../context/DatabaseContext';
+import { useTheme } from '../../../context/ThemeContext';
+
+const BOOKMARKS_KEY = '@hadith_bookmarks';
 // expo-speech-recognition requires a native build — not available in Expo Go
 // Guard it so the app doesn't crash when running without a custom dev client
 let ExpoSpeechRecognitionModule: {
@@ -73,12 +77,55 @@ export default function HadithScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { db } = useDatabase();
+    const { theme } = useTheme();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const [voiceError, setVoiceError] = useState('');
+    const [bookmarks, setBookmarks] = useState<any[]>([]);
+    const [showBookmarks, setShowBookmarks] = useState(false);
+
+    // Load bookmarks on mount
+    useEffect(() => {
+        let mounted = true;
+        AsyncStorage.getItem(BOOKMARKS_KEY).then(stored => {
+            if (!mounted || !stored) return;
+            try {
+                const parsed = JSON.parse(stored);
+                if (Array.isArray(parsed)) {
+                    // Validate each entry has the minimum required fields before trusting it
+                    const valid = parsed.filter(
+                        (b: any) => b && typeof b === 'object' &&
+                            typeof b.book_slug === 'string' && b.book_slug.length > 0 &&
+                            (typeof b.hadith_number === 'number' || typeof b.hadith_number === 'string')
+                    );
+                    setBookmarks(valid);
+                }
+            } catch {
+                // Corrupted storage — reset to empty
+                AsyncStorage.removeItem(BOOKMARKS_KEY).catch(() => {});
+            }
+        }).catch(() => {});
+        return () => { mounted = false; };
+    }, []);
+
+    const isBookmarked = (hadith: any) =>
+        bookmarks.some(b => b.book_slug === hadith.book_slug && b.hadith_number === hadith.hadith_number);
+
+    const toggleBookmark = async (hadith: any) => {
+        const already = isBookmarked(hadith);
+        const updated = already
+            ? bookmarks.filter(b => !(b.book_slug === hadith.book_slug && b.hadith_number === hadith.hadith_number))
+            : [...bookmarks, hadith];
+        setBookmarks(updated);
+        await AsyncStorage.setItem(BOOKMARKS_KEY, JSON.stringify(updated)).catch(() => {});
+    };
+
+    // Mount guard — prevents setState after unmount (voice recognition events fire asynchronously)
+    const mountedRef = useRef(true);
+    useEffect(() => () => { mountedRef.current = false; }, []);
 
     // Pulse animation for mic button while listening
     const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -99,24 +146,32 @@ export default function HadithScreen() {
         pulseAnim.setValue(1);
     };
 
-    // Voice recognition event handlers
+    // Stop animation on unmount to prevent memory leak
+    useEffect(() => () => { pulseLoop.current?.stop(); }, []);
+
+    // Voice recognition event handlers — all guarded with mountedRef to prevent
+    // setState calls after the component has unmounted (events fire asynchronously)
     useSpeechRecognitionEvent('start', () => {
+        if (!mountedRef.current) return;
         setIsListening(true);
         setVoiceError('');
         startPulse();
     });
 
     useSpeechRecognitionEvent('end', () => {
+        if (!mountedRef.current) return;
         setIsListening(false);
         stopPulse();
     });
 
     useSpeechRecognitionEvent('result', (event) => {
+        if (!mountedRef.current) return;
         const transcript = event.results[0]?.transcript ?? '';
         if (transcript) setSearchQuery(transcript);
     });
 
     useSpeechRecognitionEvent('error', (event) => {
+        if (!mountedRef.current) return;
         setIsListening(false);
         stopPulse();
         if (event.error !== 'aborted') {
@@ -200,15 +255,26 @@ export default function HadithScreen() {
 
     return (
         <KeyboardAvoidingView
-            style={[styles.container, { paddingTop: insets.top }]}
+            style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Hadith Library</Text>
-                <TouchableOpacity style={styles.headerAction}>
-                    <Feather name="bookmark" size={24} color="#1A1A1A" />
-                </TouchableOpacity>
+                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Hadith Library</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity style={[styles.headerAction, { backgroundColor: theme.bgInput }]} onPress={() => router.push('/search?scope=hadith' as any)}>
+                        <Feather name="search" size={22} color={theme.textPrimary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.headerAction, { backgroundColor: showBookmarks ? theme.accent : theme.bgInput }]}
+                        onPress={() => { setShowBookmarks(v => !v); setSearchQuery(''); }}
+                    >
+                        <Feather name="bookmark" size={22} color={showBookmarks ? '#fff' : theme.textPrimary} />
+                        {bookmarks.length > 0 && !showBookmarks && (
+                            <View style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: theme.accent }} />
+                        )}
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <ScrollView
@@ -220,17 +286,17 @@ export default function HadithScreen() {
             >
                 {/* Search Bar */}
                 <View style={styles.searchContainer}>
-                    <View style={[styles.searchInputWrapper, isListening && styles.searchInputListening]}>
+                    <View style={[styles.searchInputWrapper, { backgroundColor: theme.bgCard, borderColor: theme.border }, isListening && styles.searchInputListening]}>
                         <Feather
                             name={isListening ? 'mic' : 'search'}
                             size={20}
-                            color={isListening ? '#ef4444' : searchQuery ? '#11d452' : '#8A8A8A'}
+                            color={isListening ? '#ef4444' : searchQuery ? theme.accent : theme.textSecondary}
                             style={styles.searchIcon}
                         />
                         <TextInput
-                            style={styles.searchInput}
+                            style={[styles.searchInput, { color: theme.textPrimary }]}
                             placeholder={isListening ? 'Listening...' : 'Search hadiths by keyword...'}
-                            placeholderTextColor={isListening ? '#ef4444' : '#8A8A8A'}
+                            placeholderTextColor={isListening ? '#ef4444' : theme.textSecondary}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
                             autoCorrect={false}
@@ -238,18 +304,18 @@ export default function HadithScreen() {
                         />
                         {searchQuery.length > 0 && !isListening && (
                             <TouchableOpacity onPress={() => setSearchQuery('')} style={{ marginRight: 8 }}>
-                                <Feather name="x-circle" size={18} color="#8A8A8A" />
+                                <Feather name="x-circle" size={18} color={theme.textSecondary} />
                             </TouchableOpacity>
                         )}
                         {/* Mic button — only shown when native speech module is available */}
                         {speechAvailable && (
                             <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
                                 <TouchableOpacity
-                                    style={[styles.micBtn, isListening && styles.micBtnActive]}
+                                    style={[styles.micBtn, { backgroundColor: theme.bgSecondary }, isListening && styles.micBtnActive]}
                                     onPress={toggleVoiceSearch}
                                     activeOpacity={0.7}
                                 >
-                                    <Feather name={isListening ? 'mic-off' : 'mic'} size={16} color={isListening ? '#FFFFFF' : '#5A5A5A'} />
+                                    <Feather name={isListening ? 'mic-off' : 'mic'} size={16} color={isListening ? '#FFFFFF' : theme.textSecondary} />
                                 </TouchableOpacity>
                             </Animated.View>
                         )}
@@ -269,40 +335,75 @@ export default function HadithScreen() {
                     )}
                 </View>
 
-                {/* Display Results OR Collections */}
-                {searchQuery.length > 0 ? (
+                {/* Bookmarks view */}
+                {showBookmarks ? (
                     <View style={styles.resultsSection}>
-                        {isSearching ? (
-                            <View style={styles.loadingContainer}>
-                                <ActivityIndicator size="small" color="#11d452" />
-                                <Text style={styles.loadingText}>Searching...</Text>
-                            </View>
-                        ) : searchResults.length === 0 ? (
+                        {bookmarks.length === 0 ? (
                             <View style={styles.emptyState}>
-                                <Feather name="search" size={40} color="#CCC" />
-                                <Text style={styles.emptyTitle}>No results found</Text>
-                                <Text style={styles.emptySubtitle}>Try different keywords or a shorter phrase</Text>
+                                <Feather name="bookmark" size={40} color={theme.textTertiary} />
+                                <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No bookmarks yet</Text>
+                                <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>Tap the bookmark icon on any hadith to save it here</Text>
                             </View>
                         ) : (
                             <>
-                                <Text style={styles.resultCount}>{searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{searchQuery}"</Text>
-                                {searchResults.map((hadith, index) => (
-                                    <View key={index} style={styles.hadithCard}>
+                                <Text style={[styles.resultCount, { color: theme.textSecondary }]}>{bookmarks.length} saved hadith{bookmarks.length !== 1 ? 's' : ''}</Text>
+                                {bookmarks.map((hadith, index) => (
+                                    <View key={index} style={[styles.hadithCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
                                         <View style={styles.hadithHeader}>
-                                            <Text style={styles.hadithBookTag}>
+                                            <Text style={[styles.hadithBookTag, { color: theme.accent, backgroundColor: theme.accentLight }]}>
+                                                {hadith.book_slug?.toUpperCase()} · {hadith.hadith_number}
+                                            </Text>
+                                            <Text style={[styles.narratorTag, { color: theme.textSecondary }]} numberOfLines={1}>{hadith.narrator}</Text>
+                                        </View>
+                                        <Text style={[styles.arabicText, { color: theme.textPrimary }]}>{hadith.text_arabic}</Text>
+                                        <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                                        <Text style={[styles.englishText, { color: theme.textSecondary }]}>{hadith.text_english}</Text>
+                                        <View style={[styles.cardActions, { borderTopColor: theme.border }]}>
+                                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.bgInput }]} onPress={() => toggleBookmark(hadith)}>
+                                                <Feather name="bookmark" size={18} color={theme.accent} />
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                ))}
+                            </>
+                        )}
+                    </View>
+                ) : searchQuery.length > 0 ? (
+                    <View style={styles.resultsSection}>
+                        {isSearching ? (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="small" color={theme.accent} />
+                                <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Searching...</Text>
+                            </View>
+                        ) : searchResults.length === 0 ? (
+                            <View style={styles.emptyState}>
+                                <Feather name="search" size={40} color={theme.textTertiary} />
+                                <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No results found</Text>
+                                <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>Try different keywords or a shorter phrase</Text>
+                            </View>
+                        ) : (
+                            <>
+                                <Text style={[styles.resultCount, { color: theme.textSecondary }]}>{searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{searchQuery}"</Text>
+                                {searchResults.map((hadith, index) => (
+                                    <View key={index} style={[styles.hadithCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                                        <View style={styles.hadithHeader}>
+                                            <Text style={[styles.hadithBookTag, { color: theme.accent, backgroundColor: theme.accentLight }]}>
                                                 {hadith.book_slug.toUpperCase()} · {hadith.hadith_number}
                                             </Text>
-                                            <Text style={styles.narratorTag} numberOfLines={1}>{hadith.narrator}</Text>
+                                            <Text style={[styles.narratorTag, { color: theme.textSecondary }]} numberOfLines={1}>{hadith.narrator}</Text>
                                         </View>
-                                        <Text style={styles.arabicText}>{hadith.text_arabic}</Text>
-                                        <View style={styles.divider} />
-                                        <Text style={styles.englishText}>{hadith.text_english}</Text>
-                                        <View style={styles.cardActions}>
-                                            <TouchableOpacity style={styles.actionBtn}>
-                                                <Feather name="share-2" size={18} color="#5E5C58" />
+                                        <Text style={[styles.arabicText, { color: theme.textPrimary }]}>{hadith.text_arabic}</Text>
+                                        <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                                        <Text style={[styles.englishText, { color: theme.textSecondary }]}>{hadith.text_english}</Text>
+                                        <View style={[styles.cardActions, { borderTopColor: theme.border }]}>
+                                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.bgInput }]}>
+                                                <Feather name="share-2" size={18} color={theme.textSecondary} />
                                             </TouchableOpacity>
-                                            <TouchableOpacity style={styles.actionBtn}>
-                                                <Feather name="bookmark" size={18} color="#5E5C58" />
+                                            <TouchableOpacity
+                                                style={[styles.actionBtn, { backgroundColor: isBookmarked(hadith) ? theme.accentLight : theme.bgInput }]}
+                                                onPress={() => toggleBookmark(hadith)}
+                                            >
+                                                <Feather name="bookmark" size={18} color={isBookmarked(hadith) ? theme.accent : theme.textSecondary} />
                                             </TouchableOpacity>
                                         </View>
                                     </View>
@@ -312,7 +413,8 @@ export default function HadithScreen() {
                     </View>
                 ) : (
                     <>
-                        <Text style={styles.sectionTitle}>Core Collections</Text>
+                        <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Core Collections</Text>
+
                         <View style={styles.collectionsGrid}>
                             {COLLECTIONS.map(col => (
                                 <TouchableOpacity
@@ -351,13 +453,13 @@ export default function HadithScreen() {
                         </View>
 
                         {/* Source Banner */}
-                        <TouchableOpacity style={styles.premiumBanner}>
+                        <TouchableOpacity style={[styles.premiumBanner, { backgroundColor: theme.accent }]}>
                             <View style={styles.bannerIcon}>
-                                <Feather name="wifi" size={24} color="#FDF8F0" />
+                                <Feather name="wifi" size={24} color={theme.textInverse} />
                             </View>
                             <View style={styles.bannerTextContainer}>
-                                <Text style={styles.bannerTitle}>Live · Fawaz Hadith API</Text>
-                                <Text style={styles.bannerSubtitle}>
+                                <Text style={[styles.bannerTitle, { color: theme.textInverse }]}>Live · Fawaz Hadith API</Text>
+                                <Text style={[styles.bannerSubtitle, { color: theme.isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)' }]}>
                                     Full collections with grades & 6 languages. Offline vault as fallback.
                                 </Text>
                             </View>
@@ -372,7 +474,6 @@ export default function HadithScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f6f8f6',
     },
     header: {
         flexDirection: 'row',
@@ -383,7 +484,6 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     headerTitle: {
-        color: '#1A1A1A',
         fontSize: 28,
         fontWeight: '300',
         letterSpacing: -0.5,
@@ -392,7 +492,6 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: 'rgba(0,0,0,0.05)',
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -407,23 +506,19 @@ const styles = StyleSheet.create({
     searchInputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFFFFF',
         borderRadius: 16,
         paddingHorizontal: 16,
         height: 56,
         borderWidth: 1.5,
-        borderColor: 'rgba(0,0,0,0.05)',
     },
     searchInputListening: {
         borderColor: '#ef4444',
-        backgroundColor: '#fff5f5',
     },
     searchIcon: {
         marginRight: 12,
     },
     searchInput: {
         flex: 1,
-        color: '#1A1A1A',
         fontSize: 15,
         height: '100%',
     },
@@ -431,7 +526,6 @@ const styles = StyleSheet.create({
         width: 34,
         height: 34,
         borderRadius: 17,
-        backgroundColor: '#F0F0F0',
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -463,14 +557,12 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     sectionTitle: {
-        color: '#1A1A1A',
         fontSize: 20,
         fontWeight: 'bold',
         paddingHorizontal: 24,
         marginBottom: 16,
     },
     resultCount: {
-        color: '#8A8A8A',
         fontSize: 13,
         fontWeight: '600',
         marginBottom: 16,
@@ -483,12 +575,10 @@ const styles = StyleSheet.create({
     emptyTitle: {
         fontSize: 17,
         fontWeight: '600',
-        color: '#1A1A1A',
         marginTop: 8,
     },
     emptySubtitle: {
         fontSize: 14,
-        color: '#8A8A8A',
         textAlign: 'center',
     },
     collectionsGrid: {
@@ -584,7 +674,6 @@ const styles = StyleSheet.create({
     premiumBanner: {
         marginHorizontal: 24,
         marginTop: 20,
-        backgroundColor: '#11d452', // Green banner
         borderRadius: 20,
         padding: 20,
         flexDirection: 'row',
@@ -603,13 +692,11 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     bannerTitle: {
-        color: '#FDF8F0',
         fontSize: 16,
         fontWeight: 'bold',
         marginBottom: 2,
     },
     bannerSubtitle: {
-        color: 'rgba(12, 15, 14, 0.7)',
         fontSize: 13,
     },
     resultsSection: {
@@ -621,22 +708,18 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     loadingText: {
-        color: '#5E5C58',
         fontSize: 14,
     },
     noResultsText: {
-        color: '#5E5C58',
         fontSize: 16,
         textAlign: 'center',
         marginTop: 40,
     },
     hadithCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
         borderRadius: 20,
         padding: 24,
         marginBottom: 20,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
     },
     hadithHeader: {
         flexDirection: 'row',
@@ -645,23 +728,19 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     hadithBookTag: {
-        color: '#11d452',
         fontSize: 11,
         fontWeight: 'bold',
         textTransform: 'uppercase',
         letterSpacing: 1,
-        backgroundColor: 'rgba(17, 212, 82, 0.1)',
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 8,
     },
     narratorTag: {
-        color: '#5E5C58',
         fontSize: 13,
         fontStyle: 'italic',
     },
     arabicText: {
-        color: '#1A1A1A',
         fontSize: 24,
         fontWeight: '600',
         lineHeight: 40,
@@ -670,11 +749,9 @@ const styles = StyleSheet.create({
     },
     divider: {
         height: 1,
-        backgroundColor: 'rgba(0,0,0,0.05)',
         marginVertical: 20,
     },
     englishText: {
-        color: '#5E5C58',
         fontSize: 15,
         lineHeight: 24,
     },
@@ -685,11 +762,9 @@ const styles = StyleSheet.create({
         marginTop: 20,
         paddingTop: 16,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.05)',
     },
     actionBtn: {
         padding: 8,
-        backgroundColor: 'rgba(0,0,0,0.05)',
         borderRadius: 12,
     }
 });

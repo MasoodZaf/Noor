@@ -8,6 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useDatabase } from '../../../../context/DatabaseContext';
 import { useLanguage } from '../../../../context/LanguageContext';
+import { sanitizeArabicText } from '../../../../utils/arabic';
+import { useTheme } from '../../../../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
@@ -41,25 +43,29 @@ const stripHtml = (html: string) =>
 
 // ─── Ayah Card (per page) ─────────────────────────────────────────────────────
 const AyahPage = React.memo(({
-    ayah, surahName, language, meta, selectedFont, fontSize, tafseerIdKey
+    ayah, surahName, language, meta, selectedFont, fontSize, tafseerIdKey, theme
 }: {
     ayah: any; surahName: string; language: string;
     meta: any;
     selectedFont: { id: string; name: string; family: string | undefined };
     fontSize: number;
     tafseerIdKey: string;
+    theme: import('../../../../context/ThemeContext').AppTheme;
 }) => {
     const isFirstInSurah = ayah.ayah_number === 1;
     const [tafseerText, setTafseerText] = useState<string | null>(null);
     const [tafseerLoading, setTafseerLoading] = useState(false);
+    const [tafseerFailed, setTafseerFailed] = useState(false);
     const [expanded, setExpanded] = useState(false);
 
     const handleToggleTafseer = async () => {
-        if (tafseerText !== null) {
+        // If already loaded (and not an error), just toggle visibility
+        if (tafseerText !== null && !tafseerFailed) {
             setExpanded(!expanded);
             return;
         }
         setExpanded(true);
+        setTafseerFailed(false);
         setTafseerLoading(true);
         try {
             // Determine best ID for current language + requested tafsir
@@ -74,7 +80,7 @@ const AyahPage = React.memo(({
                 {
                     headers: {
                         'Accept': 'application/json',
-                        'User-Agent': 'NoorApp/1.0 (Mobile)',
+                        'User-Agent': 'FalahApp/1.0 (Mobile)',
                     }
                 }
             );
@@ -88,7 +94,9 @@ const AyahPage = React.memo(({
                     : language === 'urdu' ? 'تفسیر دستیاب نہیں ہے۔' : 'Tafseer not available.'
             );
         } catch (error: any) {
-            setTafseerText(language === 'urdu' ? `خطا: ${error.message}` : `Error loading Tafseer: ${error.message}`);
+            console.warn('[Noor/Tafseer] Fetch failed:', error);
+            setTafseerFailed(true);
+            setTafseerText(null); // reset so next tap retries
         } finally {
             setTafseerLoading(false);
         }
@@ -98,17 +106,17 @@ const AyahPage = React.memo(({
 
     return (
         <ScrollView
-            style={{ width }}
+            style={{ width, backgroundColor: theme.bg }}
             contentContainerStyle={styles.pageContent}
             showsVerticalScrollIndicator={false}
         >
             {/* Surah divider on first ayah of surah */}
             {isFirstInSurah && (
                 <View style={styles.surahDivider}>
-                    <Text style={styles.surahDividerName}>{surahName}</Text>
+                    <Text style={[styles.surahDividerName, { color: theme.accent }]}>{surahName}</Text>
                     {ayah.surah_number !== 1 && ayah.surah_number !== 9 && (
-                        <View style={styles.bismillahBannerBlock}>
-                            <Text style={[styles.bismillahText, { fontFamily: selectedFont.family }]}>
+                        <View style={[styles.bismillahBannerBlock, { backgroundColor: theme.bgSecondary, borderColor: theme.borderStrong }]}>
+                            <Text style={[styles.bismillahText, { fontFamily: selectedFont.family, color: theme.textPrimary }]}>
                                 بِسْمِ ٱللَّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
                             </Text>
                         </View>
@@ -119,17 +127,17 @@ const AyahPage = React.memo(({
             <View style={styles.ayahContainer}>
                 {/* Top row: badge + exegesis toggle */}
                 <View style={styles.ayahTopRow}>
-                    <View style={styles.ayahPillBadge}>
-                        <Text style={styles.ayahPillText}>
+                    <View style={[styles.ayahPillBadge, { backgroundColor: theme.bgSecondary }]}>
+                        <Text style={[styles.ayahPillText, { color: theme.textSecondary }]}>
                             Aya {ayah.surah_number}:{ayah.ayah_number}
                         </Text>
-                        <Feather name="chevron-down" size={14} color="#5E5C58" style={{ marginLeft: 4, marginTop: 1 }} />
+                        <Feather name="chevron-down" size={14} color={theme.textSecondary} style={{ marginLeft: 4, marginTop: 1 }} />
                     </View>
-                    <TouchableOpacity onPress={handleToggleTafseer} style={styles.exegesisBtn}>
-                        <Text style={styles.exegesisBtnText}>
+                    <TouchableOpacity onPress={handleToggleTafseer} style={[styles.exegesisBtn, { backgroundColor: theme.accentLight, borderColor: theme.border }]}>
+                        <Text style={[styles.exegesisBtnText, { color: theme.accent }]}>
                             {expanded ? 'Hide Exegesis' : 'Read Exegesis'}
                         </Text>
-                        <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={15} color="#8C4B40" />
+                        <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={15} color={theme.accent} />
                     </TouchableOpacity>
                 </View>
 
@@ -141,7 +149,7 @@ const AyahPage = React.memo(({
                     </View>
                     <Text style={[
                         styles.arabicText,
-                        { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.6 },
+                        { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.6, color: theme.textPrimary },
                     ]}>
                         {ayah.text_arabic}
                     </Text>
@@ -151,6 +159,7 @@ const AyahPage = React.memo(({
                 {ayah.text_translation ? (
                     <Text style={[
                         styles.translationText,
+                        { color: theme.textSecondary },
                         isUrdu && {
                             fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
                             fontSize: 18, textAlign: 'right', lineHeight: 32, fontStyle: 'normal',
@@ -162,20 +171,26 @@ const AyahPage = React.memo(({
 
                 {/* Expandable tafseer */}
                 {expanded && (
-                    <View style={styles.tafseerBody}>
-                        <View style={styles.quoteBar} />
+                    <View style={[styles.tafseerBody, { borderTopColor: theme.border }]}>
+                        <View style={[styles.quoteBar, { backgroundColor: theme.accent }]} />
                         <View style={{ flex: 1 }}>
                             {tafseerLoading ? (
-                                <ActivityIndicator color="#8C4B40" style={{ alignSelf: 'flex-start', marginVertical: 16 }} />
+                                <ActivityIndicator color={theme.accent} style={{ alignSelf: 'flex-start', marginVertical: 16 }} />
+                            ) : tafseerFailed ? (
+                                <TouchableOpacity onPress={handleToggleTafseer} style={{ marginVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Feather name="refresh-cw" size={14} color={theme.accent} />
+                                    <Text style={{ color: theme.accent, fontSize: 13 }}>Failed to load — tap to retry</Text>
+                                </TouchableOpacity>
                             ) : (
                                 <Text style={[
                                     styles.tafseerText,
+                                    { color: theme.textSecondary },
                                     isUrdu && {
                                         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
                                         fontSize: 17, textAlign: 'right', lineHeight: 30, fontStyle: 'normal',
                                     },
                                 ]}>
-                                    <Text style={styles.tafseerAuthor}>[{meta.author}]{'  '}</Text>
+                                    <Text style={[styles.tafseerAuthor, { color: theme.accent }]}>[{meta.author}]{'  '}</Text>
                                     {tafseerText}
                                 </Text>
                             )}
@@ -194,6 +209,7 @@ export default function TafseerReadScreen() {
     const insets = useSafeAreaInsets();
     const { db } = useDatabase();
     const { language } = useLanguage();
+    const { theme } = useTheme();
 
     const tafseerId = typeof book === 'string' ? book : 'ibn_kathir';
     const volumeIndex = typeof volume === 'string' ? parseInt(volume, 10) : 1;
@@ -234,7 +250,7 @@ export default function TafseerReadScreen() {
                     id: `${r.surah_number}_${r.ayah_number}`,
                     surah_number: r.surah_number,
                     ayah_number: r.ayah_number,
-                    text_arabic: r.text_arabic || '',
+                    text_arabic: sanitizeArabicText(r.text_arabic || ''),
                     text_translation: language === 'urdu'
                         ? (r.text_urdu || r.text_english || '')
                         : (r.text_english || ''),
@@ -251,9 +267,9 @@ export default function TafseerReadScreen() {
 
     if (loading) {
         return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color="#8C4B40" />
-                <Text style={styles.loadingText}>Compiling Volume {volumeIndex}...</Text>
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg }]}>
+                <ActivityIndicator size="large" color={theme.accent} />
+                <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Compiling Volume {volumeIndex}...</Text>
             </View>
         );
     }
@@ -262,26 +278,26 @@ export default function TafseerReadScreen() {
     const lastSurah = ayahs[ayahs.length - 1]?.surah_number;
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header — matches Juz/Surah reader */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                        <Feather name="arrow-left" size={24} color="#1A1A1A" />
+                        <Feather name="arrow-left" size={24} color={theme.textPrimary} />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle} numberOfLines={1}>{meta.title}</Text>
+                    <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>{meta.title}</Text>
                 </View>
                 <View style={styles.headerRight}>
                     <TouchableOpacity style={styles.actionButton} onPress={() => setShowSettings(true)}>
-                        <Feather name="settings" size={22} color="#1A1A1A" />
+                        <Feather name="settings" size={22} color={theme.textPrimary} />
                     </TouchableOpacity>
                 </View>
             </View>
 
             {/* Sub-header */}
-            <View style={styles.subHeader}>
-                <Text style={styles.subHeaderText}>Vol {volumeIndex} • {ayahs.length} Ayahs</Text>
-                <Text style={styles.subHeaderRight}>
+            <View style={[styles.subHeader, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.subHeaderText, { color: theme.textSecondary }]}>Vol {volumeIndex} • {ayahs.length} Ayahs</Text>
+                <Text style={[styles.subHeaderRight, { color: theme.textSecondary }]}>
                     {surahMap[firstSurah] || ''}{lastSurah !== firstSurah ? ` → ${surahMap[lastSurah] || ''}` : ''}
                 </Text>
             </View>
@@ -303,13 +319,14 @@ export default function TafseerReadScreen() {
                         selectedFont={selectedFont}
                         fontSize={fontSize}
                         tafseerIdKey={tafseerId}
+                        theme={theme}
                     />
                 )}
                 ListFooterComponent={
-                    <View style={styles.completionPage}>
-                        <Feather name="check-circle" size={36} color="#8C4B40" />
-                        <Text style={styles.completionText}>End of Volume {volumeIndex}</Text>
-                        <Text style={styles.completionSub}>{meta.title}</Text>
+                    <View style={[styles.completionPage, { backgroundColor: theme.bg }]}>
+                        <Feather name="check-circle" size={36} color={theme.accent} />
+                        <Text style={[styles.completionText, { color: theme.textPrimary }]}>End of Volume {volumeIndex}</Text>
+                        <Text style={[styles.completionSub, { color: theme.textSecondary }]}>{meta.title}</Text>
                     </View>
                 }
             />
@@ -322,38 +339,38 @@ export default function TafseerReadScreen() {
                 onRequestClose={() => setShowSettings(false)}
             >
                 <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
+                    <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20, backgroundColor: theme.bgCard }]}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Reading Settings</Text>
+                            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Reading Settings</Text>
                             <TouchableOpacity onPress={() => setShowSettings(false)}>
-                                <Feather name="x" size={24} color="#1A1A1A" />
+                                <Feather name="x" size={24} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={styles.settingLabel}>Arabic Font Style</Text>
-                        <View style={styles.settingsGroup}>
+                        <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Arabic Font Style</Text>
+                        <View style={[styles.settingsGroup, { backgroundColor: theme.bgSecondary }]}>
                             {ARABIC_FONTS.map(font => (
                                 <TouchableOpacity
                                     key={font.id}
-                                    style={[styles.settingOption, selectedFont.id === font.id && styles.settingOptionActive]}
+                                    style={[styles.settingOption, { borderBottomColor: theme.border }, selectedFont.id === font.id && styles.settingOptionActive]}
                                     onPress={() => setSelectedFont(font)}
                                 >
-                                    <Text style={[styles.settingOptionText, selectedFont.id === font.id && { color: '#8C4B40' }]}>
+                                    <Text style={[styles.settingOptionText, { color: theme.textPrimary }, selectedFont.id === font.id && { color: theme.accent }]}>
                                         {font.name}
                                     </Text>
-                                    {selectedFont.id === font.id && <Feather name="check" size={18} color="#8C4B40" />}
+                                    {selectedFont.id === font.id && <Feather name="check" size={18} color={theme.accent} />}
                                 </TouchableOpacity>
                             ))}
                         </View>
 
-                        <Text style={styles.settingLabel}>Text Size ({fontSize}pt)</Text>
-                        <View style={styles.sizeControlGroup}>
-                            <TouchableOpacity style={styles.sizeBtn} onPress={() => setFontSize(Math.max(20, fontSize - 2))}>
-                                <Feather name="minus" size={20} color="#1A1A1A" />
+                        <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Text Size ({fontSize}pt)</Text>
+                        <View style={[styles.sizeControlGroup, { backgroundColor: theme.bgSecondary }]}>
+                            <TouchableOpacity style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]} onPress={() => setFontSize(Math.max(20, fontSize - 2))}>
+                                <Feather name="minus" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
-                            <Text style={styles.sizePreviewIndicator}>Aa</Text>
-                            <TouchableOpacity style={styles.sizeBtn} onPress={() => setFontSize(Math.min(56, fontSize + 2))}>
-                                <Feather name="plus" size={20} color="#1A1A1A" />
+                            <Text style={[styles.sizePreviewIndicator, { color: theme.accent }]}>Aa</Text>
+                            <TouchableOpacity style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]} onPress={() => setFontSize(Math.min(56, fontSize + 2))}>
+                                <Feather name="plus" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -363,9 +380,11 @@ export default function TafseerReadScreen() {
     );
 }
 
+const TAFSEER_ACCENT = '#8C4B40'; // terracotta — decorative, fixed
+
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FDF6E3' },
-    loadingText: { color: '#5E5C58', marginTop: 16 },
+    container: { flex: 1 },
+    loadingText: { marginTop: 16 },
 
     // Header
     header: {
@@ -376,15 +395,15 @@ const styles = StyleSheet.create({
     headerRight: { flexDirection: 'row', alignItems: 'center' },
     backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
     actionButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-    headerTitle: { color: '#1A1A1A', fontSize: 17, fontWeight: 'bold', marginLeft: 8, flexShrink: 1 },
+    headerTitle: { fontSize: 17, fontWeight: 'bold', marginLeft: 8, flexShrink: 1 },
 
     subHeader: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
         paddingHorizontal: 20, paddingBottom: 14,
-        borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)',
+        borderBottomWidth: 1,
     },
-    subHeaderText: { color: '#5E5C58', fontSize: 13 },
-    subHeaderRight: { color: '#5E5C58', fontSize: 13 },
+    subHeaderText: { fontSize: 13 },
+    subHeaderRight: { fontSize: 13 },
 
     // Page content
     pageContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 60 },
@@ -392,16 +411,16 @@ const styles = StyleSheet.create({
     // Surah divider
     surahDivider: { alignItems: 'center', paddingVertical: 20, marginBottom: 8 },
     surahDividerName: {
-        color: '#8C4B40', fontSize: 16, fontWeight: '600',
+        fontSize: 16, fontWeight: '600',
         textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14,
     },
     bismillahBannerBlock: {
-        backgroundColor: '#C5D8B8', paddingVertical: 14, paddingHorizontal: 20,
-        borderRadius: 4, borderWidth: 2, borderColor: '#5B8C5A',
+        paddingVertical: 14, paddingHorizontal: 20,
+        borderRadius: 4, borderWidth: 2,
         alignItems: 'center', justifyContent: 'center',
         width: '100%', marginTop: 4,
     },
-    bismillahText: { color: '#1A1A1A', fontSize: 30, textAlign: 'center' },
+    bismillahText: { fontSize: 30, textAlign: 'center' },
 
     // Ayah area
     ayahContainer: { paddingVertical: 10 },
@@ -411,16 +430,16 @@ const styles = StyleSheet.create({
     },
     ayahPillBadge: {
         flexDirection: 'row', alignItems: 'center',
-        backgroundColor: '#EAE2CF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
+        paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
     },
-    ayahPillText: { color: '#5E5C58', fontSize: 12, fontWeight: '600' },
+    ayahPillText: { fontSize: 12, fontWeight: '600' },
     exegesisBtn: {
         flexDirection: 'row', alignItems: 'center',
         paddingVertical: 6, paddingHorizontal: 12,
-        borderRadius: 8, backgroundColor: 'rgba(140,75,64,0.08)',
-        borderWidth: 1, borderColor: 'rgba(140,75,64,0.2)',
+        borderRadius: 8,
+        borderWidth: 1,
     },
-    exegesisBtnText: { color: '#8C4B40', fontSize: 12, fontWeight: '700', letterSpacing: 0.3, marginRight: 4 },
+    exegesisBtnText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.3, marginRight: 4 },
 
     arabicContentWrapper: {
         flexDirection: 'row', alignItems: 'center',
@@ -431,14 +450,14 @@ const styles = StyleSheet.create({
         marginLeft: 12, position: 'relative',
     },
     ayahDecorativeMark: {
-        color: '#8C4B40', fontSize: 32, position: 'absolute',
+        color: TAFSEER_ACCENT, fontSize: 32, position: 'absolute',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
     },
-    ayahNumberText: { color: '#8C4B40', fontSize: 11, fontWeight: 'bold', position: 'absolute' },
-    arabicText: { color: '#1A1A1A', textAlign: 'right', flexShrink: 1 },
+    ayahNumberText: { color: TAFSEER_ACCENT, fontSize: 11, fontWeight: 'bold', position: 'absolute' },
+    arabicText: { textAlign: 'right', flexShrink: 1 },
 
     translationText: {
-        color: '#4A4A4A', fontSize: 17, lineHeight: 28, fontWeight: '500',
+        fontSize: 17, lineHeight: 28, fontWeight: '500',
         fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
         marginBottom: 8,
     },
@@ -450,43 +469,42 @@ const styles = StyleSheet.create({
         marginBottom: 10,
         paddingTop: 16,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.06)',
     },
     quoteBar: {
-        width: 3, backgroundColor: '#8C4B40',
+        width: 3,
         borderRadius: 1.5, marginRight: 16,
     },
     tafseerText: {
-        flex: 1, color: '#3A3A3A', fontSize: 15, lineHeight: 26,
+        flex: 1, fontSize: 15, lineHeight: 26,
         fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
     },
-    tafseerAuthor: { fontWeight: '700', color: '#8C4B40' },
+    tafseerAuthor: { fontWeight: '700' },
 
     // Completion footer page
     completionPage: {
         width, alignItems: 'center', justifyContent: 'center',
         paddingTop: 80, paddingHorizontal: 32,
     },
-    completionText: { color: '#1A1A1A', fontSize: 18, fontWeight: '600', marginTop: 16, marginBottom: 6 },
-    completionSub: { color: '#5E5C58', fontSize: 14, textAlign: 'center' },
+    completionText: { fontSize: 18, fontWeight: '600', marginTop: 16, marginBottom: 6 },
+    completionSub: { fontSize: 14, textAlign: 'center' },
 
     // Settings modal
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    modalContent: { backgroundColor: '#FDF6E3', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+    modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    modalTitle: { color: '#1A1A1A', fontSize: 18, fontWeight: '600' },
-    settingLabel: { color: '#5E5C58', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 },
-    settingsGroup: { backgroundColor: '#F4EBD9', borderRadius: 16, marginBottom: 24, overflow: 'hidden' },
+    modalTitle: { fontSize: 18, fontWeight: '600' },
+    settingLabel: { fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 },
+    settingsGroup: { borderRadius: 16, marginBottom: 24, overflow: 'hidden' },
     settingOption: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-        padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)',
+        padding: 16, borderBottomWidth: 1,
     },
     settingOptionActive: { backgroundColor: 'rgba(140,75,64,0.05)' },
-    settingOptionText: { color: '#1A1A1A', fontSize: 16 },
+    settingOptionText: { fontSize: 16 },
     sizeControlGroup: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        backgroundColor: '#F4EBD9', borderRadius: 16, padding: 12,
+        borderRadius: 16, padding: 12,
     },
-    sizeBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#EAE2CF', alignItems: 'center', justifyContent: 'center' },
-    sizePreviewIndicator: { color: '#8C4B40', fontSize: 20, fontWeight: '500' },
+    sizeBtn: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+    sizePreviewIndicator: { fontSize: 20, fontWeight: '500' },
 });

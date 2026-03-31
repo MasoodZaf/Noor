@@ -5,8 +5,11 @@ import { View, Platform, LogBox } from 'react-native';
 import { DatabaseProvider } from '../context/DatabaseContext';
 import { LanguageProvider } from '../context/LanguageContext';
 import { AudioProvider } from '../context/AudioContext';
+import { ThemeProvider, useTheme } from '../context/ThemeContext';
+import { NetworkModeProvider } from '../context/NetworkModeContext';
 import MiniAudioPlayer from '../components/MiniAudioPlayer';
 import * as Notifications from 'expo-notifications';
+import * as Haptics from 'expo-haptics';
 import { useEffect } from 'react';
 
 // Suppress Expo Go Android warning about push notifications (expected — we use a dev build for production)
@@ -25,6 +28,24 @@ Notifications.setNotificationHandler({
         shouldShowList: true,
     }),
 });
+function ThemedApp() {
+    const { theme } = useTheme();
+    return (
+        <View style={{ flex: 1, backgroundColor: theme.bg }}>
+            <StatusBar style={theme.statusBar} />
+            <Stack
+                screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: theme.bg },
+                }}
+            >
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            </Stack>
+            <MiniAudioPlayer />
+        </View>
+    );
+}
+
 export default function RootLayout() {
 
     useEffect(() => {
@@ -53,28 +74,27 @@ export default function RootLayout() {
         };
 
         setupNotifications();
+
+        // Haptic feedback when a prayer notification arrives while app is in foreground
+        const sub = Notifications.addNotificationReceivedListener(() => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        });
+        return () => sub.remove();
     }, []);
 
     return (
         <SafeAreaProvider>
-            <LanguageProvider>
-                <DatabaseProvider>
-                    <AudioProvider>
-                    <View style={{ flex: 1, backgroundColor: '#FDF8F0' }}>
-                        <StatusBar style="light" />
-                        <Stack
-                            screenOptions={{
-                                headerShown: false,
-                                contentStyle: { backgroundColor: '#FDF8F0' },
-                            }}
-                        >
-                            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                        </Stack>
-                        <MiniAudioPlayer />
-                    </View>
-                    </AudioProvider>
-                </DatabaseProvider>
-            </LanguageProvider>
+            <NetworkModeProvider>
+                <ThemeProvider>
+                    <LanguageProvider>
+                        <DatabaseProvider>
+                            <AudioProvider>
+                                <ThemedApp />
+                            </AudioProvider>
+                        </DatabaseProvider>
+                    </LanguageProvider>
+                </ThemeProvider>
+            </NetworkModeProvider>
         </SafeAreaProvider>
     );
 }

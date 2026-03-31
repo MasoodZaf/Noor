@@ -8,6 +8,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { ScheherazadeNew_400Regular } from '@expo-google-fonts/scheherazade-new';
 import { NotoNaskhArabic_400Regular } from '@expo-google-fonts/noto-naskh-arabic';
+import { sanitizeArabicText } from '../../../../utils/arabic';
+import { useTheme } from '../../../../context/ThemeContext';
 
 // ─── APIs ─────────────────────────────────────────────────────────────────────
 // Arabic text — Quran.com v4 API (verified against King Fahd Complex Medina Mushaf)
@@ -110,6 +112,7 @@ export default function JuzReaderScreen() {
     const insets = useSafeAreaInsets();
     const { db } = useDatabase();
     const { language } = useLanguage();
+    const { theme } = useTheme();
 
     const juzId = typeof id === 'string' ? parseInt(id, 10) : 1;
 
@@ -169,8 +172,8 @@ export default function JuzReaderScreen() {
                 const translationTexts = translationResult.status === 'fulfilled' ? translationResult.value : [];
 
                 arabicCacheRef.current = verses.map((v: any) => ({
-                    uthmani: v.text_uthmani || '',
-                    indopak: v.text_indopak_nastaleeq || v.text_uthmani || '',
+                    uthmani: sanitizeArabicText(v.text_uthmani || ''),
+                    indopak: sanitizeArabicText(v.text_indopak_nastaleeq || v.text_uthmani || ''),
                 }));
                 surahInfoCacheRef.current = verses.map((v: any) => {
                     const [s, a] = v.verse_key.split(':');
@@ -186,8 +189,8 @@ export default function JuzReaderScreen() {
                         surah_number: surahNum,
                         surah_name: surahMap[surahNum] || `Surah ${surahNum}`,
                         ayah_number: ayahNum,
-                        text_uthmani: v.text_uthmani || '',
-                        text_indopak: v.text_indopak_nastaleeq || v.text_uthmani || '',
+                        text_uthmani: sanitizeArabicText(v.text_uthmani || ''),
+                        text_indopak: sanitizeArabicText(v.text_indopak_nastaleeq || v.text_uthmani || ''),
                         text_translation: translationTexts[i] || '',
                     };
                 });
@@ -216,8 +219,8 @@ export default function JuzReaderScreen() {
                             return true;
                         });
                         arabicCacheRef.current = filtered.map(r => ({
-                            uthmani: r.text_arabic || '',
-                            indopak: r.text_arabic_indopak || r.text_arabic || '',
+                            uthmani: sanitizeArabicText(r.text_arabic || ''),
+                            indopak: sanitizeArabicText(r.text_arabic_indopak || r.text_arabic || ''),
                         }));
                         surahInfoCacheRef.current = filtered.map(r => ({ surah_number: r.surah_number, ayah_number: r.ayah_number }));
                         const merged = filtered.map(r => ({
@@ -225,8 +228,8 @@ export default function JuzReaderScreen() {
                             surah_number: r.surah_number,
                             surah_name: map[r.surah_number] || '',
                             ayah_number: r.ayah_number,
-                            text_uthmani: r.text_arabic || '',
-                            text_indopak: r.text_arabic_indopak || r.text_arabic || '',
+                            text_uthmani: sanitizeArabicText(r.text_arabic || ''),
+                            text_indopak: sanitizeArabicText(r.text_arabic_indopak || r.text_arabic || ''),
                             text_translation: getTranslationFromRow(r, language),
                         }));
                         setAyahs(merged);
@@ -247,10 +250,12 @@ export default function JuzReaderScreen() {
         const surahInfoCache = surahInfoCacheRef.current;
         if (!arabicCache || !surahInfoCache) return;
 
+        let cancelled = false;
         const updateTranslation = async () => {
             setTranslationLoading(true);
             try {
                 const translationTexts = await fetchTranslationTexts(juzId, language);
+                if (cancelled) return;
                 const merged = arabicCache.map((texts, i) => ({
                     id: `${surahInfoCache[i].surah_number}_${surahInfoCache[i].ayah_number}`,
                     surah_number: surahInfoCache[i].surah_number,
@@ -261,7 +266,9 @@ export default function JuzReaderScreen() {
                     text_translation: translationTexts[i] || '',
                 }));
                 setAyahs(merged);
-            } catch {
+            } catch (apiErr) {
+                if (cancelled) return;
+                console.warn('[Noor/Juz] Translation CDN failed, using SQLite fallback:', apiErr);
                 if (db) {
                     try {
                         const boundary = JUZ_BOUNDARIES.find(j => j.juz === juzId);
@@ -275,6 +282,7 @@ export default function JuzReaderScreen() {
                             if (a.surah_number === boundary.end.surah && a.ayah_number > boundary.end.ayah) return false;
                             return true;
                         });
+                        if (cancelled) return;
                         const merged = arabicCache.map((texts, i) => ({
                             id: `${surahInfoCache[i].surah_number}_${surahInfoCache[i].ayah_number}`,
                             surah_number: surahInfoCache[i].surah_number,
@@ -285,47 +293,51 @@ export default function JuzReaderScreen() {
                             text_translation: getTranslationFromRow(filtered[i] || {}, language),
                         }));
                         setAyahs(merged);
-                    } catch { }
+                    } catch (dbErr) {
+                        console.warn('[Noor/Juz] SQLite fallback also failed:', dbErr);
+                        // ayahs retain their previous language — no state update needed
+                    }
                 }
             } finally {
-                setTranslationLoading(false);
+                if (!cancelled) setTranslationLoading(false);
             }
         };
         updateTranslation();
+        return () => { cancelled = true; };
     }, [language]);
 
     if (loading || !fontsLoaded) {
         return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color="#C9A84C" />
-                <Text style={styles.loadingText}>Opening Juz {id}...</Text>
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg }]}>
+                <ActivityIndicator size="large" color={theme.gold} />
+                <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Opening Juz {id}...</Text>
             </View>
         );
     }
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header — matches Surah reader */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                        <Feather name="arrow-left" size={24} color="#1A1A1A" />
+                        <Feather name="arrow-left" size={24} color={theme.textPrimary} />
                     </TouchableOpacity>
-                    <Text style={styles.surahTitle}>Juz {id}</Text>
-                    <Feather name="chevron-down" size={16} color="#1A1A1A" style={{ marginLeft: 4, marginTop: 4 }} />
+                    <Text style={[styles.surahTitle, { color: theme.textPrimary }]}>Juz {id}</Text>
+                    <Feather name="chevron-down" size={16} color={theme.textPrimary} style={{ marginLeft: 4, marginTop: 4 }} />
                 </View>
                 <View style={styles.headerRight}>
-                    {translationLoading && <ActivityIndicator size="small" color="#C9A84C" style={{ marginRight: 8 }} />}
+                    {translationLoading && <ActivityIndicator size="small" color={theme.gold} style={{ marginRight: 8 }} />}
                     <TouchableOpacity style={styles.actionButton} onPress={() => setShowSettings(true)}>
-                        <Feather name="settings" size={22} color="#1A1A1A" />
+                        <Feather name="settings" size={22} color={theme.textPrimary} />
                     </TouchableOpacity>
                 </View>
             </View>
 
             {/* Sub-header */}
-            <View style={styles.subHeader}>
-                <Text style={styles.subHeaderText}>Juz {id} • {ayahs.length} Ayahs</Text>
-                <Text style={styles.subHeaderRight}>
+            <View style={[styles.subHeader, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.subHeaderText, { color: theme.textSecondary }]}>Juz {id} • {ayahs.length} Ayahs</Text>
+                <Text style={[styles.subHeaderRight, { color: theme.textSecondary }]}>
                     {surahMap[ayahs[0]?.surah_number] || ''} → {surahMap[ayahs[ayahs.length - 1]?.surah_number] || ''}
                 </Text>
             </View>
@@ -342,17 +354,17 @@ export default function JuzReaderScreen() {
                     const isFirstInSurah = ayah.ayah_number === 1;
                     return (
                         <ScrollView
-                            style={{ width }}
+                            style={{ width, backgroundColor: theme.bg }}
                             contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 60 }}
                             showsVerticalScrollIndicator={false}
                         >
                             {/* Surah divider on first ayah of a new surah */}
                             {isFirstInSurah && (
                                 <View style={styles.surahDivider}>
-                                    <Text style={styles.surahDividerName}>{ayah.surah_name}</Text>
+                                    <Text style={[styles.surahDividerName, { color: theme.accent }]}>{ayah.surah_name}</Text>
                                     {ayah.surah_number !== 1 && ayah.surah_number !== 9 && (
-                                        <View style={styles.bismillahBannerBlock}>
-                                            <Text style={[styles.bismillahText, { fontFamily: selectedFont.family }]}>
+                                        <View style={[styles.bismillahBannerBlock, { backgroundColor: theme.bgSecondary, borderColor: theme.borderStrong }]}>
+                                            <Text style={[styles.bismillahText, { fontFamily: selectedFont.family, color: theme.textPrimary }]}>
                                                 بِسْمِ ٱللَّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
                                             </Text>
                                         </View>
@@ -363,21 +375,21 @@ export default function JuzReaderScreen() {
                             <View style={styles.ayahContainer}>
                                 {/* Ayah pill badge */}
                                 <View style={styles.ayahHeader}>
-                                    <View style={styles.ayahPillBadge}>
-                                        <Text style={styles.ayahPillText}>
+                                    <View style={[styles.ayahPillBadge, { backgroundColor: theme.bgSecondary }]}>
+                                        <Text style={[styles.ayahPillText, { color: theme.textSecondary }]}>
                                             Aya {ayah.surah_number}:{ayah.ayah_number}
                                         </Text>
-                                        <Feather name="chevron-down" size={14} color="#5E5C58" style={{ marginLeft: 4, marginTop: 1 }} />
+                                        <Feather name="chevron-down" size={14} color={theme.textSecondary} style={{ marginLeft: 4, marginTop: 1 }} />
                                     </View>
                                 </View>
 
                                 {/* Arabic text with decorative marker */}
                                 <View style={styles.arabicContentWrapper}>
                                     <View style={styles.ayahDecorativeContainer}>
-                                        <Text style={styles.ayahDecorativeMark}>۝</Text>
-                                        <Text style={styles.ayahNumberText}>{toArabicDigits(ayah.ayah_number)}</Text>
+                                        <Text style={[styles.ayahDecorativeMark, { color: theme.gold }]}>۝</Text>
+                                        <Text style={[styles.ayahNumberText, { color: theme.gold }]}>{toArabicDigits(ayah.ayah_number)}</Text>
                                     </View>
-                                    <Text style={[styles.arabicText, { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.6 }]}>
+                                    <Text style={[styles.arabicText, { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.6, color: theme.textPrimary }]}>
                                         {selectedFont.id === 'indopak' ? ayah.text_indopak : ayah.text_uthmani}
                                     </Text>
                                 </View>
@@ -385,6 +397,7 @@ export default function JuzReaderScreen() {
                                 {/* Translation */}
                                 <Text style={[
                                     styles.translationText,
+                                    { color: theme.textSecondary },
                                     (language === 'urdu') && {
                                         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
                                         fontSize: 18, textAlign: 'right', lineHeight: 32,
@@ -401,38 +414,38 @@ export default function JuzReaderScreen() {
             {/* Settings Modal — matches Surah reader */}
             <Modal transparent visible={showSettings} animationType="slide" onRequestClose={() => setShowSettings(false)}>
                 <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
+                    <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20, backgroundColor: theme.bgCard }]}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Reading Settings</Text>
+                            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Reading Settings</Text>
                             <TouchableOpacity onPress={() => setShowSettings(false)}>
-                                <Feather name="x" size={24} color="#1A1A1A" />
+                                <Feather name="x" size={24} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={styles.settingLabel}>Arabic Font Style</Text>
-                        <View style={styles.settingsGroup}>
+                        <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Arabic Font Style</Text>
+                        <View style={[styles.settingsGroup, { backgroundColor: theme.bgSecondary }]}>
                             {ARABIC_FONTS.map(font => (
                                 <TouchableOpacity
                                     key={font.id}
-                                    style={[styles.settingOption, selectedFont.id === font.id && styles.settingOptionActive]}
+                                    style={[styles.settingOption, { borderBottomColor: theme.border }, selectedFont.id === font.id && styles.settingOptionActive]}
                                     onPress={() => setSelectedFont(font)}
                                 >
-                                    <Text style={[styles.settingOptionText, selectedFont.id === font.id && { color: '#8C4B40' }]}>
+                                    <Text style={[styles.settingOptionText, { color: theme.textPrimary }, selectedFont.id === font.id && { color: theme.accent }]}>
                                         {font.name}
                                     </Text>
-                                    {selectedFont.id === font.id && <Feather name="check" size={18} color="#8C4B40" />}
+                                    {selectedFont.id === font.id && <Feather name="check" size={18} color={theme.accent} />}
                                 </TouchableOpacity>
                             ))}
                         </View>
 
-                        <Text style={styles.settingLabel}>Text Size ({fontSize}pt)</Text>
-                        <View style={styles.sizeControlGroup}>
-                            <TouchableOpacity style={styles.sizeBtn} onPress={() => setFontSize(Math.max(20, fontSize - 2))}>
-                                <Feather name="minus" size={20} color="#1A1A1A" />
+                        <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Text Size ({fontSize}pt)</Text>
+                        <View style={[styles.sizeControlGroup, { backgroundColor: theme.bgSecondary }]}>
+                            <TouchableOpacity style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]} onPress={() => setFontSize(Math.max(20, fontSize - 2))}>
+                                <Feather name="minus" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
-                            <Text style={styles.sizePreviewIndicator}>Aa</Text>
-                            <TouchableOpacity style={styles.sizeBtn} onPress={() => setFontSize(Math.min(56, fontSize + 2))}>
-                                <Feather name="plus" size={20} color="#1A1A1A" />
+                            <Text style={[styles.sizePreviewIndicator, { color: theme.accent }]}>Aa</Text>
+                            <TouchableOpacity style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]} onPress={() => setFontSize(Math.min(56, fontSize + 2))}>
+                                <Feather name="plus" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -443,8 +456,8 @@ export default function JuzReaderScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FDF6E3' },
-    loadingText: { color: '#5E5C58', marginTop: 16 },
+    container: { flex: 1 },
+    loadingText: { marginTop: 16 },
 
     // Header — identical to Surah reader
     header: {
@@ -455,53 +468,53 @@ const styles = StyleSheet.create({
     headerRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
     backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
     actionButton: { width: 30, height: 40, alignItems: 'center', justifyContent: 'center' },
-    surahTitle: { color: '#1A1A1A', fontSize: 20, fontWeight: 'bold', marginLeft: 8 },
+    surahTitle: { fontSize: 20, fontWeight: 'bold', marginLeft: 8 },
 
     subHeader: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
         paddingHorizontal: 20, paddingBottom: 16,
-        borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)',
+        borderBottomWidth: 1,
     },
-    subHeaderText: { color: '#5E5C58', fontSize: 13 },
-    subHeaderRight: { color: '#5E5C58', fontSize: 13 },
+    subHeaderText: { fontSize: 13 },
+    subHeaderRight: { fontSize: 13 },
 
     // Surah divider
     surahDivider: { alignItems: 'center', paddingVertical: 20, marginBottom: 10 },
     surahDividerName: {
-        color: '#8C4B40', fontSize: 16, fontWeight: '600',
+        fontSize: 16, fontWeight: '600',
         textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16,
     },
     bismillahBannerBlock: {
-        backgroundColor: '#C5D8B8', paddingVertical: 14, paddingHorizontal: 20,
-        borderRadius: 4, borderWidth: 2, borderColor: '#5B8C5A',
+        paddingVertical: 14, paddingHorizontal: 20,
+        borderRadius: 4, borderWidth: 2,
         alignItems: 'center', justifyContent: 'center',
         width: '100%', marginTop: 4,
     },
-    bismillahText: { color: '#1A1A1A', fontSize: 32, textAlign: 'center' },
+    bismillahText: { fontSize: 32, textAlign: 'center' },
 
     // Ayah page
     ayahContainer: { paddingHorizontal: 20, paddingVertical: 24 },
     ayahHeader: { flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center', marginBottom: 16 },
-    ayahPillBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EAE2CF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
-    ayahPillText: { color: '#5E5C58', fontSize: 12, fontWeight: '600' },
+    ayahPillBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
+    ayahPillText: { fontSize: 12, fontWeight: '600' },
     arabicContentWrapper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 20 },
     ayahDecorativeContainer: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginLeft: 12, position: 'relative' },
-    ayahDecorativeMark: { color: '#8C4B40', fontSize: 32, position: 'absolute', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif' },
-    ayahNumberText: { color: '#8C4B40', fontSize: 11, fontWeight: 'bold', position: 'absolute' },
-    arabicText: { color: '#1A1A1A', textAlign: 'right', flexShrink: 1 },
-    translationText: { color: '#4A4A4A', fontSize: 17, lineHeight: 28, fontWeight: '500', fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' },
+    ayahDecorativeMark: { fontSize: 32, position: 'absolute', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif' },
+    ayahNumberText: { fontSize: 11, fontWeight: 'bold', position: 'absolute' },
+    arabicText: { textAlign: 'right', flexShrink: 1 },
+    translationText: { fontSize: 17, lineHeight: 28, fontWeight: '500', fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' },
 
     // Settings modal — matches Surah reader
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    modalContent: { backgroundColor: '#FDF6E3', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+    modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    modalTitle: { color: '#1A1A1A', fontSize: 18, fontWeight: '600' },
-    settingLabel: { color: '#5E5C58', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 },
-    settingsGroup: { backgroundColor: '#F4EBD9', borderRadius: 16, marginBottom: 24, overflow: 'hidden' },
-    settingOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' },
+    modalTitle: { fontSize: 18, fontWeight: '600' },
+    settingLabel: { fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 },
+    settingsGroup: { borderRadius: 16, marginBottom: 24, overflow: 'hidden' },
+    settingOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
     settingOptionActive: { backgroundColor: 'rgba(140,75,64,0.05)' },
-    settingOptionText: { color: '#1A1A1A', fontSize: 16 },
-    sizeControlGroup: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F4EBD9', borderRadius: 16, padding: 12 },
-    sizeBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#EAE2CF', alignItems: 'center', justifyContent: 'center' },
-    sizePreviewIndicator: { color: '#8C4B40', fontSize: 20, fontWeight: '500' },
+    settingOptionText: { fontSize: 16 },
+    sizeControlGroup: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 16, padding: 12 },
+    sizeBtn: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+    sizePreviewIndicator: { fontSize: 20, fontWeight: '500' },
 });

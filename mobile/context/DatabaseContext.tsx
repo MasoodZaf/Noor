@@ -112,7 +112,7 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
     if (errorMsg) {
         return (
             <View style={styles.loadingContainer}>
-                <Text style={{ color: '#E8E6E1', fontSize: 16, marginBottom: 10 }}>Failed to Load Offline Vault</Text>
+                <Text style={{ color: '#E8E6E1', fontSize: 16, marginBottom: 10 }}>Failed to Initialize</Text>
                 <Text style={{ color: '#E53E3E', textAlign: 'center', paddingHorizontal: 20 }}>{errorMsg}</Text>
             </View>
         );
@@ -122,7 +122,7 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#C9A84C" />
-                <Text style={styles.loadingText}>Initializing Offline Vault...</Text>
+                <Text style={styles.loadingText}>Initializing...</Text>
             </View>
         );
     }

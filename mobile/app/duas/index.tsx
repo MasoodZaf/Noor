@@ -1,13 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, ImageBackground, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, ImageBackground, Dimensions, Platform, Image } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useDatabase } from '../../context/DatabaseContext';
+import { useTheme } from '../../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48 - 12) / 2; // 2 columns with 12px gap, 24px padding on sides
+
+const CATEGORY_FALLBACK_COLORS: Record<string, string> = {
+    'Morning & Evening': '#F4A460',
+    'Prayer (Salah)': '#6B8E6B',
+    'Travel': '#5B7FA6',
+    'Anxiety & Sorrow': '#8B7BA8',
+    'Eating & Drinking': '#C8763E',
+};
 
 const CATEGORY_IMAGES: Record<string, string> = {
     'Morning & Evening': 'https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?q=80&w=500&auto=format&fit=crop',
@@ -21,12 +30,14 @@ export default function DuasScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { db } = useDatabase();
+    const { theme } = useTheme();
     const [categories, setCategories] = useState<any[]>([]);
     const [popularDuas, setPopularDuas] = useState<any[]>([]);
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searching, setSearching] = useState(false);
     const [search, setSearch] = useState('');
+    const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
         if (!db) return;
@@ -95,36 +106,36 @@ export default function DuasScreen() {
     const displayedDuas = isSearching ? searchResults : popularDuas;
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 16 }}>
-                    <Feather name="chevron-left" size={28} color="#111827" />
+                    <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerLeft}>
-                    <Text style={styles.greeting}>Assalamu Alaikum</Text>
-                    <Text style={styles.headerTitle}>Noor Duas</Text>
+                    <Text style={[styles.greeting, { color: theme.textSecondary }]}>Assalamu Alaikum</Text>
+                    <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Falah Duas</Text>
                 </View>
-                <TouchableOpacity style={styles.notificationBtn}>
-                    <Feather name="bell" size={20} color="#1A1A1A" />
-                    <View style={styles.notificationDot} />
+                <TouchableOpacity style={[styles.notificationBtn, { backgroundColor: theme.bgInput }]}>
+                    <Feather name="bell" size={20} color={theme.textPrimary} />
+                    <View style={[styles.notificationDot, { backgroundColor: theme.textPrimary }]} />
                 </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
 
                 {/* Search Bar */}
-                <View style={styles.searchContainer}>
-                    <Feather name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
+                <View style={[styles.searchContainer, { backgroundColor: theme.bgInput }]}>
+                    <Feather name="search" size={20} color={theme.textTertiary} style={styles.searchIcon} />
                     <TextInput
-                        style={styles.searchInput}
+                        style={[styles.searchInput, { color: theme.textPrimary }]}
                         placeholder="Search for a Dua..."
-                        placeholderTextColor="#9CA3AF"
+                        placeholderTextColor={theme.textTertiary}
                         value={search}
                         onChangeText={setSearch}
                     />
                     {search.length > 0 && (
                         <TouchableOpacity onPress={() => setSearch('')} style={{ marginLeft: 8 }}>
-                            <Feather name="x" size={18} color="#9CA3AF" />
+                            <Feather name="x" size={18} color={theme.textTertiary} />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -133,11 +144,11 @@ export default function DuasScreen() {
                 {!isSearching && (
                     <>
                         <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Categories</Text>
+                            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Categories</Text>
                         </View>
 
                         {loading ? (
-                            <ActivityIndicator color="#facc15" style={{ marginTop: 40 }} />
+                            <ActivityIndicator color={theme.gold} style={{ marginTop: 40 }} />
                         ) : (
                             <View style={styles.categoriesGrid}>
                                 {categories.map((cat) => (
@@ -147,17 +158,29 @@ export default function DuasScreen() {
                                         activeOpacity={0.8}
                                         onPress={() => router.push(`/duas/${cat.id}` as any)}
                                     >
-                                        <ImageBackground source={{ uri: cat.image }} style={styles.categoryImage} imageStyle={{ borderRadius: 20 }}>
-                                            <LinearGradient
-                                                colors={['transparent', 'rgba(0,0,0,0.8)']}
-                                                style={styles.categoryGradient}
+                                        {imgErrors[cat.id] ? (
+                                            <View style={[styles.categoryImage, { backgroundColor: CATEGORY_FALLBACK_COLORS[cat.title] || '#7A9E7A', borderRadius: 20, justifyContent: 'flex-end' }]}>
+                                                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.5)']} style={styles.categoryGradient}>
+                                                    <Text style={styles.categoryName} numberOfLines={2}>{cat.title}</Text>
+                                                    <Text style={styles.categoryCount}>{cat.count} duas</Text>
+                                                </LinearGradient>
+                                            </View>
+                                        ) : (
+                                            <ImageBackground
+                                                source={{ uri: cat.image }}
+                                                style={styles.categoryImage}
+                                                imageStyle={{ borderRadius: 20 }}
+                                                onError={() => setImgErrors(prev => ({ ...prev, [cat.id]: true }))}
                                             >
-                                                <Text style={styles.categoryName} numberOfLines={2}>
-                                                    {cat.title}
-                                                </Text>
-                                                <Text style={styles.categoryCount}>{cat.count} duas</Text>
-                                            </LinearGradient>
-                                        </ImageBackground>
+                                                <LinearGradient
+                                                    colors={['transparent', 'rgba(0,0,0,0.8)']}
+                                                    style={styles.categoryGradient}
+                                                >
+                                                    <Text style={styles.categoryName} numberOfLines={2}>{cat.title}</Text>
+                                                    <Text style={styles.categoryCount}>{cat.count} duas</Text>
+                                                </LinearGradient>
+                                            </ImageBackground>
+                                        )}
                                     </TouchableOpacity>
                                 ))}
                             </View>
@@ -167,51 +190,51 @@ export default function DuasScreen() {
 
                 {/* Duas List */}
                 <View style={[styles.sectionHeader, { marginTop: isSearching ? 0 : 32 }]}>
-                    <Text style={styles.sectionTitle}>
+                    <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
                         {isSearching ? `Results for "${search}"` : 'Popular Duas'}
                     </Text>
                     {isSearching && searchResults.length > 0 && (
-                        <Text style={styles.resultCount}>{searchResults.length} found</Text>
+                        <Text style={[styles.resultCount, { color: theme.textTertiary }]}>{searchResults.length} found</Text>
                     )}
                 </View>
 
                 {(isSearching && searching) ? (
-                    <ActivityIndicator color="#facc15" style={{ marginTop: 20 }} />
+                    <ActivityIndicator color={theme.gold} style={{ marginTop: 20 }} />
                 ) : displayedDuas.length === 0 && isSearching ? (
-                    <Text style={{ color: '#9CA3AF', textAlign: 'center', marginTop: 16 }}>No duas found for "{search}"</Text>
+                    <Text style={{ color: theme.textTertiary, textAlign: 'center', marginTop: 16 }}>No duas found for "{search}"</Text>
                 ) : displayedDuas.map((dua) => (
                     <TouchableOpacity
                         key={dua.id}
-                        style={styles.duaCard}
+                        style={[styles.duaCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
                         activeOpacity={0.85}
                         onPress={() => router.push(`/duas/${dua.category_id || 1}` as any)}
                     >
                         {/* Arabic Text */}
                         {dua.arabic_text ? (
-                            <Text style={styles.duaArabic}>{dua.arabic_text}</Text>
+                            <Text style={[styles.duaArabic, { color: theme.gold }]}>{dua.arabic_text}</Text>
                         ) : null}
 
                         {/* Transliteration */}
                         {dua.transliteration ? (
-                            <Text style={styles.duaTranslit} numberOfLines={2}>{dua.transliteration}</Text>
+                            <Text style={[styles.duaTranslit, { color: theme.textTertiary }]} numberOfLines={2}>{dua.transliteration}</Text>
                         ) : null}
 
                         {/* Divider */}
-                        <View style={styles.duaDivider} />
+                        <View style={[styles.duaDivider, { backgroundColor: theme.border }]} />
 
                         {/* Title */}
                         <View style={styles.duaHeader}>
-                            <Text style={styles.duaTitle}>{dua.title || 'Dua'}</Text>
-                            <Feather name="chevron-right" size={18} color="#C9A84C" />
+                            <Text style={[styles.duaTitle, { color: theme.textPrimary }]}>{dua.title || 'Dua'}</Text>
+                            <Feather name="chevron-right" size={18} color={theme.gold} />
                         </View>
 
                         {/* Full Translation */}
-                        <Text style={styles.duaTranslation}>{dua.translation_en}</Text>
+                        <Text style={[styles.duaTranslation, { color: theme.textSecondary }]}>{dua.translation_en}</Text>
 
                         {/* Category badge */}
                         <View style={styles.duaFooter}>
-                            <View style={styles.duaTag}>
-                                <Text style={styles.duaTagText}>{dua.category?.toUpperCase()}</Text>
+                            <View style={[styles.duaTag, { backgroundColor: theme.accentLight, borderColor: theme.border }]}>
+                                <Text style={[styles.duaTagText, { color: theme.gold }]}>{dua.category?.toUpperCase()}</Text>
                             </View>
                         </View>
                     </TouchableOpacity>
@@ -223,10 +246,7 @@ export default function DuasScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f6f8f6',
-    },
+    container: { flex: 1 },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -235,26 +255,13 @@ const styles = StyleSheet.create({
         paddingTop: 16,
         paddingBottom: 20,
     },
-    headerLeft: {
-        flex: 1,
-    },
-    greeting: {
-        fontSize: 14,
-        color: '#6b7280',
-        fontWeight: '600',
-        marginBottom: 2,
-    },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: '800',
-        color: '#111827',
-        letterSpacing: -0.5,
-    },
+    headerLeft: { flex: 1 },
+    greeting: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
+    headerTitle: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
     notificationBtn: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#fef9c3', // Pale yellow background
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
@@ -266,46 +273,26 @@ const styles = StyleSheet.create({
         width: 6,
         height: 6,
         borderRadius: 3,
-        backgroundColor: '#111827',
     },
-    scrollContent: {
-        paddingHorizontal: 24,
-        paddingBottom: 40,
-    },
+    scrollContent: { paddingHorizontal: 24, paddingBottom: 40 },
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#f3f4f6', // Light gray background
         borderRadius: 20,
         paddingHorizontal: 16,
         height: 52,
         marginBottom: 32,
     },
-    searchIcon: {
-        marginRight: 10,
-    },
-    searchInput: {
-        flex: 1,
-        fontSize: 16,
-        color: '#111827',
-        fontWeight: '500',
-    },
+    searchIcon: { marginRight: 10 },
+    searchInput: { flex: 1, fontSize: 16, fontWeight: '500' },
     sectionHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: 16,
     },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '800',
-        color: '#111827',
-    },
-    viewAllText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#facc15', // Vibrant yellow text
-    },
+    sectionTitle: { fontSize: 18, fontWeight: '800' },
+    viewAllText: { fontSize: 14, fontWeight: '700' },
     categoriesGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -321,36 +308,12 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 10,
     },
-    categoryImage: {
-        width: '100%',
-        height: '100%',
-        justifyContent: 'flex-end',
-    },
-    categoryGradient: {
-        height: '50%',
-        justifyContent: 'flex-end',
-        padding: 16,
-        borderRadius: 20,
-    },
-    categoryName: {
-        color: '#FFFFFF',
-        fontSize: 15,
-        fontWeight: '800',
-        lineHeight: 20,
-    },
-    categoryCount: {
-        color: 'rgba(255,255,255,0.7)',
-        fontSize: 12,
-        fontWeight: '500',
-        marginTop: 2,
-    },
-    resultCount: {
-        fontSize: 13,
-        color: '#9CA3AF',
-        fontWeight: '500',
-    },
+    categoryImage: { width: '100%', height: '100%', justifyContent: 'flex-end' },
+    categoryGradient: { height: '50%', justifyContent: 'flex-end', padding: 16, borderRadius: 20 },
+    categoryName: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', lineHeight: 20 },
+    categoryCount: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '500', marginTop: 2 },
+    resultCount: { fontSize: 13, fontWeight: '500' },
     duaCard: {
-        backgroundColor: '#FFFFFF',
         borderRadius: 24,
         padding: 20,
         marginBottom: 16,
@@ -359,64 +322,20 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.04,
         shadowRadius: 10,
         borderWidth: 1,
-        borderColor: 'rgba(201,168,76,0.1)',
     },
     duaArabic: {
         fontSize: 26,
-        color: '#C9A84C',
         textAlign: 'right',
         lineHeight: 44,
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
         marginBottom: 8,
     },
-    duaTranslit: {
-        fontSize: 13,
-        color: '#9CA3AF',
-        fontStyle: 'italic',
-        textAlign: 'right',
-        marginBottom: 12,
-        lineHeight: 20,
-    },
-    duaDivider: {
-        height: 1,
-        backgroundColor: 'rgba(201,168,76,0.12)',
-        marginBottom: 12,
-    },
-    duaHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 10,
-    },
-    duaTitle: {
-        fontSize: 15,
-        fontWeight: '800',
-        color: '#111827',
-        flex: 1,
-        marginRight: 8,
-    },
-    duaTranslation: {
-        fontSize: 14,
-        color: '#374151',
-        lineHeight: 22,
-        marginBottom: 14,
-    },
-    duaFooter: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    duaTag: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        backgroundColor: '#fefcf0',
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#fef08a',
-    },
-    duaTagText: {
-        fontSize: 10,
-        fontWeight: '800',
-        color: '#eab308',
-        letterSpacing: 0.5,
-    },
+    duaTranslit: { fontSize: 13, fontStyle: 'italic', textAlign: 'right', marginBottom: 12, lineHeight: 20 },
+    duaDivider: { height: 1, marginBottom: 12 },
+    duaHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+    duaTitle: { fontSize: 15, fontWeight: '800', flex: 1, marginRight: 8 },
+    duaTranslation: { fontSize: 14, lineHeight: 22, marginBottom: 14 },
+    duaFooter: { flexDirection: 'row', alignItems: 'center' },
+    duaTag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
+    duaTagText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
 });

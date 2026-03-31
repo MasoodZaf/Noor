@@ -6,6 +6,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useDatabase } from '../../context/DatabaseContext';
 import { getLocalUserId } from '../../utils/userId';
+import { useTheme } from '../../context/ThemeContext';
+import { supabase } from '../../utils/supabase';
 
 const { width } = Dimensions.get('window');
 
@@ -13,10 +15,24 @@ export default function QaidaScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { db, isReady } = useDatabase();
+    const { theme } = useTheme();
 
     const [progress, setProgress] = useState(0);
     const [lessons, setLessons] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [userName, setUserName] = useState('');
+
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session?.user) {
+                const name = session.user.user_metadata?.full_name
+                    || session.user.user_metadata?.name
+                    || session.user.email?.split('@')[0]
+                    || '';
+                setUserName(name);
+            }
+        });
+    }, []);
 
     const loadData = useCallback(async () => {
         if (!db || !isReady) return;
@@ -58,8 +74,8 @@ export default function QaidaScreen() {
 
     if (!isReady || loading) {
         return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color="#f4d125" />
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg }]}>
+                <ActivityIndicator size="large" color={theme.gold} />
             </View>
         );
     }
@@ -67,65 +83,67 @@ export default function QaidaScreen() {
     const currentLesson = lessons[progress] || lessons[lessons.length - 1];
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={styles.header}>
                 <View>
-                    <Text style={styles.headerTitle}>Noorani Qaida</Text>
+                    <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Noorani Qaida</Text>
                 </View>
-                <View style={styles.starBadge}>
-                    <Feather name="star" size={24} color="#FFD166" />
-                    <Text style={styles.starText}>{progress * 15 + 5}</Text>
+                <View style={[styles.starBadge, { backgroundColor: theme.bgInput }]}>
+                    <Feather name="star" size={24} color={theme.gold} />
+                    <Text style={[styles.starText, { color: theme.textPrimary }]}>{progress * 15 + 5}</Text>
                 </View>
             </View>
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
                 {/* Hero Journey Card */}
-                <View style={styles.heroCard}>
+                <View style={[styles.heroCard, { backgroundColor: theme.gold + '33', borderColor: theme.gold + '4D' }]}>
                     <View style={styles.heroTop}>
                         <View style={{ flex: 1 }}>
-                            <Text style={styles.heroSub}>Assalamu Alaikum, Ahmed!</Text>
-                            <Text style={styles.heroTitle}>Keep learning!</Text>
+                            <Text style={[styles.heroSub, { color: theme.textSecondary }]}>
+                            {userName ? `Assalamu Alaikum, ${userName}!` : 'Assalamu Alaikum!'}
+                        </Text>
+                            <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>Keep learning!</Text>
                         </View>
                         <View style={styles.heroIconBox}>
-                            <Feather name="award" size={24} color="#f4d125" />
+                            <Feather name="award" size={24} color={theme.gold} />
                         </View>
                     </View>
 
                     {/* Progress Track */}
                     <View style={styles.trackContainer}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, alignItems: 'flex-end' }}>
-                            <Text style={{ ...styles.trackText, marginTop: 0 }}>Total Progress</Text>
-                            <Text style={{ ...styles.heroTitle, fontSize: 18, color: '#f4d125', marginBottom: 0 }}>
+                            <Text style={{ ...styles.trackText, marginTop: 0, color: theme.textPrimary }}>Total Progress</Text>
+                            <Text style={{ ...styles.heroTitle, fontSize: 18, color: theme.gold, marginBottom: 0 }}>
                                 {lessons.length > 0 ? Math.round((progress / lessons.length) * 100) : 0}%
                             </Text>
                         </View>
                         <View style={styles.trackBg}>
-                            <View style={[styles.trackFill, { width: `${lessons.length > 0 ? (progress / lessons.length) * 100 : 0}%` }]} />
+                            <View style={[styles.trackFill, { width: `${lessons.length > 0 ? (progress / lessons.length) * 100 : 0}%`, backgroundColor: theme.gold }]} />
                         </View>
-                        <Text style={[styles.trackText, { marginTop: 8, fontSize: 12, opacity: 0.6 }]}>{progress} of {lessons.length} Lessons Completed</Text>
+                        <Text style={[styles.trackText, { marginTop: 8, fontSize: 12, opacity: 0.6, color: theme.textPrimary }]}>{progress} of {lessons.length} Lessons Completed</Text>
                     </View>
                 </View>
 
                 {/* Quick Action */}
                 <TouchableOpacity
-                    style={styles.quickActionCard}
+                    style={[styles.quickActionCard, { backgroundColor: theme.accent }]}
                     onPress={() => router.push(`/qaida/${progress + 1}`)}
                 >
-                    <View style={styles.quickActionIcon}>
-                        <Feather name="play" size={20} color="#1A1A1A" />
+                    <View style={[styles.quickActionIcon, { backgroundColor: theme.gold }]}>
+                        <Feather name="play" size={20} color={theme.textInverse} />
                     </View>
                     <View style={{ flex: 1, paddingLeft: 12 }}>
-                        <Text style={styles.quickActionSub}>CONTINUE PREVIOUS</Text>
-                        <Text style={styles.quickActionTitle}>Lesson {progress + 1}: {lessons[progress]?.title || 'Finished'}</Text>
+                        <Text style={[styles.quickActionSub, { color: theme.textSecondary }]}>CONTINUE PREVIOUS</Text>
+                        <Text style={[styles.quickActionTitle, { color: theme.textInverse }]}>Lesson {progress + 1}: {lessons[progress]?.title || 'Finished'}</Text>
                     </View>
-                    <Feather name="chevron-right" size={20} color="#8A8A8A" />
+                    <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                 </TouchableOpacity>
 
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                    <Text style={{ ...styles.sectionTitle, marginBottom: 0 }}>Interactive Lessons</Text>
-                    <Text style={{ color: '#f4d125', fontWeight: 'bold', fontSize: 13 }}>View All</Text>
+                    <Text style={{ ...styles.sectionTitle, marginBottom: 0, color: theme.textPrimary }}>Interactive Lessons</Text>
+                    <Text style={{ color: theme.gold, fontWeight: 'bold', fontSize: 13 }}>View All</Text>
                 </View>
 
                 {/* Lessons Grid (Zig-Zag kid-friendly path layout) */}
@@ -140,8 +158,9 @@ export default function QaidaScreen() {
                                 key={lesson.id}
                                 style={[
                                     styles.lessonCard,
+                                    { backgroundColor: theme.bgCard, borderColor: theme.border },
                                     isLocked && styles.lessonCardLocked,
-                                    isCurrent && styles.lessonCardCurrent
+                                    isCurrent && [styles.lessonCardCurrent, { borderColor: theme.gold }]
                                 ]}
                                 activeOpacity={isLocked ? 1 : 0.8}
                                 onPress={() => !isLocked && router.push(`/qaida/${lesson.id}`)}
@@ -149,24 +168,24 @@ export default function QaidaScreen() {
                                 <View style={styles.lessonRight}>
                                     {isCompleted ? (
                                         <View style={[styles.statusOrb, { backgroundColor: '#4ECDC4' }]}>
-                                            <Feather name="check" size={16} color="#FDF8F0" />
+                                            <Feather name="check" size={16} color={theme.textInverse} />
                                         </View>
                                     ) : isCurrent ? (
-                                        <View style={[styles.statusOrb, { backgroundColor: '#FFD166' }]}>
-                                            <Feather name="play" size={16} color="#FDF8F0" style={{ marginLeft: 2 }} />
+                                        <View style={[styles.statusOrb, { backgroundColor: theme.gold }]}>
+                                            <Feather name="play" size={16} color={theme.textInverse} style={{ marginLeft: 2 }} />
                                         </View>
                                     ) : (
-                                        <View style={[styles.statusOrb, { backgroundColor: 'rgba(0,0,0,0.08)' }]}>
-                                            <Feather name="lock" size={14} color="#5E5C58" />
+                                        <View style={[styles.statusOrb, { backgroundColor: theme.bgInput }]}>
+                                            <Feather name="lock" size={14} color={theme.textTertiary} />
                                         </View>
                                     )}
                                 </View>
 
-                                <View style={[styles.arabicBox]}>
-                                    <Text style={[styles.arabicText, { color: isLocked ? '#5E5C58' : lesson.color }]}>{lesson.arabic_icon}</Text>
+                                <View style={[styles.arabicBox, { backgroundColor: theme.bgInput }]}>
+                                    <Text style={[styles.arabicText, { color: isLocked ? theme.textTertiary : lesson.color }]}>{lesson.arabic_icon}</Text>
                                 </View>
-                                <Text style={[styles.lessonTitleMain, isLocked && { color: '#8A8A8A' }]}>{lesson.id}. {lesson.title}</Text>
-                                <Text style={[styles.lessonSub, isLocked && { color: '#A0A0A0' }]}>{isLocked ? 'Not Started' : isCurrent ? 'Continue' : 'Completed'}</Text>
+                                <Text style={[styles.lessonTitleMain, { color: theme.textPrimary }, isLocked && { color: theme.textTertiary }]}>{lesson.id}. {lesson.title}</Text>
+                                <Text style={[styles.lessonSub, { color: theme.textSecondary }, isLocked && { color: theme.textTertiary }]}>{isLocked ? 'Not Started' : isCurrent ? 'Continue' : 'Completed'}</Text>
                             </TouchableOpacity>
                         );
                     })}
@@ -178,197 +197,53 @@ export default function QaidaScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f8f8f5',
-    },
+    container: { flex: 1 },
     header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 24,
-        paddingTop: 10,
-        paddingBottom: 20,
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        paddingHorizontal: 24, paddingTop: 10, paddingBottom: 20,
     },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#1A1A1A',
-        letterSpacing: 0.5,
-    },
-    starBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.05)',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 20,
-    },
-    starText: {
-        color: '#1A1A1A',
-        fontWeight: 'bold',
-        fontSize: 16,
-        marginLeft: 6,
-    },
-    content: {
-        paddingHorizontal: 20,
-        paddingTop: 10,
-    },
+    headerTitle: { fontSize: 24, fontWeight: 'bold', letterSpacing: 0.5 },
+    starBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
+    starText: { fontWeight: 'bold', fontSize: 16, marginLeft: 6 },
+    content: { paddingHorizontal: 20, paddingTop: 10 },
     heroCard: {
-        borderRadius: 16,
-        padding: 20,
-        marginBottom: 20,
-        backgroundColor: 'rgba(244, 209, 37, 0.2)', // primary/20
+        borderRadius: 16, padding: 20, marginBottom: 20,
         borderWidth: 1,
-        borderColor: 'rgba(244, 209, 37, 0.3)',
     },
-    heroTop: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 20,
-    },
+    heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
     heroIconBox: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.6)',
-        alignItems: 'center',
-        justifyContent: 'center',
+        width: 44, height: 44, borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.6)', alignItems: 'center', justifyContent: 'center',
     },
-    heroTitle: {
-        color: '#1A1A1A',
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginBottom: 2,
-    },
-    heroSub: {
-        color: '#5E5C58',
-        fontSize: 14,
-        fontWeight: '500',
-        marginBottom: 4,
-    },
-    trackContainer: {
-        marginTop: 4,
-    },
-    trackBg: {
-        height: 12,
-        backgroundColor: 'rgba(0,0,0,0.05)',
-        borderRadius: 6,
-        overflow: 'hidden',
-    },
-    trackFill: {
-        height: '100%',
-        backgroundColor: '#f4d125',
-        borderRadius: 6,
-    },
-    trackText: {
-        color: '#1A1A1A',
-        fontSize: 14,
-        fontWeight: '600',
-        marginTop: 8,
-    },
+    heroTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 2 },
+    heroSub: { fontSize: 14, fontWeight: '500', marginBottom: 4 },
+    trackContainer: { marginTop: 4 },
+    trackBg: { height: 12, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 6, overflow: 'hidden' },
+    trackFill: { height: '100%', borderRadius: 6 },
+    trackText: { fontSize: 14, fontWeight: '600', marginTop: 8 },
     quickActionCard: {
-        width: '100%',
-        backgroundColor: '#1E293B',
-        borderRadius: 16,
-        padding: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 24,
+        width: '100%', borderRadius: 16, padding: 16,
+        flexDirection: 'row', alignItems: 'center', marginBottom: 24,
     },
-    quickActionIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 10,
-        backgroundColor: '#f4d125',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    quickActionSub: {
-        color: '#94A3B8',
-        fontSize: 11,
-        fontWeight: 'bold',
-        letterSpacing: 0.5,
-    },
-    quickActionTitle: {
-        color: '#FFFFFF',
-        fontSize: 15,
-        fontWeight: 'bold',
-        marginTop: 2,
-    },
-    sectionTitle: {
-        color: '#1A1A1A',
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginBottom: 20,
-    },
-    lessonsGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
-        gap: 16,
-    },
+    quickActionIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    quickActionSub: { fontSize: 11, fontWeight: 'bold', letterSpacing: 0.5 },
+    quickActionTitle: { fontSize: 15, fontWeight: 'bold', marginTop: 2 },
+    sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
+    lessonsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 16 },
     lessonCard: {
-        width: (width - 40 - 16) / 2, // 2 columns
-        aspectRatio: 1, // Make it square
-        borderRadius: 16,
-        padding: 16,
-        position: 'relative',
-        flexDirection: 'column',
-        justifyContent: 'flex-end',
-        borderWidth: 1,
+        width: (width - 40 - 16) / 2, aspectRatio: 1, borderRadius: 16, padding: 16,
+        position: 'relative', flexDirection: 'column', justifyContent: 'flex-end', borderWidth: 1,
     },
-    lessonCardCurrent: {
-        borderColor: '#f4d125',
-        borderWidth: 2,
-        transform: [{ scale: 1.02 }],
-    },
-    lessonCardLocked: {
-        opacity: 0.6,
-        backgroundColor: 'rgba(0,0,0,0.02)',
-        borderColor: 'rgba(0,0,0,0.05)',
-    },
-    lessonRight: {
-        position: 'absolute',
-        top: 12,
-        right: 12,
-        zIndex: 10,
-    },
-    statusOrb: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
+    lessonCardCurrent: { borderWidth: 2, transform: [{ scale: 1.02 }] },
+    lessonCardLocked: { opacity: 0.6 },
+    lessonRight: { position: 'absolute', top: 12, right: 12, zIndex: 10 },
+    statusOrb: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     arabicBox: {
-        width: 48,
-        height: 48,
-        borderRadius: 12,
-        backgroundColor: '#FFFFFF',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 'auto', // Pushes text to bottom
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
+        width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+        marginBottom: 'auto',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2,
     },
-    arabicText: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
-    },
-    lessonTitleMain: {
-        color: '#1A1A1A',
-        fontSize: 15,
-        fontWeight: 'bold',
-        marginBottom: 2,
-    },
-    lessonSub: {
-        color: '#5E5C58',
-        fontSize: 11,
-        fontWeight: '500',
-    },
+    arabicText: { fontSize: 24, fontWeight: 'bold', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif' },
+    lessonTitleMain: { fontSize: 15, fontWeight: 'bold', marginBottom: 2 },
+    lessonSub: { fontSize: 11, fontWeight: '500' },
 });

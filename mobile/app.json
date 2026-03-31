@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Noor",
-    "slug": "noor-islamic-app",
-    "scheme": "noor",
+    "name": "Falah",
+    "slug": "falah-islamic-app",
+    "scheme": "falah",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,23 +11,27 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0D0E32"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.noorislamicapp",
+      "bundleIdentifier": "com.falah.islamic",
+      "buildNumber": "2",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "Falah uses the microphone to check your Quran recitation and provide tajweed feedback.",
+        "NSSpeechRecognitionUsageDescription": "Falah uses speech recognition to analyse your Quran recitation.",
+        "NSPhotoLibraryUsageDescription": "Falah uses the photo library to allow you to set a profile picture."
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0D0E32"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.noorislamicapp"
+      "package": "com.falah.islamic"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -37,8 +41,8 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
-          "color": "#C9A84C",
+          "icon": "./assets/notification-icon.png",
+          "color": "#1A2CB0",
           "defaultChannel": "adhan"
         }
       ],

@@ -19,7 +19,7 @@ export const LanguageProvider = ({ children }: { children: React.ReactNode }) =>
     const [language, setLanguageState] = useState<Language>('english');
 
     useEffect(() => {
-        AsyncStorage.getItem('@translation_language').then(val => {
+        AsyncStorage.getItem('@noor/translation_language').then(val => {
             if (val === 'urdu' || val === 'english' || val === 'indonesian' || val === 'french' || val === 'bengali' || val === 'turkish') {
                 setLanguageState(val as Language);
             }
@@ -28,7 +28,7 @@ export const LanguageProvider = ({ children }: { children: React.ReactNode }) =>
 
     const setLanguage = async (lang: Language) => {
         setLanguageState(lang);
-        await AsyncStorage.setItem('@translation_language', lang);
+        await AsyncStorage.setItem('@noor/translation_language', lang);
     };
 
     return (

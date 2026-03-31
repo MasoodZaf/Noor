@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Platform, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Platform, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useDatabase } from '../../../context/DatabaseContext';
@@ -10,6 +10,10 @@ import { useAudio } from '../../../context/AudioContext';
 import { useFonts } from 'expo-font';
 import { ScheherazadeNew_400Regular } from '@expo-google-fonts/scheherazade-new';
 import { NotoNaskhArabic_400Regular } from '@expo-google-fonts/noto-naskh-arabic';
+import { NotoNastaliqUrdu_400Regular } from '@expo-google-fonts/noto-nastaliq-urdu';
+import { sanitizeArabicText } from '../../../utils/arabic';
+import { useTheme } from '../../../context/ThemeContext';
+import { useNetworkMode } from '../../../context/NetworkModeContext';
 
 // ─── APIs ─────────────────────────────────────────────────────────────────────
 // Arabic text — Quran.com v4 API (verified against King Fahd Complex Medina Mushaf)
@@ -31,11 +35,19 @@ const FAWAZ_EDITIONS: Record<string, string> = {
 };
 
 const ALQURAN_EDITIONS: Record<string, string> = {
-    urdu: 'ur.jalandhry',
+    urdu: 'ur.jalandhry', // default; overridden by urduEdition state when language=urdu
 };
 
-const fetchTranslationTexts = async (surahId: number, language: string): Promise<string[]> => {
-    const alquranEdition = ALQURAN_EDITIONS[language];
+// Urdu translation options shown when language === 'urdu'
+const URDU_EDITIONS = [
+    { id: 'ur.jalandhry', name: 'Fateh M. Jalandhry', nameUrdu: 'جالندھری' },
+    { id: 'ur.ahmedali',  name: 'Ahmed Ali',           nameUrdu: 'احمد علی' },
+    { id: 'ur.ahmedraza', name: 'Ahmed Raza Khan',     nameUrdu: 'احمد رضا خان' },
+    { id: 'ur.maududi',   name: "Maariful Qur'an",     nameUrdu: 'معارف القرآن' },
+];
+
+const fetchTranslationTexts = async (surahId: number, language: string, editionOverride?: string): Promise<string[]> => {
+    const alquranEdition = editionOverride || ALQURAN_EDITIONS[language];
     if (alquranEdition) {
         const res = await fetch(`${AUDIO_API}/surah/${surahId}/${alquranEdition}`);
         if (!res.ok) throw new Error(`AlQuran Cloud ${res.status}`);
@@ -51,15 +63,35 @@ const fetchTranslationTexts = async (surahId: number, language: string): Promise
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const ARABIC_FONTS = [
-    { id: 'uthmani', name: 'Uthmani Naskh (Scheherazade)', family: 'ScheherazadeNew_400Regular', field: 'text_uthmani' },
-    { id: 'indopak', name: 'Indo-Pak Nastaleeq (Noto Naskh)', family: 'NotoNaskhArabic_400Regular', field: 'text_indopak' },
+
+// sanitizeArabicText is imported from utils/arabic — strips Uthmani annotation marks
+// (U+06D6–U+06DC, U+06DF–U+06E8, U+06EA–U+06ED) that fonts render as stray glyphs.
+// Keeps U+06DD (end-of-ayah ۝) and U+06E9 (sajdah ۩).
+
+// Strip tashkeel (harakat) for Simple Arabic mode — removes U+064B–U+065F and U+0670 superscript alef.
+const stripDiacritics = (text: string): string =>
+    text.replace(/[\u064B-\u065F\u0670]/g, '');
+
+const BISMILLAH_FULL    = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ';
+const BISMILLAH_SIMPLE  = stripDiacritics(BISMILLAH_FULL);
+
+// 1️⃣ Madinah Mushaf (QPC Hafs)  — Scheherazade, full Uthmani text
+// 2️⃣ IndoPak Script              — Noto Naskh Arabic, same Unicode text (text_indopak_nastaleeq
+//    uses PDMS proprietary encoding incompatible with standard Unicode fonts)
+// 3️⃣ Simple Arabic               — system font, diacritics stripped (lightweight/accessibility mode)
+const ARABIC_FONTS: { id: string; name: string; family: string | undefined; field: string }[] = [
+    { id: 'uthmani', name: 'Madinah Mushaf (QPC Hafs)', family: 'ScheherazadeNew_400Regular', field: 'text_uthmani' },
+    { id: 'indopak', name: 'IndoPak Script',             family: 'NotoNaskhArabic_400Regular', field: 'text_indopak' },
+    { id: 'simple',  name: 'Simple Arabic',              family: undefined,                    field: 'text_simple'  },
 ];
 
 // Reciters — Quran.com recitation IDs (audio field in verses API)
+// IDs verified against api.quran.com/api/v4/recitations
 const RECITERS = [
-    { id: 7, name: 'Mishary Al-Afasy', label: 'Mishary Al-Afasy' },
-    { id: 1, name: 'Abdul Basit (Murattal)', label: 'Abdul Basit Abdul Samad' },
+    { id: 7,  name: 'Mishary Al-Afasy',        label: 'Mishary Al-Afasy',        country: 'Kuwait 🇰🇼' },
+    { id: 1,  name: 'Abdul Basit (Murattal)',   label: 'Abdul Basit Abd Samad',   country: 'Egypt 🇪🇬' },
+    { id: 3,  name: 'Abdur-Rahman Al-Sudais',   label: 'Abdur-Rahman Al-Sudais',  country: 'Saudi Arabia 🇸🇦' },
+    { id: 5,  name: 'Abu Bakr Al-Shatri',       label: 'Abu Bakr Al-Shatri',      country: 'Saudi Arabia 🇸🇦' },
 ];
 
 // ─── Tajweed ───────────────────────────────────────────────────────────────────
@@ -91,19 +123,28 @@ function firstBaseLetter(word: string): string {
  * Classify a single word for its dominant Tajweed rule.
  * nextWordText is the first word of the NEXT word in the verse (for cross-word rules).
  */
+// Memoize detectTajweed results — the function is pure so the same (word, nextWord)
+// always produces the same result. Avoids 5000+ regex evaluations per render.
+const _tajweedCache = new Map<string, TajweedRuleId | null>();
+
 function detectTajweed(wordText: string, nextWordText?: string): TajweedRuleId | null {
+    const key = wordText + '\x00' + (nextWordText ?? '');
+    if (_tajweedCache.has(key)) return _tajweedCache.get(key)!;
+
+    const cache = (r: TajweedRuleId | null) => { _tajweedCache.set(key, r); return r; };
+
     // 1. Ghunnah — noon or meem with shadda (نّ / مّ)
-    if (/[نم]\u0651/.test(wordText)) return 'ghunnah';
+    if (/[نم]\u0651/.test(wordText)) return cache('ghunnah');
 
     // 2. Qalqalah — one of ق ط ب ج د carrying a sukoon
-    if (/[قطبجد]\u0652/.test(wordText)) return 'qalqalah';
+    if (/[قطبجد]\u0652/.test(wordText)) return cache('qalqalah');
 
     // 3. Madd — clear long-vowel markers in the Uthmani text:
     //    • U+0622 alef-with-madda (آ)
     //    • U+06E4 small high madda (ۤ)
     //    • U+0670 superscript alef (ٰ)
     //    • Waw or ya carrying a sukoon (وْ / يْ)
-    if (/[\u0622\u06E4\u0670]/.test(wordText) || /[وي]\u0652/.test(wordText)) return 'madd';
+    if (/[\u0622\u06E4\u0670]/.test(wordText) || /[وي]\u0652/.test(wordText)) return cache('madd');
 
     // 4. Cross-word rules: noon-sakinah or tanween at word-end → check next word's first letter
     const bare = wordText.replace(/\s/g, '');
@@ -112,11 +153,11 @@ function detectTajweed(wordText: string, nextWordText?: string): TajweedRuleId |
 
     if ((endsNoonSakinah || endsTanween) && nextWordText) {
         const first = firstBaseLetter(nextWordText);
-        if (IDGHAM_SET.has(first))  return 'idgham';
-        if (IKHFA_SET.has(first))   return 'ikhfa';
+        if (IDGHAM_SET.has(first))  return cache('idgham');
+        if (IKHFA_SET.has(first))   return cache('ikhfa');
     }
 
-    return null;
+    return cache(null);
 }
 
 const toArabicDigits = (num: number) => {
@@ -135,15 +176,17 @@ const getTranslationFromRow = (row: any, language: string): string => {
     }
 };
 
-// Build ayah objects from raw verse data (from API) + translations
+// Build ayah objects from raw verse data (from API) + translations + indopak texts
 // verses[] come from Quran.com v4 with words=true&audio=7
-const buildAyahs = (surahId: number, verses: any[], translations: string[]) =>
+// indopakTexts[] come from AlQuran Cloud quran-indopak edition (standard Unicode, renders with any Naskh font)
+const buildAyahs = (surahId: number, verses: any[], translations: string[], indopakTexts: string[] = []) =>
     verses.map((v, i) => ({
         id: `${surahId}_${i + 1}`,
         surah_number: surahId,
         ayah_number: i + 1,
-        text_uthmani: v.text_uthmani || '',
-        text_indopak: v.text_indopak_nastaleeq || v.text_uthmani || '',
+        text_uthmani: sanitizeArabicText(v.text_uthmani || ''),
+        text_indopak: indopakTexts[i] || sanitizeArabicText(v.text_uthmani || ''),
+        text_simple: stripDiacritics(sanitizeArabicText(v.text_uthmani || '')),
         text_translation: translations[i] || '',
         // Per-verse audio from Quranic Audio CDN (reciter: Mishary Al-Afasy)
         audio: v.audio?.url ? `${AUDIO_CDN}${v.audio.url}` : null,
@@ -158,6 +201,10 @@ const buildAyahs = (surahId: number, verses: any[], translations: string[]) =>
 
 const { width } = Dimensions.get('window');
 
+// ─── Quran-specific brand palette (fixed terracotta — decorative, not theme-swappable) ──
+const QURAN_ACCENT = '#8C4B40';   // Islamic terracotta — verse numbers, tafseer accents
+const QURAN_GOLD   = '#C9A84C';   // Gold — Meccan/Madinan badge, progress spinner
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function QuranReaderScreen() {
     const { id } = useLocalSearchParams();
@@ -165,12 +212,14 @@ export default function QuranReaderScreen() {
     const insets = useSafeAreaInsets();
     const { db } = useDatabase();
     const { language } = useLanguage();
+    const { theme } = useTheme();
 
     const surahId = typeof id === 'string' ? parseInt(id, 10) : 1;
 
     const { soundRef: globalSoundRef, setAudioState, audioState } = useAudio();
+    const { isOfflineMode } = useNetworkMode();
 
-    const [fontsLoaded] = useFonts({ ScheherazadeNew_400Regular, NotoNaskhArabic_400Regular });
+    const [fontsLoaded] = useFonts({ ScheherazadeNew_400Regular, NotoNaskhArabic_400Regular, NotoNastaliqUrdu_400Regular });
 
     const [ayahs, setAyahs] = useState<any[]>([]);
     const [surahInfo, setSurahInfo] = useState<any>(null);
@@ -186,6 +235,8 @@ export default function QuranReaderScreen() {
 
     // Stores raw verse objects from API — reused on language switch (avoids re-fetching Arabic)
     const arabicCacheRef = useRef<any[] | null>(null);
+    // Stores IndoPak texts from AlQuran Cloud — fetched once per surah, reused on language/reciter switch
+    const indopakCacheRef = useRef<string[]>([]);
     const prevLanguageRef = useRef<string>(language);
 
     // Timing segments for currently playing ayah — used in playback status callback
@@ -197,9 +248,17 @@ export default function QuranReaderScreen() {
     // Load timeout timer — clears when verse loads successfully, fires to skip on network failure
     const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // Generation counter — incremented on each new verse; callbacks check this to discard stale events
+    const generationRef = useRef(0);
+
+    // Urdu translator selection (only active when language === 'urdu')
+    const [urduEdition, setUrduEdition] = useState(URDU_EDITIONS[0].id);
+    const [showUrduPicker, setShowUrduPicker] = useState(false);
+
     // Reciter selection
-    const [selectedReciter, setSelectedReciter] = useState(RECITERS[0]);
-    const prevReciterIdRef = useRef(RECITERS[0].id);
+    const [selectedReciter, setSelectedReciter] = useState(RECITERS[0]!);
+    const [showReciterPicker, setShowReciterPicker] = useState(false);
+    const prevReciterIdRef = useRef(RECITERS[0]!.id);
 
     // Throttle position/duration state updates — update UI at most every 4th callback tick
     // (updateInterval=250ms → effective UI refresh ~1 per second, enough for progress bar)
@@ -209,7 +268,11 @@ export default function QuranReaderScreen() {
     const [durationMillis, setDurationMillis] = useState(1);
     const [positionMillis, setPositionMillis] = useState(0);
     const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+    const playbackSpeedRef = useRef(1.0); // ref so playNextAyah always reads the current speed (avoids stale closure)
     const SPEEDS = [0.75, 1.0, 1.25, 1.5];
+
+    // Keep ref in sync with state so async callbacks always read the latest speed
+    useEffect(() => { playbackSpeedRef.current = playbackSpeed; }, [playbackSpeed]);
 
     const formatAudioTime = (ms: number) => {
         const s = Math.floor(ms / 1000);
@@ -221,28 +284,81 @@ export default function QuranReaderScreen() {
     const [openTafseers, setOpenTafseers] = useState<Set<string>>(new Set());
     const [loadingTafseers, setLoadingTafseers] = useState<Set<string>>(new Set());
 
-    const toggleTafseer = async (ayahKey: string) => {
-        if (openTafseers.has(ayahKey)) {
-            setOpenTafseers(prev => { const s = new Set(prev); s.delete(ayahKey); return s; });
+    // Hadith (per-ayah)
+    const [hadithItems, setHadithItems] = useState<Record<string, any[]>>({});
+    const [openHadiths, setOpenHadiths] = useState<Set<string>>(new Set());
+    const [loadingHadiths, setLoadingHadiths] = useState<Set<string>>(new Set());
+
+    // Language → Quran.com tafsir ID + display name
+    // ID 169 = Ibn Kathir Abridged (English)
+    // ID 160 = تفسیر ابنِ کثیر (Urdu)
+    const TAFSIR_BY_LANG: Record<string, { id: number; name: string }> = {
+        english:    { id: 169, name: 'Ibn Kathir (Abridged)' },
+        urdu:       { id: 160, name: 'تفسیر ابنِ کثیر' },
+        indonesian: { id: 169, name: 'Ibn Kathir (Abridged)' },
+        french:     { id: 169, name: 'Ibn Kathir (Abridged)' },
+        bengali:    { id: 169, name: 'Ibn Kathir (Abridged)' },
+        turkish:    { id: 169, name: 'Ibn Kathir (Abridged)' },
+    };
+
+    // Cache key includes language so switching language forces a fresh fetch.
+    // e.g. "1_1_urdu", "1_1_english" — different entries per language.
+    const tafsirCacheKey = (ayahId: string) => `${ayahId}_${language}`;
+
+    // ayahKey = React state key (ayah.id, e.g. "1_1")
+    // surahNum + ayahNum used to build the Quran.com verse key (e.g. "1:1")
+    // The API REQUIRES colon-separated verse keys — underscore format silently
+    // returns wrong tafsir content (confirmed mismatch bug).
+    const toggleTafseer = async (ayahKey: string, surahNum: number, ayahNum: number) => {
+        const cacheKey = tafsirCacheKey(ayahKey);
+        if (openTafseers.has(cacheKey)) {
+            setOpenTafseers(prev => { const s = new Set(prev); s.delete(cacheKey); return s; });
             return;
         }
-        if (tafseerTexts[ayahKey]) {
-            setOpenTafseers(prev => new Set(prev).add(ayahKey));
+        if (tafseerTexts[cacheKey]) {
+            setOpenTafseers(prev => new Set(prev).add(cacheKey));
             return;
         }
-        setLoadingTafseers(prev => new Set(prev).add(ayahKey));
+        setLoadingTafseers(prev => new Set(prev).add(cacheKey));
         try {
-            const res = await fetch(`${QURAN_API}/tafsirs/169/by_ayah/${ayahKey}`);
+            const { id: tafsirId } = TAFSIR_BY_LANG[language] ?? TAFSIR_BY_LANG.english;
+            const verseKey = `${surahNum}:${ayahNum}`;  // colon format required by API
+            const res = await fetch(`${QURAN_API}/tafsirs/${tafsirId}/by_ayah/${verseKey}`);
             const json = await res.json();
             const raw = json?.tafsir?.text || 'Tafseer not available.';
             const clean = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-            setTafseerTexts(prev => ({ ...prev, [ayahKey]: clean }));
-            setOpenTafseers(prev => new Set(prev).add(ayahKey));
+            setTafseerTexts(prev => ({ ...prev, [cacheKey]: clean }));
+            setOpenTafseers(prev => new Set(prev).add(cacheKey));
         } catch {
-            setTafseerTexts(prev => ({ ...prev, [ayahKey]: 'Could not load tafseer. Please check your connection.' }));
-            setOpenTafseers(prev => new Set(prev).add(ayahKey));
+            setTafseerTexts(prev => ({ ...prev, [cacheKey]: 'Could not load tafseer. Please check your connection.' }));
+            setOpenTafseers(prev => new Set(prev).add(cacheKey));
         } finally {
-            setLoadingTafseers(prev => { const s = new Set(prev); s.delete(ayahKey); return s; });
+            setLoadingTafseers(prev => { const s = new Set(prev); s.delete(cacheKey); return s; });
+        }
+    };
+
+    const toggleHadith = async (ayahKey: string, surahNum: number, ayahNum: number) => {
+        if (openHadiths.has(ayahKey)) {
+            setOpenHadiths(prev => { const s = new Set(prev); s.delete(ayahKey); return s; });
+            return;
+        }
+        if (hadithItems[ayahKey]) {
+            setOpenHadiths(prev => new Set(prev).add(ayahKey));
+            return;
+        }
+        setLoadingHadiths(prev => new Set(prev).add(ayahKey));
+        try {
+            const res = await fetch(
+                `${QURAN_API}/hadiths?verse_key=${surahNum}:${ayahNum}&language=en&fields=text_en,collection_key,hadith_number`
+            );
+            const json = await res.json();
+            setHadithItems(prev => ({ ...prev, [ayahKey]: json.hadiths || [] }));
+            setOpenHadiths(prev => new Set(prev).add(ayahKey));
+        } catch {
+            setHadithItems(prev => ({ ...prev, [ayahKey]: [] }));
+            setOpenHadiths(prev => new Set(prev).add(ayahKey));
+        } finally {
+            setLoadingHadiths(prev => { const s = new Set(prev); s.delete(ayahKey); return s; });
         }
     };
 
@@ -269,27 +385,80 @@ export default function QuranReaderScreen() {
         if (!surahId) return;
 
         arabicCacheRef.current = null;
+        indopakCacheRef.current = [];
         prevLanguageRef.current = language;
+        // Reset per-ayah panel state so stale spinners/text from the previous surah are cleared
+        setTafseerTexts({});
+        setOpenTafseers(new Set());
+        setLoadingTafseers(new Set());
+        setHadithItems({});
+        setOpenHadiths(new Set());
+        setLoadingHadiths(new Set());
+
+        let mounted = true;
 
         const loadSurah = async () => {
             setLoading(true);
+            setIsOffline(isOfflineMode);
+
+            // ── Forced offline mode: skip all network requests, use SQLite directly ──
+            if (isOfflineMode) {
+                try {
+                    if (db) {
+                        const surah = await db.getFirstAsync('SELECT * FROM surahs WHERE number = ?', [surahId]) as any;
+                        if (!mounted) return;
+                        setSurahInfo({
+                            ...surah,
+                            bismillah_pre: surah?.number !== 1 && surah?.number !== 9,
+                        });
+                        const rows = await db.getAllAsync(
+                            'SELECT * FROM ayahs WHERE surah_number = ? ORDER BY ayah_number ASC',
+                            [surahId]
+                        ) as any[];
+                        const offlineVerses = rows.map((r: any) => ({
+                            text_uthmani: sanitizeArabicText(r.text_arabic || ''),
+                            audio: null,
+                            words: [],
+                            segments: [],
+                        }));
+                        const translationTexts = rows.map((r: any) => getTranslationFromRow(r, language));
+                        arabicCacheRef.current = offlineVerses;
+                        if (mounted) setAyahs(buildAyahs(surahId, offlineVerses, translationTexts, indopakCacheRef.current));
+                    }
+                } catch (dbErr) {
+                    console.error('[Noor/Quran] Offline SQLite load failed:', dbErr);
+                } finally {
+                    if (mounted) setLoading(false);
+                }
+                return;
+            }
+
             try {
-                // Fetch chapter info + verified verses (with word segments + audio) + translation in parallel
+                // Fetch chapter info + verified verses (with word segments + audio) + translation + IndoPak in parallel
                 // words=true → word-split text for highlighting
                 // audio=7 → Mishary Al-Afasy per-verse audio URLs + word timing segments
-                const [chapterResult, versesResult, translationResult] = await Promise.allSettled([
-                    fetch(`${QURAN_API}/chapters/${surahId}`),
-                    fetch(`${QURAN_API}/verses/by_chapter/${surahId}?words=true&word_fields=text_uthmani&fields=text_uthmani,text_indopak_nastaleeq&audio=${selectedReciter.id}&per_page=300&page=1`),
+                // quran-indopak → AlQuran Cloud IndoPak edition (standard Unicode, different diacritics from Uthmani)
+                // Use manual AbortController — AbortSignal.timeout() is not reliably available on all Hermes versions
+                const controller = new AbortController();
+                const fetchTimeout = setTimeout(() => controller.abort(), 20000);
+                const [chapterResult, versesResult, translationResult, indopakResult] = await Promise.allSettled([
+                    fetch(`${QURAN_API}/chapters/${surahId}`, { signal: controller.signal }),
+                    fetch(`${QURAN_API}/verses/by_chapter/${surahId}?words=true&word_fields=text_uthmani&fields=text_uthmani&audio=${selectedReciter.id}&per_page=300&page=1`, { signal: controller.signal }),
                     fetchTranslationTexts(surahId, language),
+                    fetch(`${AUDIO_API}/surah/${surahId}/quran-indopak`, { signal: controller.signal }),
                 ]);
+                clearTimeout(fetchTimeout);
+
+                if (!mounted) return;
 
                 if (chapterResult.status === 'fulfilled' && chapterResult.value.ok) {
                     const json = await chapterResult.value.json();
                     const ch = json.chapter;
-                    setSurahInfo({
+                    if (mounted) setSurahInfo({
                         number: surahId,
                         name_english: ch.name_simple,
                         name_arabic: ch.name_arabic,
+                        name_meaning: ch.translated_name?.name || '',
                         revelation_type: ch.revelation_place === 'makkah' ? 'Meccan' : 'Medinan',
                         total_ayahs: ch.verses_count,
                         bismillah_pre: ch.bismillah_pre,
@@ -302,19 +471,42 @@ export default function QuranReaderScreen() {
                     verses = json.verses || [];
                 }
 
-                const translationTexts = translationResult.status === 'fulfilled' ? translationResult.value : [];
+                let translationTexts: string[] = [];
+                if (translationResult.status === 'fulfilled') {
+                    translationTexts = translationResult.value;
+                } else if (db) {
+                    // Fawaz CDN / AlQuran Cloud unreachable — fall back to local SQLite translations
+                    console.warn('[Noor/Translation] CDN fetch failed, using SQLite fallback:', (translationResult as PromiseRejectedResult).reason);
+                    try {
+                        const rows = await db.getAllAsync(
+                            'SELECT * FROM ayahs WHERE surah_number = ? ORDER BY ayah_number ASC',
+                            [surahId]
+                        ) as any[];
+                        translationTexts = rows.map((r: any) => getTranslationFromRow(r, language));
+                    } catch { }
+                }
+
+                if (indopakResult.status === 'fulfilled' && indopakResult.value.ok) {
+                    const json = await indopakResult.value.json();
+                    indopakCacheRef.current = (json.data?.ayahs || []).map((a: any) =>
+                        sanitizeArabicText(a.text || '')
+                    );
+                }
 
                 if (verses.length === 0) throw new Error('Verse fetch failed');
 
                 arabicCacheRef.current = verses;
-                setAyahs(buildAyahs(surahId, verses, translationTexts));
+                if (mounted) setAyahs(buildAyahs(surahId, verses, translationTexts, indopakCacheRef.current));
 
-            } catch {
-                // Offline fallback: local SQLite DB (no word segments)
-                setIsOffline(true);
+            } catch (error: any) {
+                if (!mounted) return;
+                // In online mode, API failures fall back silently to SQLite — no banner.
+                // Banner only shows when the user has explicitly enabled offline mode.
+                setIsOffline(isOfflineMode);
                 if (db) {
                     try {
                         const surah = await db.getFirstAsync('SELECT * FROM surahs WHERE number = ?', [surahId]) as any;
+                        if (!mounted) return;
                         setSurahInfo({
                             ...surah,
                             bismillah_pre: surah?.number !== 1 && surah?.number !== 9,
@@ -325,32 +517,35 @@ export default function QuranReaderScreen() {
                         ) as any[];
                         // Build offline verse objects (no audio or word segments)
                         const offlineVerses = rows.map((r: any) => ({
-                            text_uthmani: r.text_arabic || '',
-                            text_indopak_nastaleeq: r.text_arabic_indopak || r.text_arabic || '',
+                            text_uthmani: sanitizeArabicText(r.text_arabic || ''),
                             audio: null,
                             words: [],
                             segments: [],
                         }));
                         const translationTexts = rows.map((r: any) => getTranslationFromRow(r, language));
                         arabicCacheRef.current = offlineVerses;
-                        setAyahs(buildAyahs(surahId, offlineVerses, translationTexts));
+                        if (mounted) setAyahs(buildAyahs(surahId, offlineVerses, translationTexts, indopakCacheRef.current));
                     } catch (dbErr) {
                         console.error('DB fallback failed:', dbErr);
                     }
                 }
             } finally {
-                setLoading(false);
+                if (mounted) setLoading(false);
             }
         };
 
         loadSurah();
 
         return () => {
+            mounted = false;
+            // Clean up audio and reset MiniAudioPlayer state when leaving the Quran reader
             if (globalSoundRef.current) {
                 try { globalSoundRef.current.remove(); } catch {}
+                globalSoundRef.current = null;
             }
+            setAudioState(prev => ({ ...prev, isPlaying: false, isVisible: false }));
         };
-    }, [surahId, db]);
+    }, [surahId, db, isOfflineMode]);
 
     // ── Language change: update translation only, preserve Arabic cache ────────
     useEffect(() => {
@@ -360,33 +555,60 @@ export default function QuranReaderScreen() {
         const cache = arabicCacheRef.current;
         if (!cache || ayahs.length === 0) return;
 
+        let cancelled = false;
+
         const updateTranslation = async () => {
             setTranslationLoading(true);
             try {
-                const translationTexts = await fetchTranslationTexts(surahId, language);
-                setAyahs(buildAyahs(surahId, cache, translationTexts));
+                const translationTexts = await fetchTranslationTexts(surahId, language, language === 'urdu' ? urduEdition : undefined);
+                if (cancelled) return;
+                setAyahs(buildAyahs(surahId, cache, translationTexts, indopakCacheRef.current));
             } catch {
+                if (cancelled) return;
                 if (db) {
                     try {
                         const rows = await db.getAllAsync(
                             'SELECT * FROM ayahs WHERE surah_number = ? ORDER BY ayah_number ASC',
                             [surahId]
                         ) as any[];
+                        if (cancelled) return;
                         const translationTexts = rows.map((r: any) => getTranslationFromRow(r, language));
-                        setAyahs(buildAyahs(surahId, cache, translationTexts));
+                        setAyahs(buildAyahs(surahId, cache, translationTexts, indopakCacheRef.current));
                     } catch { }
                 }
             } finally {
-                setTranslationLoading(false);
+                if (!cancelled) setTranslationLoading(false);
             }
         };
 
         updateTranslation();
+        return () => { cancelled = true; };
     }, [language]);
+
+    // ── Urdu edition change: re-fetch translation with new edition ────────────
+    useEffect(() => {
+        if (language !== 'urdu') return;
+        const cache = arabicCacheRef.current;
+        if (!cache || ayahs.length === 0) return;
+        let cancelled = false;
+        const update = async () => {
+            setTranslationLoading(true);
+            try {
+                const texts = await fetchTranslationTexts(surahId, 'urdu', urduEdition);
+                if (!cancelled) setAyahs(buildAyahs(surahId, cache, texts, indopakCacheRef.current));
+            } catch (e) {
+                console.warn('[Noor/Translation] Urdu edition fetch failed:', e);
+            } finally {
+                if (!cancelled) setTranslationLoading(false);
+            }
+        };
+        update();
+        return () => { cancelled = true; };
+    }, [urduEdition]);
 
     // ── Reciter change: re-fetch audio URLs, preserve Arabic text + translation cache ──
     useEffect(() => {
-        if (prevReciterIdRef.current === selectedReciter.id) return;
+        if (!selectedReciter || prevReciterIdRef.current === selectedReciter.id) return;
         prevReciterIdRef.current = selectedReciter.id;
 
         const cache = arabicCacheRef.current;
@@ -395,14 +617,20 @@ export default function QuranReaderScreen() {
         // Stop any active playback first
         handleStop();
 
+        let cancelled = false;
+
         const refetchAudio = async () => {
             setTranslationLoading(true);
             try {
+                const ctl = new AbortController();
+                setTimeout(() => ctl.abort(), 20000);
                 const res = await fetch(
-                    `${QURAN_API}/verses/by_chapter/${surahId}?words=true&word_fields=text_uthmani&fields=text_uthmani,text_indopak_nastaleeq&audio=${selectedReciter.id}&per_page=300&page=1`
+                    `${QURAN_API}/verses/by_chapter/${surahId}?words=true&word_fields=text_uthmani&fields=text_uthmani&audio=${selectedReciter.id}&per_page=300&page=1`,
+                    { signal: ctl.signal }
                 );
                 if (!res.ok) throw new Error(`Verse fetch ${res.status}`);
                 const json = await res.json();
+                if (cancelled) return;
                 const newVerses: any[] = json.verses || [];
                 // Merge new audio URLs + segments into existing ayahs (preserve translations)
                 setAyahs(prev => prev.map((ayah, i) => ({
@@ -414,11 +642,12 @@ export default function QuranReaderScreen() {
             } catch {
                 // Keep existing audio URLs if fetch fails
             } finally {
-                setTranslationLoading(false);
+                if (!cancelled) setTranslationLoading(false);
             }
         };
 
         refetchAudio();
+        return () => { cancelled = true; };
     }, [selectedReciter.id]);
 
     // Keep local isPlaying in sync with global audio state
@@ -452,7 +681,10 @@ export default function QuranReaderScreen() {
                 loadTimeoutRef.current = null;
             }
 
-            // Remove previous player — pause first so ExoPlayer stops immediately (async remove)
+            // Bump generation — all callbacks from the previous player will see a stale gen and exit
+            const gen = ++generationRef.current;
+
+            // Remove previous player — pause first so ExoPlayer stops immediately
             if (globalSoundRef.current) {
                 const old = globalSoundRef.current;
                 globalSoundRef.current = null;
@@ -461,9 +693,14 @@ export default function QuranReaderScreen() {
             }
 
             posTickRef.current = 0;
-            // expo-audio — updateInterval:250ms reduces callback frequency (less audio thread contention)
-            const player = createAudioPlayer({ uri: ayah.audio }, { updateInterval: 250 });
+            // iOS: 100ms for tight word-sync. Android: 150ms — bridge is heavier, still fine for highlighting.
+            const player = createAudioPlayer({ uri: ayah.audio }, { updateInterval: Platform.OS === 'android' ? 150 : 100 });
             globalSoundRef.current = player;
+
+            // Apply current playback speed to the new player immediately (avoids resetting to 1x on verse advance)
+            if (playbackSpeedRef.current !== 1.0) {
+                try { player.setPlaybackRate(playbackSpeedRef.current); } catch {}
+            }
 
             setCurrentAyahIndex(index);
             setCurrentWordIndex(-1);
@@ -484,21 +721,31 @@ export default function QuranReaderScreen() {
                 sourceCategory: 'quran',
             }));
 
-            // Two closure-level guards:
-            // playTriggered — ensures play() is called exactly once after load (Android)
-            // didFinish     — prevents didJustFinish from firing twice (ExoPlayer quirk)
-            let playTriggered = false;
+            // iOS: play() is called immediately — pre-set playTriggered so the isLoaded
+            //       callback doesn't call play() a second time and cause a stutter.
+            // Android: play() is deferred until isLoaded fires (ExoPlayer requirement).
+            let playTriggered = Platform.OS === 'ios';
+            let playStarted  = false; // true once status.playing fires — used by load timeout on iOS
             let didFinish = false;
 
             player.addListener('playbackStatusUpdate', (status) => {
-                // Ensure playback starts on Android (ExoPlayer must be loaded first)
-                if (!playTriggered && status.isLoaded) {
-                    playTriggered = true;
-                    // Clear load timeout — audio loaded successfully
+                // Discard stale callbacks from a previous verse's player
+                if (generationRef.current !== gen) return;
+
+                // Track when audio actually starts playing (both platforms)
+                if (status.playing && !playStarted) {
+                    playStarted = true;
                     if (loadTimeoutRef.current) {
                         clearTimeout(loadTimeoutRef.current);
                         loadTimeoutRef.current = null;
                     }
+                }
+
+                // Android: trigger play() once loaded AND buffer is stable.
+                // isBuffering=true means ExoPlayer is still filling its buffer —
+                // calling play() now causes an audible stutter; wait for the next tick.
+                if (!playTriggered && status.isLoaded && !status.isBuffering) {
+                    playTriggered = true;
                     if (!status.playing) player.play();
                 }
 
@@ -508,7 +755,7 @@ export default function QuranReaderScreen() {
                     currentSegmentsRef.current = [];
                     setCurrentWordIndex(-1);
                     if (autoPlayRef.current) {
-                        setTimeout(() => playNextAyah(index + 1), 300);
+                        setTimeout(() => playNextAyah(index + 1), Platform.OS === 'android' ? 300 : 150);
                     } else {
                         setIsPlaying(false);
                         setAudioState(s => ({ ...s, isPlaying: false }));
@@ -519,10 +766,23 @@ export default function QuranReaderScreen() {
                 const posMs = status.currentTime * 1000;
                 const durMs = (status.duration || 0) * 1000;
 
-                // Throttle progress bar updates: update state every 2nd tick (~2× per second)
-                // This halves the number of FlatList re-renders without noticeable UI lag
+                // ── Word-by-word highlighting — runs on every tick (100ms) for tight sync ──
+                const segs = currentSegmentsRef.current;
+                if (segs.length > 0) {
+                    let activeWord = -1;
+                    for (const seg of segs) {
+                        // seg: [seg_idx, word_position (1-based), start_ms, end_ms]
+                        if (posMs >= seg[2] && posMs <= seg[3]) {
+                            activeWord = seg[1];
+                            break;
+                        }
+                    }
+                    setCurrentWordIndex(prev => prev !== activeWord ? activeWord : prev);
+                }
+
+                // ── Progress bar — throttled to every 3rd tick (~300ms) to reduce re-renders ──
                 posTickRef.current += 1;
-                if (posTickRef.current % 2 === 0) {
+                if (posTickRef.current % 3 === 0) {
                     setPositionMillis(posMs);
                     setDurationMillis(durMs || 1);
                     setAudioState(s => ({
@@ -533,29 +793,16 @@ export default function QuranReaderScreen() {
                     }));
                 }
 
-                // Word-by-word highlighting
-                const segs = currentSegmentsRef.current;
-                if (segs.length > 0) {
-                    let activeWord = -1;
-                    for (const seg of segs) {
-                        if (posMs >= seg[2] && posMs <= seg[3]) {
-                            activeWord = seg[1];
-                            break;
-                        }
-                    }
-                    setCurrentWordIndex(activeWord);
-                }
-
                 // Guard: didJustFinish can fire more than once on Android — only act on the first
                 if (status.didJustFinish && !didFinish) {
                     didFinish = true;
                     setCurrentWordIndex(-1);
                     currentSegmentsRef.current = [];
                     if (autoPlayRef.current) {
-                        // Full-surah mode: defer via setTimeout so this callback fully exits
-                        // before the old player is removed and the new one is created.
-                        // Without the defer, ExoPlayer can overlap two streams briefly.
-                        setTimeout(() => playNextAyah(index + 1), 100);
+                        // Android: ExoPlayer.release() is async — give it 50ms to fully release
+                        // audio focus before the next player requests it, preventing overlap/glitch.
+                        // iOS: next event-loop tick (0ms) is sufficient for AVPlayer teardown.
+                        setTimeout(() => playNextAyah(index + 1), Platform.OS === 'android' ? 50 : 0);
                     } else {
                         // Single-ayah mode: show continue/stop prompt
                         setPendingNextIndex(index + 1);
@@ -564,15 +811,18 @@ export default function QuranReaderScreen() {
                 }
             });
 
-            // iOS: can call play() immediately (AVPlayer buffers and starts when ready)
-            // Android: play() will be triggered by the isLoaded check in the listener above
+            // iOS: play immediately — AVPlayer buffers and starts when ready
             if (Platform.OS === 'ios') player.play();
 
-            // Load timeout: if audio doesn't load within 12 s (network failure/slow CDN), skip verse
+            // Load timeout: if audio hasn't actually started playing within 12 s
+            // (network failure, slow CDN, or silent iOS AVPlayer failure), skip verse.
+            // Uses playStarted (not playTriggered) so it works on iOS too —
+            // playTriggered is pre-set to true on iOS, but playStarted only flips
+            // when status.playing fires, which confirms audio actually started.
             loadTimeoutRef.current = setTimeout(() => {
                 loadTimeoutRef.current = null;
-                if (!playTriggered && globalSoundRef.current === player) {
-                    console.warn('[Quran] Audio load timeout — skipping verse', index);
+                if (generationRef.current !== gen) return; // already moved to next verse
+                if (!playStarted) {
                     currentSegmentsRef.current = [];
                     setCurrentWordIndex(-1);
                     if (autoPlayRef.current) {
@@ -590,14 +840,18 @@ export default function QuranReaderScreen() {
     };
 
     const togglePlay = () => {
-        if (!surahInfo || ayahs.length === 0) return;
+        if (!surahInfo || ayahs.length === 0 || isOfflineMode) return;
         const player = globalSoundRef.current;
         if (player && player.isLoaded) {
             if (isPlaying) {
                 player.pause();
+                setIsPlaying(false); // update immediately — don't wait for next status callback
+                setAudioState(s => ({ ...s, isPlaying: false }));
             } else {
                 autoPlayRef.current = true; // resuming full-surah playback
                 player.play();
+                setIsPlaying(true);
+                setAudioState(s => ({ ...s, isPlaying: true }));
             }
             return;
         }
@@ -608,30 +862,35 @@ export default function QuranReaderScreen() {
     const skipBack = () => {
         const player = globalSoundRef.current;
         if (!player) return;
-        player.seekTo(Math.max(0, (positionMillis - 10000) / 1000));
+        player.seekTo(Math.max(0, (positionMillis - 10000) / 1000)).catch(() => {});
     };
 
     const skipForward = () => {
         const player = globalSoundRef.current;
         if (!player) return;
-        player.seekTo(Math.min(durationMillis, (positionMillis + 10000)) / 1000);
+        player.seekTo(Math.min(durationMillis, (positionMillis + 10000)) / 1000).catch(() => {});
     };
 
     const cycleSpeed = () => {
         const nextIndex = (SPEEDS.indexOf(playbackSpeed) + 1) % SPEEDS.length;
         const next = SPEEDS[nextIndex];
         setPlaybackSpeed(next);
+        playbackSpeedRef.current = next; // sync ref immediately so in-flight callbacks read the new speed
         if (globalSoundRef.current) {
-            globalSoundRef.current.playbackRate = next;
+            // playbackRate is a getter-only property on both iOS and Android —
+            // must use the setPlaybackRate() method.
+            try { globalSoundRef.current.setPlaybackRate(next); } catch {}
         }
     };
 
     const handleStop = () => {
         autoPlayRef.current = false;
+        ++generationRef.current; // invalidate any in-flight playbackStatusUpdate callbacks
         setShowContinuePrompt(false);
         setIsPlaying(false);
         setCurrentAyahIndex(null);
         setCurrentWordIndex(-1);
+        if (loadTimeoutRef.current) { clearTimeout(loadTimeoutRef.current); loadTimeoutRef.current = null; }
         if (globalSoundRef.current) {
             try { globalSoundRef.current.remove(); } catch {}
             globalSoundRef.current = null;
@@ -647,50 +906,39 @@ export default function QuranReaderScreen() {
     // ── Render ─────────────────────────────────────────────────────────────────
     if (loading || !fontsLoaded) {
         return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color="#C9A84C" />
-                <Text style={{ color: '#9A9590', marginTop: 16 }}>Opening Surah...</Text>
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg }]}>
+                <ActivityIndicator size="large" color={QURAN_GOLD} />
+                <Text style={{ color: theme.textSecondary, marginTop: 16 }}>Opening Surah...</Text>
             </View>
         );
     }
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                        <Feather name="arrow-left" size={24} color="#1A1A1A" />
+                        <Feather name="arrow-left" size={24} color={theme.textPrimary} />
                     </TouchableOpacity>
-                    <Text style={styles.surahTitle}>{surahInfo?.name_english || 'Al-Fatihah'}</Text>
-                    <Feather name="chevron-down" size={16} color="#1A1A1A" style={{ marginLeft: 4, marginTop: 4 }} />
+                    <Text style={[styles.surahTitle, { color: theme.textPrimary }]}>{surahInfo?.name_english || 'Al-Fatihah'}</Text>
+                    <Feather name="chevron-down" size={16} color={theme.textPrimary} style={{ marginLeft: 4, marginTop: 4 }} />
                 </View>
                 <View style={styles.headerRight}>
-                    {translationLoading && (
-                        <ActivityIndicator size="small" color="#C9A84C" style={{ marginRight: 8 }} />
-                    )}
                     <TouchableOpacity style={styles.actionButton}>
-                        <Feather name="info" size={22} color="#1A1A1A" />
+                        <Feather name="info" size={22} color={theme.textPrimary} />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.actionButton} onPress={() => setShowSettings(true)}>
-                        <Feather name="settings" size={22} color="#1A1A1A" />
+                        <Feather name="settings" size={22} color={theme.textPrimary} />
                     </TouchableOpacity>
                 </View>
             </View>
-            <View style={styles.subHeader}>
-                <Text style={styles.subHeaderText}>{surahInfo?.number}. {surahInfo?.name_english}</Text>
-                <View style={styles.goalContainer}>
-                    <Text style={styles.goalText}>{surahInfo?.total_ayahs || surahInfo?.ayah_count || ''} Ayahs</Text>
-                    <Text style={[styles.goalText, { color: surahInfo?.revelation_type === 'Meccan' ? '#C9A84C' : '#2ECC71', marginLeft: 8 }]}>
-                        {surahInfo?.revelation_type || ''}
-                    </Text>
-                </View>
-            </View>
-
             {isOffline && (
                 <View style={styles.offlineBanner}>
                     <Feather name="wifi-off" size={12} color="#92400e" />
-                    <Text style={styles.offlineBannerText}>Reading from offline vault</Text>
+                    <Text style={styles.offlineBannerText}>
+                        {isOfflineMode ? 'Offline mode — audio disabled' : 'No connection — reading from local vault'}
+                    </Text>
                 </View>
             )}
 
@@ -701,70 +949,115 @@ export default function QuranReaderScreen() {
                 showsVerticalScrollIndicator={false}
                 style={{ flex: 1 }}
                 keyExtractor={(item) => item.id.toString()}
-                contentContainerStyle={{ paddingVertical: 10, paddingBottom: 160 }}
+                contentContainerStyle={{ paddingVertical: 0, paddingBottom: 160 }}
                 initialNumToRender={8}
                 maxToRenderPerBatch={10}
                 windowSize={5}
                 removeClippedSubviews={Platform.OS === 'android'}
+                ListHeaderComponent={
+                    <View style={[styles.surahHero, { borderBottomColor: theme.border, backgroundColor: theme.bgSecondary }]}>
+                        <Text style={[styles.surahHeroArabic, { fontFamily: 'ScheherazadeNew_400Regular', color: theme.textPrimary }]}>
+                            {surahInfo?.name_arabic}
+                        </Text>
+                        <Text style={[styles.surahHeroEnglish, { color: theme.textPrimary }]}>
+                            {surahInfo?.number}. {surahInfo?.name_english}
+                        </Text>
+                        {!!surahInfo?.name_meaning && (
+                            <Text style={[styles.surahHeroMeaning, { color: theme.textSecondary }]}>
+                                {surahInfo.name_meaning}
+                            </Text>
+                        )}
+                        <View style={styles.surahHeroMeta}>
+                            <View style={[styles.surahHeroBadge, { backgroundColor: theme.bgInput }]}>
+                                <Text style={[styles.surahHeroBadgeText, { color: theme.textSecondary }]}>
+                                    {surahInfo?.total_ayahs} Ayahs
+                                </Text>
+                            </View>
+                            <View style={[styles.surahHeroBadge, {
+                                backgroundColor: surahInfo?.revelation_type === 'Meccan' ? `${QURAN_GOLD}18` : `${theme.accent}18`,
+                            }]}>
+                                <Text style={[styles.surahHeroBadgeText, {
+                                    color: surahInfo?.revelation_type === 'Meccan' ? QURAN_GOLD : theme.accent,
+                                }]}>
+                                    {surahInfo?.revelation_type}
+                                </Text>
+                            </View>
+                            {translationLoading && (
+                                <ActivityIndicator size="small" color={QURAN_GOLD} style={{ marginLeft: 6 }} />
+                            )}
+                        </View>
+                    </View>
+                }
                 renderItem={({ item: ayah, index }) => {
                     const isCurrent = currentAyahIndex === index;
                     return (
-                        <View style={[styles.ayahContainer, isCurrent && styles.ayahContainerActive]}>
+                        <View style={[styles.ayahContainer, { borderColor: theme.border }, isCurrent && [styles.ayahContainerActive, { backgroundColor: theme.accentLight }]]}>
                             {index === 0 && surahInfo?.bismillah_pre && (
-                                <View style={styles.bismillahBannerBlock}>
-                                    <Text style={[styles.bismillahText, { fontFamily: selectedFont.family }]}>
-                                        بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
+                                <View style={[styles.bismillahBannerBlock, { backgroundColor: theme.bgSecondary, borderColor: theme.borderStrong }]}>
+                                    <Text style={[styles.bismillahText, { fontFamily: selectedFont.family, color: theme.textPrimary }]}>
+                                        {selectedFont.id === 'simple' ? BISMILLAH_SIMPLE : BISMILLAH_FULL}
                                     </Text>
                                 </View>
                             )}
                             <View style={styles.ayahHeader}>
                                 <TouchableOpacity
-                                    style={[styles.ayahPillBadge, isCurrent && { backgroundColor: '#8C4B40' }]}
+                                    style={[styles.ayahPillBadge, { backgroundColor: theme.bgSecondary }, isCurrent && { backgroundColor: QURAN_ACCENT }]}
                                     onPress={() => { autoPlayRef.current = false; playNextAyah(index); }}
                                 >
-                                    <Text style={[styles.ayahPillText, isCurrent && { color: '#FFFFFF' }]}>
+                                    <Text style={[styles.ayahPillText, { color: theme.textSecondary }, isCurrent && { color: '#FFFFFF' }]}>
                                         {ayah.surah_number}:{ayah.ayah_number}
                                     </Text>
                                     <Feather
                                         name={isCurrent && isPlaying ? 'volume-2' : 'play'}
                                         size={14}
-                                        color={isCurrent ? '#FFFFFF' : '#5E5C58'}
+                                        color={isCurrent ? '#FFFFFF' : theme.textSecondary}
                                         style={{ marginLeft: 6 }}
                                     />
                                 </TouchableOpacity>
                             </View>
 
                             <View style={styles.arabicContentWrapper}>
-                                <View style={styles.ayahDecorativeContainer}>
-                                    <Text style={[styles.ayahDecorativeMark, isCurrent && { color: '#8C4B40' }]}>۝</Text>
-                                    <Text style={[styles.ayahNumberText, isCurrent && { color: '#8C4B40' }]}>
-                                        {toArabicDigits(ayah.ayah_number)}
-                                    </Text>
-                                </View>
-
-                                {/* Word-by-word rendering (audio highlight OR Tajweed coloring) */}
-                                {(isCurrent && ayah.words.length > 0) || (tajweedEnabled && ayah.words.length > 0) ? (
-                                    <Text style={[styles.arabicText, { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.8 }]}>
-                                        {ayah.words.map((word: { text: string; position: number }, wi: number) => {
-                                            // Detect tajweed rule for this word (cross-word: pass next word's text)
-                                            const rule = tajweedEnabled
-                                                ? detectTajweed(word.text, ayah.words[wi + 1]?.text)
-                                                : null;
-                                            const ruleColor = (rule && enabledRules.has(rule))
-                                                ? TAJWEED_RULES.find(r => r.id === rule)!.color
-                                                : null;
-
-                                            // Audio highlight overrides Tajweed color on the active word
-                                            const isActiveWord = isCurrent && currentWordIndex === word.position;
+                                {/*
+                                 * Per-word rendering for the ACTIVE ayah:
+                                 * Each word from the Quran.com API is a complete Unicode string
+                                 * (base letters + all combining marks for that word).
+                                 * Rendering whole words as nested <Text> spans is safe because
+                                 * Arabic shaping is applied independently per word — only
+                                 * character-level splitting across word boundaries causes
+                                 * combining-mark displacement, which we avoid here.
+                                 *
+                                 * For inactive ayahs we keep a single <Text> block (faster,
+                                 * preserves any cross-word ligatures in the font).
+                                 */}
+                                {(isCurrent || tajweedEnabled) && ayah.words && ayah.words.length > 0 ? (
+                                    <Text style={[styles.arabicText, { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.85 }]}>
+                                        {ayah.words.map((w: any, wi: number) => {
+                                            // 1. Playback highlight takes highest priority
+                                            const active = isCurrent && currentWordIndex !== -1 && currentWordIndex === w.position;
+                                            if (active) {
+                                                return (
+                                                    <Text key={wi} style={[styles.arabicWordActive, { color: theme.textPrimary }]}>
+                                                        {w.text}{wi < ayah.words.length - 1 ? ' ' : ''}
+                                                    </Text>
+                                                );
+                                            }
+                                            // 2. Tajweed coloring — applied when enabled and rule matches
+                                            if (tajweedEnabled) {
+                                                const nextWord = ayah.words[wi + 1];
+                                                const ruleId = detectTajweed(w.text, nextWord?.text);
+                                                if (ruleId && enabledRules.has(ruleId)) {
+                                                    const ruleColor = TAJWEED_RULES.find(r => r.id === ruleId)?.color;
+                                                    return (
+                                                        <Text key={wi} style={{ color: ruleColor, fontWeight: '600' }}>
+                                                            {w.text}{wi < ayah.words.length - 1 ? ' ' : ''}
+                                                        </Text>
+                                                    );
+                                                }
+                                            }
+                                            // 3. Default word colour
                                             return (
-                                                <Text
-                                                    key={word.position}
-                                                    style={[
-                                                        isActiveWord ? styles.arabicWordActive : (isCurrent ? styles.arabicWordIdle : null),
-                                                        ruleColor && !isActiveWord ? { color: ruleColor } : null,
-                                                    ]}
-                                                >
-                                                    {word.text}{' '}
+                                                <Text key={wi} style={{ color: theme.textPrimary }}>
+                                                    {w.text}{wi < ayah.words.length - 1 ? ' ' : ''}
                                                 </Text>
                                             );
                                         })}
@@ -772,8 +1065,8 @@ export default function QuranReaderScreen() {
                                 ) : (
                                     <Text style={[
                                         styles.arabicText,
-                                        { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.6 },
-                                        isCurrent && { color: '#8C4B40' }
+                                        { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.6, color: theme.textPrimary },
+                                        isCurrent && { color: QURAN_ACCENT }
                                     ]}>
                                         {ayah[selectedFont.field] || ayah.text_uthmani}
                                     </Text>
@@ -782,43 +1075,110 @@ export default function QuranReaderScreen() {
 
                             <Text style={[
                                 styles.translationText,
+                                { color: theme.textSecondary },
                                 language === 'urdu' && {
-                                    fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
-                                    fontSize: 18,
+                                    fontFamily: 'NotoNastaliqUrdu_400Regular',
+                                    fontSize: 20,
                                     textAlign: 'right',
-                                    lineHeight: 32,
+                                    lineHeight: 42,
+                                    writingDirection: 'rtl',
                                 }
                             ]}>
                                 {ayah.text_translation}
                             </Text>
 
-                            {/* Tafseer toggle row */}
-                            <TouchableOpacity
-                                style={styles.tafseerToggleRow}
-                                onPress={() => toggleTafseer(ayah.id)}
-                                activeOpacity={0.7}
-                            >
-                                <Text style={styles.tafseerToggleLabel}>Maariful Quran</Text>
-                                {loadingTafseers.has(ayah.id) ? (
-                                    <ActivityIndicator size="small" color="#8C4B40" style={{ marginLeft: 6 }} />
-                                ) : (
-                                    <Feather
-                                        name={openTafseers.has(ayah.id) ? 'chevron-up' : 'chevron-down'}
-                                        size={16}
-                                        color="#8C4B40"
-                                        style={{ marginLeft: 6 }}
-                                    />
-                                )}
-                            </TouchableOpacity>
+                            {/* Urdu translation picker */}
+                            {language === 'urdu' && (
+                                <TouchableOpacity
+                                    style={styles.urduPickerBtn}
+                                    onPress={() => setShowUrduPicker(true)}
+                                    activeOpacity={0.75}
+                                >
+                                    <Text style={[styles.urduPickerLabel, { color: QURAN_ACCENT }]}>
+                                        {URDU_EDITIONS.find(e => e.id === urduEdition)?.name ?? 'Translation'}
+                                    </Text>
+                                    <Feather name="chevron-down" size={14} color={QURAN_ACCENT} style={{ marginLeft: 4 }} />
+                                </TouchableOpacity>
+                            )}
+
+                            {/* ── Per-ayah action bar ── */}
+                            {(() => {
+                                const ck = tafsirCacheKey(ayah.id);
+                                return (
+                            <View style={[styles.ayahActionBar, { borderTopColor: theme.border }]}>
+                                {/* Tafsirs */}
+                                <TouchableOpacity
+                                    style={styles.ayahActionBtn}
+                                    onPress={() => toggleTafseer(ayah.id, ayah.surah_number, ayah.ayah_number)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Feather name="book-open" size={13} color={openTafseers.has(ck) ? QURAN_ACCENT : theme.textTertiary} />
+                                    <Text style={[styles.ayahActionLabel, { color: openTafseers.has(ck) ? QURAN_ACCENT : theme.textTertiary }]}>
+                                        Tafsirs
+                                    </Text>
+                                    {loadingTafseers.has(ck) && <ActivityIndicator size="small" color={QURAN_ACCENT} style={{ marginLeft: 3 }} />}
+                                </TouchableOpacity>
+
+                                <View style={[styles.ayahActionDivider, { backgroundColor: theme.border }]} />
+
+                                {/* Hadith */}
+                                <TouchableOpacity
+                                    style={styles.ayahActionBtn}
+                                    onPress={() => toggleHadith(ayah.id, ayah.surah_number, ayah.ayah_number)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Feather name="list" size={13} color={openHadiths.has(ayah.id) ? QURAN_ACCENT : theme.textTertiary} />
+                                    <Text style={[styles.ayahActionLabel, { color: openHadiths.has(ayah.id) ? QURAN_ACCENT : theme.textTertiary }]}>
+                                        Hadith
+                                    </Text>
+                                    {loadingHadiths.has(ayah.id) && <ActivityIndicator size="small" color={QURAN_ACCENT} style={{ marginLeft: 3 }} />}
+                                </TouchableOpacity>
+                            </View>
+                                );
+                            })()}
 
                             {/* Tafseer expandable box */}
-                            {openTafseers.has(ayah.id) && tafseerTexts[ayah.id] && (
-                                <View style={styles.tafseerBox}>
+                            {openTafseers.has(tafsirCacheKey(ayah.id)) && tafseerTexts[tafsirCacheKey(ayah.id)] && (
+                                <View style={[styles.tafseerBox, { backgroundColor: theme.bgSecondary, borderColor: theme.border }]}>
                                     <View style={styles.tafseerBoxHeader}>
-                                        <Feather name="book-open" size={13} color="#8C4B40" />
-                                        <Text style={styles.tafseerBoxTitle}>Maariful Quran — {ayah.surah_number}:{ayah.ayah_number}</Text>
+                                        <Feather name="book-open" size={13} color={QURAN_ACCENT} />
+                                        <Text style={styles.tafseerBoxTitle}>
+                                            {(TAFSIR_BY_LANG[language] ?? TAFSIR_BY_LANG.english).name} — {ayah.surah_number}:{ayah.ayah_number}
+                                        </Text>
                                     </View>
-                                    <Text style={styles.tafseerBoxText}>{tafseerTexts[ayah.id]}</Text>
+                                    <Text style={[
+                                        styles.tafseerBoxText,
+                                        { color: theme.textSecondary },
+                                        language === 'urdu' && { textAlign: 'right', writingDirection: 'rtl', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', lineHeight: 30 },
+                                    ]}>
+                                        {tafseerTexts[tafsirCacheKey(ayah.id)]}
+                                    </Text>
+                                </View>
+                            )}
+
+                            {/* Hadith expandable box */}
+                            {openHadiths.has(ayah.id) && (
+                                <View style={[styles.tafseerBox, { backgroundColor: theme.bgSecondary, borderColor: theme.border }]}>
+                                    <View style={styles.tafseerBoxHeader}>
+                                        <Feather name="list" size={13} color={QURAN_ACCENT} />
+                                        <Text style={styles.tafseerBoxTitle}>Hadith — {ayah.surah_number}:{ayah.ayah_number}</Text>
+                                    </View>
+                                    {(hadithItems[ayah.id] ?? []).length === 0 ? (
+                                        <Text style={[styles.tafseerBoxText, { color: theme.textTertiary, fontStyle: 'italic' }]}>
+                                            No hadith found for this ayah.
+                                        </Text>
+                                    ) : (
+                                        (hadithItems[ayah.id] ?? []).map((h: any, hi: number) => (
+                                            <View key={hi} style={hi > 0 ? [styles.hadithDivider, { borderTopColor: theme.border }] : undefined}>
+                                                <Text style={[styles.hadithCollection, { color: QURAN_GOLD }]}>
+                                                    {h.collection_key ? `${h.collection_key} #${h.hadith_number}` : `Hadith ${hi + 1}`}
+                                                </Text>
+                                                <Text style={[styles.tafseerBoxText, { color: theme.textSecondary }]}>
+                                                    {h.text_en?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()}
+                                                </Text>
+                                            </View>
+                                        ))
+                                    )}
                                 </View>
                             )}
                         </View>
@@ -831,8 +1191,8 @@ export default function QuranReaderScreen() {
 
             {/* Continue / Stop Prompt — shown after each ayah finishes */}
             {showContinuePrompt && (
-                <View style={styles.continuePrompt}>
-                    <Text style={styles.continuePromptText}>
+                <View style={[styles.continuePrompt, { backgroundColor: theme.bgCard, borderTopColor: theme.border }]}>
+                    <Text style={[styles.continuePromptText, { color: theme.textPrimary }]}>
                         {pendingNextIndex >= ayahs.length
                             ? 'Surah completed'
                             : `Continue to Ayah ${ayahs[pendingNextIndex]?.ayah_number}?`}
@@ -853,32 +1213,84 @@ export default function QuranReaderScreen() {
             )}
 
             {/* Docked Audio Player */}
-            <View style={[styles.audioPlayerContainer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-                <View style={styles.audioPlayerPanel}>
-                    <TouchableOpacity style={styles.playButton} onPress={togglePlay}>
-                        <Feather name={isPlaying ? 'pause' : 'play'} size={22} color="#1A1A1A" style={{ marginLeft: isPlaying ? 0 : 2 }} />
+            <View style={[styles.audioPlayerContainer, { paddingBottom: Math.max(insets.bottom, 20), backgroundColor: theme.bg, borderTopColor: theme.border }]}>
+                <View style={[styles.audioPlayerPanel, { backgroundColor: theme.bgCard }]}>
+                    <TouchableOpacity style={[styles.playButton, { backgroundColor: theme.bgSecondary }]} onPress={togglePlay}>
+                        <Feather name={isPlaying ? 'pause' : 'play'} size={22} color={theme.textPrimary} style={{ marginLeft: isPlaying ? 0 : 2 }} />
                     </TouchableOpacity>
                     <View style={styles.audioInfo}>
-                        <Text style={styles.audioTitle}>{surahInfo?.name_english}</Text>
-                        <Text style={styles.audioSubtitle}>
-                            {isPlaying || positionMillis > 0
-                                ? `${formatAudioTime(positionMillis)} / ${formatAudioTime(durationMillis)}`
-                                : selectedReciter.name}
-                        </Text>
+                        <Text style={[styles.audioTitle, { color: theme.textPrimary }]}>{surahInfo?.name_english}</Text>
+                        <TouchableOpacity
+                            onPress={() => setShowReciterPicker(true)}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={[styles.audioSubtitle, { color: theme.accent }]} numberOfLines={1}>
+                                {isPlaying || positionMillis > 0
+                                    ? `${selectedReciter.name}  •  ${formatAudioTime(positionMillis)} / ${formatAudioTime(durationMillis)}`
+                                    : selectedReciter.name}
+                            </Text>
+                            <Feather name="chevron-up" size={12} color={theme.accent} />
+                        </TouchableOpacity>
                     </View>
                     <View style={styles.audioControlsRight}>
-                        <TouchableOpacity onPress={cycleSpeed} style={styles.speedBtn}>
-                            <Text style={styles.audioSpeed}>{playbackSpeed}x</Text>
+                        <TouchableOpacity onPress={cycleSpeed} style={[styles.speedBtn, { backgroundColor: theme.bgSecondary }]}>
+                            <Text style={[styles.audioSpeed, { color: theme.textPrimary }]}>{playbackSpeed}x</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.skipBtn} onPress={skipBack}>
-                            <Feather name="skip-back" size={20} color="#5E5C58" />
+                            <Feather name="skip-back" size={20} color={theme.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.skipBtn} onPress={skipForward}>
-                            <Feather name="skip-forward" size={20} color="#5E5C58" />
+                            <Feather name="skip-forward" size={20} color={theme.textSecondary} />
                         </TouchableOpacity>
                     </View>
                 </View>
             </View>
+
+            {/* ─── Reciter Picker Modal ─────────────────────────────────────────────── */}
+            <Modal
+                transparent
+                animationType="slide"
+                visible={showReciterPicker}
+                onRequestClose={() => setShowReciterPicker(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20, backgroundColor: theme.bgCard }]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Choose Reciter</Text>
+                            <TouchableOpacity onPress={() => setShowReciterPicker(false)}>
+                                <Feather name="x" size={24} color={theme.textPrimary} />
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={[{ color: theme.textSecondary, fontSize: 13, marginBottom: 16 }]}>
+                            Changing reciter will reload audio for this surah
+                        </Text>
+                        {RECITERS.map(reciter => (
+                            <TouchableOpacity
+                                key={reciter.id}
+                                style={[
+                                    styles.urduEditionRow,
+                                    { borderColor: theme.border },
+                                    selectedReciter.id === reciter.id && { backgroundColor: theme.accentLight, borderColor: theme.accent },
+                                ]}
+                                onPress={() => {
+                                    setSelectedReciter(reciter);
+                                    setShowReciterPicker(false);
+                                }}
+                                activeOpacity={0.75}
+                            >
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[styles.urduEditionName, { color: theme.textPrimary }]}>{reciter.name}</Text>
+                                    <Text style={[styles.urduEditionNameUrdu, { color: theme.textSecondary }]}>{reciter.country}</Text>
+                                </View>
+                                {selectedReciter.id === reciter.id && (
+                                    <Feather name="check-circle" size={20} color={QURAN_ACCENT} />
+                                )}
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+            </Modal>
 
             {/* Settings Modal */}
             <Modal
@@ -888,92 +1300,153 @@ export default function QuranReaderScreen() {
                 onRequestClose={() => setShowSettings(false)}
             >
                 <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Reading Settings</Text>
+                    <View style={[styles.modalContent, { paddingBottom: 0, backgroundColor: theme.bgCard }]}>
+                        {/* Sticky header — stays above scroll area */}
+                        <View style={[styles.modalHeader, { paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: theme.border, marginBottom: 0 }]}>
+                            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Reading Settings</Text>
                             <TouchableOpacity onPress={() => setShowSettings(false)}>
-                                <Feather name="x" size={24} color="#1A1A1A" />
+                                <Feather name="x" size={24} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 20, paddingBottom: insets.bottom + 20 }}>
 
-                        <Text style={styles.settingLabel}>Reciter</Text>
-                        <View style={styles.settingsGroup}>
+                        <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Reciter</Text>
+                        <View style={[styles.settingsGroup, { backgroundColor: theme.bgSecondary }]}>
                             {RECITERS.map(reciter => (
                                 <TouchableOpacity
                                     key={reciter.id}
-                                    style={[styles.settingOption, selectedReciter.id === reciter.id && styles.settingOptionActive]}
+                                    style={[styles.settingOption, { borderBottomColor: theme.border }, selectedReciter.id === reciter.id && styles.settingOptionActive]}
                                     onPress={() => setSelectedReciter(reciter)}
                                 >
-                                    <Text style={[styles.settingOptionText, selectedReciter.id === reciter.id && { color: '#8C4B40' }]}>
-                                        {reciter.name}
-                                    </Text>
-                                    {selectedReciter.id === reciter.id && <Feather name="check" size={18} color="#8C4B40" />}
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={[styles.settingOptionText, { color: theme.textPrimary }, selectedReciter.id === reciter.id && { color: QURAN_ACCENT }]}>
+                                            {reciter.name}
+                                        </Text>
+                                        <Text style={{ fontSize: 11, color: theme.textTertiary, marginTop: 1 }}>{reciter.country}</Text>
+                                    </View>
+                                    {selectedReciter.id === reciter.id && <Feather name="check" size={18} color={QURAN_ACCENT} />}
                                 </TouchableOpacity>
                             ))}
                         </View>
 
-                        <Text style={styles.settingLabel}>Arabic Font Style</Text>
-                        <View style={styles.settingsGroup}>
+                        <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Arabic Font Style</Text>
+                        <View style={[styles.settingsGroup, { backgroundColor: theme.bgSecondary }]}>
                             {ARABIC_FONTS.map(font => (
                                 <TouchableOpacity
                                     key={font.id}
-                                    style={[styles.settingOption, selectedFont.id === font.id && styles.settingOptionActive]}
+                                    style={[styles.settingOption, { borderBottomColor: theme.border }, selectedFont.id === font.id && styles.settingOptionActive]}
                                     onPress={() => setSelectedFont(font)}
                                 >
-                                    <Text style={[styles.settingOptionText, selectedFont.id === font.id && { color: '#8C4B40' }]}>
+                                    <Text style={[styles.settingOptionText, { color: theme.textPrimary }, selectedFont.id === font.id && { color: QURAN_ACCENT }]}>
                                         {font.name}
                                     </Text>
-                                    {selectedFont.id === font.id && <Feather name="check" size={18} color="#8C4B40" />}
+                                    {selectedFont.id === font.id && <Feather name="check" size={18} color={QURAN_ACCENT} />}
                                 </TouchableOpacity>
                             ))}
                         </View>
 
-                        <Text style={styles.settingLabel}>Text Size ({fontSize}pt)</Text>
-                        <View style={styles.sizeControlGroup}>
-                            <TouchableOpacity style={styles.sizeBtn} onPress={() => setFontSize(Math.max(20, fontSize - 2))}>
-                                <Feather name="minus" size={20} color="#1A1A1A" />
+                        <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Text Size ({fontSize}pt)</Text>
+                        <View style={[styles.sizeControlGroup, { backgroundColor: theme.bgSecondary }]}>
+                            <TouchableOpacity style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]} onPress={() => setFontSize(Math.max(20, fontSize - 2))}>
+                                <Feather name="minus" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                             <Text style={styles.sizePreviewIndicator}>Aa</Text>
-                            <TouchableOpacity style={styles.sizeBtn} onPress={() => setFontSize(Math.min(56, fontSize + 2))}>
-                                <Feather name="plus" size={20} color="#1A1A1A" />
+                            <TouchableOpacity style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]} onPress={() => setFontSize(Math.min(56, fontSize + 2))}>
+                                <Feather name="plus" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
 
                         {/* ── Tajweed Rules ── */}
+                        {/* Tajweed colour-coding only works with Uthmani font — regex patterns target Uthmani codepoints */}
                         <View style={styles.tajweedHeader}>
-                            <Text style={styles.settingLabel}>Tajweed Rules</Text>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Tajweed Rules</Text>
+                                {selectedFont.id !== 'uthmani' && (
+                                    <Text style={{ fontSize: 11, color: theme.textTertiary, marginTop: 2 }}>
+                                        Requires Madinah Mushaf font
+                                    </Text>
+                                )}
+                            </View>
                             <TouchableOpacity
-                                style={[styles.tajweedToggle, tajweedEnabled && styles.tajweedToggleOn]}
-                                onPress={() => setTajweedEnabled(v => !v)}
+                                style={[styles.tajweedToggle, { backgroundColor: theme.bgSecondary, borderColor: theme.border }, tajweedEnabled && selectedFont.id === 'uthmani' && styles.tajweedToggleOn, selectedFont.id !== 'uthmani' && { opacity: 0.4 }]}
+                                onPress={() => {
+                                    if (selectedFont.id !== 'uthmani') return; // silently block
+                                    setTajweedEnabled(v => !v);
+                                }}
+                                activeOpacity={selectedFont.id !== 'uthmani' ? 1 : 0.7}
                             >
-                                <Text style={[styles.tajweedToggleText, tajweedEnabled && styles.tajweedToggleTextOn]}>
-                                    {tajweedEnabled ? 'ON' : 'OFF'}
+                                <Text style={[styles.tajweedToggleText, { color: theme.textSecondary }, tajweedEnabled && selectedFont.id === 'uthmani' && styles.tajweedToggleTextOn]}>
+                                    {tajweedEnabled && selectedFont.id === 'uthmani' ? 'ON' : 'OFF'}
                                 </Text>
                             </TouchableOpacity>
                         </View>
                         <View style={styles.tajweedChips}>
                             {TAJWEED_RULES.map(rule => {
-                                const active = tajweedEnabled && enabledRules.has(rule.id);
+                                const fontOk = selectedFont.id === 'uthmani';
+                                const active = fontOk && tajweedEnabled && enabledRules.has(rule.id);
                                 return (
                                     <TouchableOpacity
                                         key={rule.id}
                                         style={[
                                             styles.tajweedChip,
-                                            { borderColor: rule.color },
+                                            { borderColor: rule.color, backgroundColor: theme.bgCard },
                                             active && { backgroundColor: rule.color + '18' },
-                                            !tajweedEnabled && { opacity: 0.4 },
+                                            (!tajweedEnabled || !fontOk) && { opacity: 0.4 },
                                         ]}
-                                        onPress={() => tajweedEnabled && toggleTajweedRule(rule.id)}
-                                        activeOpacity={tajweedEnabled ? 0.7 : 1}
+                                        onPress={() => fontOk && tajweedEnabled && toggleTajweedRule(rule.id)}
+                                        activeOpacity={fontOk && tajweedEnabled ? 0.7 : 1}
                                     >
                                         <View style={[styles.tajweedDot, { backgroundColor: rule.color }]} />
-                                        <Text style={[styles.tajweedChipText, active && { color: rule.color }]}>
+                                        <Text style={[styles.tajweedChipText, { color: theme.textSecondary }, active && { color: rule.color }]}>
                                             {rule.label}
                                         </Text>
                                     </TouchableOpacity>
                                 );
                             })}
                         </View>
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Urdu Translation Picker Modal */}
+            <Modal
+                transparent
+                animationType="slide"
+                visible={showUrduPicker}
+                onRequestClose={() => setShowUrduPicker(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20, backgroundColor: theme.bgCard }]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>اردو ترجمہ</Text>
+                            <TouchableOpacity onPress={() => setShowUrduPicker(false)}>
+                                <Feather name="x" size={22} color={theme.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={[{ color: theme.textSecondary, fontSize: 13, marginBottom: 16 }]}>
+                            Select Urdu Translation
+                        </Text>
+                        {URDU_EDITIONS.map(ed => (
+                            <TouchableOpacity
+                                key={ed.id}
+                                style={[
+                                    styles.urduEditionRow,
+                                    { borderColor: theme.border },
+                                    urduEdition === ed.id && { backgroundColor: theme.accentLight, borderColor: theme.accent },
+                                ]}
+                                onPress={() => { setUrduEdition(ed.id); setShowUrduPicker(false); }}
+                                activeOpacity={0.75}
+                            >
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[styles.urduEditionName, { color: theme.textPrimary }]}>{ed.name}</Text>
+                                    <Text style={[styles.urduEditionNameUrdu, { color: theme.textSecondary }]}>{ed.nameUrdu}</Text>
+                                </View>
+                                {urduEdition === ed.id && (
+                                    <Feather name="check-circle" size={20} color={QURAN_ACCENT} />
+                                )}
+                            </TouchableOpacity>
+                        ))}
                     </View>
                 </View>
             </Modal>
@@ -984,7 +1457,6 @@ export default function QuranReaderScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FDF6E3',
     },
     header: {
         flexDirection: 'row',
@@ -1017,32 +1489,51 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     surahTitle: {
-        color: '#1A1A1A',
         fontSize: 20,
         fontWeight: 'bold',
         marginLeft: 8,
     },
-    subHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+    // ── Surah hero header (scrolls with content) ─────────────────────────────
+    surahHero: {
         alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingBottom: 16,
+        paddingTop: 32,
+        paddingBottom: 28,
+        paddingHorizontal: 24,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0,0,0,0.05)',
+        marginBottom: 8,
     },
-    subHeaderText: {
-        color: '#5E5C58',
-        fontSize: 13,
+    surahHeroArabic: {
+        fontSize: 52,
+        textAlign: 'center',
+        marginBottom: 12,
+        lineHeight: 80,
     },
-    goalContainer: {
+    surahHeroEnglish: {
+        fontSize: 22,
+        fontWeight: '700',
+        textAlign: 'center',
+        letterSpacing: 0.3,
+    },
+    surahHeroMeaning: {
+        fontSize: 15,
+        textAlign: 'center',
+        marginTop: 4,
+        fontStyle: 'italic',
+    },
+    surahHeroMeta: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
+        gap: 8,
+        marginTop: 14,
     },
-    goalText: {
-        color: '#5E5C58',
-        fontSize: 13,
+    surahHeroBadge: {
+        paddingHorizontal: 12,
+        paddingVertical: 5,
+        borderRadius: 20,
+    },
+    surahHeroBadgeText: {
+        fontSize: 12,
+        fontWeight: '600',
     },
     offlineBanner: {
         flexDirection: 'row',
@@ -1060,19 +1551,16 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     bismillahBannerBlock: {
-        backgroundColor: '#C5D8B8',
         paddingVertical: 14,
         paddingHorizontal: 20,
         borderRadius: 4,
         borderWidth: 2,
-        borderColor: '#5B8C5A',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 40,
         marginHorizontal: 16,
     },
     bismillahText: {
-        color: '#1A1A1A',
         fontSize: 32,
         textAlign: 'center',
     },
@@ -1082,9 +1570,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         marginHorizontal: 8,
     },
-    ayahContainerActive: {
-        backgroundColor: 'rgba(140, 75, 64, 0.05)',
-    },
+    ayahContainerActive: {},
     ayahHeader: {
         flexDirection: 'row',
         justifyContent: 'flex-start',
@@ -1094,13 +1580,11 @@ const styles = StyleSheet.create({
     ayahPillBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#EAE2CF',
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 16,
     },
     ayahPillText: {
-        color: '#5E5C58',
         fontSize: 12,
         fontWeight: '600',
     },
@@ -1119,65 +1603,80 @@ const styles = StyleSheet.create({
         position: 'relative',
     },
     ayahDecorativeMark: {
-        color: '#8C4B40',
+        color: QURAN_ACCENT,
         fontSize: 32,
         position: 'absolute',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
     },
     ayahNumberText: {
-        color: '#8C4B40',
+        color: QURAN_ACCENT,
         fontSize: 11,
         fontWeight: 'bold',
         position: 'absolute',
     },
     arabicText: {
-        color: '#1A1A1A',
         textAlign: 'right',
         flexShrink: 1,
     },
     // Active (highlighted) word during recitation
     arabicWordActive: {
-        color: '#1A1A1A',
         backgroundColor: 'rgba(244, 209, 37, 0.55)',
         borderRadius: 3,
     },
     // Non-active words in the reciting ayah — subtle dim
-    arabicWordIdle: {
-        color: 'rgba(140, 75, 64, 0.55)',
-    },
+    arabicWordIdle: {},
     translationText: {
-        color: '#4A4A4A',
         fontSize: 17,
         lineHeight: 28,
         fontWeight: '500',
         fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
         textAlign: 'left',
     },
-    // ── Tafseer ───────────────────────────────────────────────────────────────
-    tafseerToggleRow: {
+    // ── Per-ayah action bar ───────────────────────────────────────────────────
+    ayahActionBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        alignSelf: 'flex-start',
-        marginTop: 10,
-        paddingVertical: 5,
-        paddingHorizontal: 10,
-        borderRadius: 12,
-        backgroundColor: 'rgba(140,75,64,0.07)',
+        marginTop: 14,
+        paddingTop: 10,
+        borderTopWidth: StyleSheet.hairlineWidth,
     },
-    tafseerToggleLabel: {
-        color: '#8C4B40',
+    ayahActionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingVertical: 4,
+        paddingHorizontal: 6,
+        flex: 1,
+        justifyContent: 'center',
+    },
+    ayahActionLabel: {
         fontSize: 12,
-        fontWeight: '600',
+        fontWeight: '500',
     },
+    ayahActionDivider: {
+        width: StyleSheet.hairlineWidth,
+        height: 18,
+    },
+    hadithDivider: {
+        marginTop: 14,
+        paddingTop: 14,
+        borderTopWidth: StyleSheet.hairlineWidth,
+    },
+    hadithCollection: {
+        fontSize: 11,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 6,
+    },
+    // ── Tafseer ───────────────────────────────────────────────────────────────
     tafseerBox: {
         marginTop: 12,
-        backgroundColor: '#FFF8EC',
         borderRadius: 14,
         padding: 16,
         borderLeftWidth: 3,
-        borderLeftColor: '#C9A84C',
+        borderLeftColor: QURAN_GOLD,
         borderWidth: 1,
-        borderColor: 'rgba(201,168,76,0.2)',
     },
     tafseerBoxHeader: {
         flexDirection: 'row',
@@ -1186,14 +1685,13 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     tafseerBoxTitle: {
-        color: '#8C4B40',
+        color: QURAN_ACCENT,
         fontSize: 12,
         fontWeight: '700',
         textTransform: 'uppercase',
         letterSpacing: 0.5,
     },
     tafseerBoxText: {
-        color: '#3A3A3A',
         fontSize: 15,
         lineHeight: 26,
         fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
@@ -1203,14 +1701,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: '#F4EBD9',
         paddingHorizontal: 20,
         paddingVertical: 12,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(140,75,64,0.15)',
     },
     continuePromptText: {
-        color: '#1A1A1A',
         fontSize: 14,
         fontWeight: '600',
         flex: 1,
@@ -1227,10 +1722,10 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: '#8C4B40',
+        borderColor: QURAN_ACCENT,
     },
     stopButtonText: {
-        color: '#8C4B40',
+        color: QURAN_ACCENT,
         fontSize: 13,
         fontWeight: '600',
     },
@@ -1240,7 +1735,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 8,
         borderRadius: 20,
-        backgroundColor: '#8C4B40',
+        backgroundColor: QURAN_ACCENT,
     },
     continueButtonText: {
         color: '#FFFFFF',
@@ -1251,14 +1746,11 @@ const styles = StyleSheet.create({
     audioPlayerContainer: {
         paddingHorizontal: 16,
         paddingTop: 12,
-        backgroundColor: '#FDF6E3',
         borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.05)',
     },
     audioPlayerPanel: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F4EBD9',
         borderRadius: 20,
         paddingVertical: 12,
         paddingHorizontal: 16,
@@ -1272,7 +1764,6 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#EAE2CF',
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -1281,12 +1772,10 @@ const styles = StyleSheet.create({
         marginLeft: 12,
     },
     audioTitle: {
-        color: '#1A1A1A',
         fontSize: 15,
         fontWeight: '600',
     },
     audioSubtitle: {
-        color: '#5E5C58',
         fontSize: 12,
         marginTop: 2,
     },
@@ -1296,14 +1785,12 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     audioSpeed: {
-        color: '#1A1A1A',
         fontSize: 14,
         fontWeight: '600',
     },
     speedBtn: {
         paddingHorizontal: 8,
         paddingVertical: 4,
-        backgroundColor: '#EAE2CF',
         borderRadius: 8,
     },
     skipBtn: {
@@ -1316,10 +1803,10 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: '#FDF6E3',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         padding: 24,
+        maxHeight: '88%',
     },
     modalHeader: {
         flexDirection: 'row',
@@ -1328,19 +1815,16 @@ const styles = StyleSheet.create({
         marginBottom: 24,
     },
     modalTitle: {
-        color: '#1A1A1A',
         fontSize: 18,
         fontWeight: '600',
     },
     settingLabel: {
-        color: '#5E5C58',
         fontSize: 13,
         textTransform: 'uppercase',
         letterSpacing: 1,
         marginBottom: 12,
     },
     settingsGroup: {
-        backgroundColor: '#F4EBD9',
         borderRadius: 16,
         marginBottom: 24,
         overflow: 'hidden',
@@ -1351,20 +1835,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     settingOptionActive: {
         backgroundColor: 'rgba(140, 75, 64, 0.05)',
     },
     settingOptionText: {
-        color: '#1A1A1A',
         fontSize: 16,
     },
     sizeControlGroup: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: '#F4EBD9',
         borderRadius: 16,
         padding: 12,
     },
@@ -1372,12 +1853,11 @@ const styles = StyleSheet.create({
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: '#EAE2CF',
         alignItems: 'center',
         justifyContent: 'center',
     },
     sizePreviewIndicator: {
-        color: '#8C4B40',
+        color: QURAN_ACCENT,
         fontSize: 20,
         fontWeight: '500',
     },
@@ -1394,18 +1874,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 5,
         borderRadius: 14,
-        backgroundColor: '#F0EDE6',
         borderWidth: 1,
-        borderColor: '#D8D3C8',
     },
     tajweedToggleOn: {
-        backgroundColor: '#8C4B40',
-        borderColor: '#8C4B40',
+        backgroundColor: QURAN_ACCENT,
+        borderColor: QURAN_ACCENT,
     },
     tajweedToggleText: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#8A8A8A',
         letterSpacing: 0.5,
     },
     tajweedToggleTextOn: {
@@ -1423,7 +1900,6 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: 20,
         borderWidth: 1.5,
-        backgroundColor: '#FAFAF8',
     },
     tajweedDot: {
         width: 10,
@@ -1434,6 +1910,42 @@ const styles = StyleSheet.create({
     tajweedChipText: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#3A3A3A',
+    },
+    // ── Urdu picker ───────────────────────────────────────────────────────────
+    urduPickerBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-end',
+        marginTop: 8,
+        marginBottom: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(46,204,148,0.25)',
+        backgroundColor: 'rgba(46,204,148,0.08)',
+    },
+    urduPickerLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    urduEditionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        borderRadius: 14,
+        borderWidth: 1,
+        marginBottom: 10,
+    },
+    urduEditionName: {
+        fontSize: 15,
+        fontWeight: '700',
+        marginBottom: 3,
+    },
+    urduEditionNameUrdu: {
+        fontSize: 16,
+        fontFamily: 'NotoNastaliqUrdu_400Regular',
+        textAlign: 'right',
     },
 });

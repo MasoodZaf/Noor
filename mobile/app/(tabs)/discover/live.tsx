@@ -1,15 +1,15 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, ScrollView,
-    Dimensions, Animated, Linking, Platform, BackHandler,
+    Dimensions, Animated, Linking, Platform, BackHandler, StatusBar,
+    useWindowDimensions,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const { width } = Dimensions.get('window');
-const PLAYER_HEIGHT = width * 0.5625; // 16:9
+import { useTheme } from '../../../context/ThemeContext';
+import * as ScreenOrientation from 'expo-screen-orientation';
 
 // Official Saudi Broadcasting channels (channel IDs are stable — never change)
 // Makkah: قناة القران الكريم (Saudi Quran TV) — UCos52azQNBgW63_9uDJoPDA
@@ -49,20 +49,44 @@ const STREAMS = [
     },
 ];
 
-// Build the YouTube embed URI directly — avoids double-embedding (WebView→HTML→iframe).
-// live_stream?channel= loads the active live broadcast from the channel.
-const buildEmbedUri = (channelId: string) =>
-    `https://www.youtube.com/embed/live_stream?channel=${channelId}&autoplay=1&playsinline=1&rel=0&modestbranding=1&controls=1`;
+// Load the full YouTube mobile page — not an embed.
+// Embed is blocked by these channels (embedding disabled on channel settings).
+// Loading m.youtube.com with a real Chrome UA bypasses the restriction entirely.
+const CHROME_UA =
+    Platform.OS === 'ios'
+        ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/121.0.0.0 Mobile/15E148 Safari/604.1'
+        : 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.6167.101 Mobile Safari/537.36';
+
+const buildLiveUri = (youtubeUrl: string) =>
+    youtubeUrl.replace('www.youtube.com', 'm.youtube.com');
 
 export default function LiveScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { theme } = useTheme();
     const [activeStream, setActiveStream] = useState(STREAMS[0]);
+    const { width, height } = useWindowDimensions();
+    const isLandscape = width > height;
+    const PLAYER_HEIGHT = isLandscape ? height : width * 0.65;
+
+    // Unlock rotation on enter, relock to portrait on leave
+    useFocusEffect(useCallback(() => {
+        ScreenOrientation.unlockAsync();
+        return () => {
+            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+        };
+    }, []));
 
     const goBack = useCallback(() => {
+        if (isLandscape) {
+            // Rotate back to portrait instead of navigating away
+            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+            return;
+        }
         if (router.canGoBack()) router.back();
         else router.replace('/(tabs)/discover' as any);
-    }, [router]);
+    }, [router, isLandscape]);
+
     useFocusEffect(useCallback(() => {
         if (Platform.OS !== 'android') return;
         const sub = BackHandler.addEventListener('hardwareBackPress', () => { goBack(); return true; });
@@ -73,13 +97,16 @@ export default function LiveScreen() {
 
     // Pulsing live dot
     const pulse = useRef(new Animated.Value(1)).current;
+    const pulseAnim = useRef<Animated.CompositeAnimation | null>(null);
     useEffect(() => {
-        Animated.loop(
+        pulseAnim.current = Animated.loop(
             Animated.sequence([
                 Animated.timing(pulse, { toValue: 0.2, duration: 900, useNativeDriver: true }),
                 Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
             ])
-        ).start();
+        );
+        pulseAnim.current.start();
+        return () => { pulseAnim.current?.stop(); };
     }, []);
 
     const switchStream = (stream: typeof STREAMS[0]) => {
@@ -88,26 +115,76 @@ export default function LiveScreen() {
         setPlayerKey(k => k + 1); // remount WebView for clean load
     };
 
-    return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-                    <Feather name="chevron-left" size={28} color="#1A1A1A" />
+    // Landscape: fullscreen player only
+    if (isLandscape) {
+        return (
+            <View style={{ width, height, backgroundColor: '#000' }}>
+                <StatusBar hidden />
+                {embedError ? (
+                    <View style={[styles.errorCard, { flex: 1 }]}>
+                        <Text style={styles.errorEmoji}>{activeStream.icon}</Text>
+                        <Text style={styles.errorTitle}>{activeStream.title}</Text>
+                        <TouchableOpacity style={styles.openYtBtn} onPress={() => Linking.openURL(activeStream.youtubeUrl)}>
+                            <Feather name="youtube" size={16} color="#FFF" />
+                            <Text style={styles.openYtText}>Watch on YouTube</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    <WebView
+                        key={playerKey}
+                        source={{ uri: buildLiveUri(activeStream.youtubeUrl) }}
+                        style={{ flex: 1, backgroundColor: '#000' }}
+                        userAgent={CHROME_UA}
+                        allowsInlineMediaPlayback
+                        mediaPlaybackRequiresUserAction={false}
+                        allowsFullscreenVideo
+                        javaScriptEnabled
+                        domStorageEnabled
+                        thirdPartyCookiesEnabled
+                        sharedCookiesEnabled
+                        scrollEnabled
+                        onError={() => setEmbedError(true)}
+                        onHttpError={(e) => { if (e.nativeEvent.statusCode >= 400) setEmbedError(true); }}
+                    />
+                )}
+                {/* Back to portrait button */}
+                <TouchableOpacity
+                    style={styles.portraitBtn}
+                    onPress={() => ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)}
+                >
+                    <Feather name="minimize-2" size={16} color="#FFF" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Live Broadcasts</Text>
+                {/* Live badge */}
+                {!embedError && (
+                    <View style={styles.liveBadge}>
+                        <Animated.View style={[styles.liveDot, { opacity: pulse }]} />
+                        <Text style={styles.liveBadgeText}>LIVE</Text>
+                    </View>
+                )}
+            </View>
+        );
+    }
+
+    return (
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
+            <StatusBar hidden={false} />
+            {/* Header */}
+            <View style={[styles.header, { borderBottomColor: theme.border }]}>
+                <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+                    <Feather name="chevron-left" size={28} color={theme.textPrimary} />
+                </TouchableOpacity>
+                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Live Broadcasts</Text>
                 <View style={{ width: 40 }} />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
                 {/* ── In-app YouTube Player ── */}
-                <View style={styles.playerWrapper}>
+                <View style={[styles.playerWrapper, { height: PLAYER_HEIGHT }]}>
                     {embedError ? (
-                        /* Fallback card when YouTube embed is unavailable */
                         <View style={styles.errorCard}>
                             <Text style={styles.errorEmoji}>{activeStream.icon}</Text>
                             <Text style={styles.errorTitle}>{activeStream.title}</Text>
-                            <Text style={styles.errorSub}>Live stream unavailable in embed.{'\n'}Tap below to watch on YouTube.</Text>
+                            <Text style={styles.errorSub}>Live stream unavailable.{'\n'}Tap below to watch on YouTube.</Text>
                             <TouchableOpacity
                                 style={styles.openYtBtn}
                                 onPress={() => Linking.openURL(activeStream.youtubeUrl)}
@@ -119,35 +196,20 @@ export default function LiveScreen() {
                     ) : (
                         <WebView
                             key={playerKey}
-                            source={{ uri: buildEmbedUri(activeStream.channelId) }}
+                            source={{ uri: buildLiveUri(activeStream.youtubeUrl) }}
                             style={styles.webview}
+                            userAgent={CHROME_UA}
                             allowsInlineMediaPlayback
                             mediaPlaybackRequiresUserAction={false}
                             allowsFullscreenVideo
                             javaScriptEnabled
-                            scrollEnabled={false}
+                            domStorageEnabled
+                            thirdPartyCookiesEnabled
+                            sharedCookiesEnabled
+                            scrollEnabled
                             onError={() => setEmbedError(true)}
                             onHttpError={(e) => {
                                 if (e.nativeEvent.statusCode >= 400) setEmbedError(true);
-                            }}
-                            injectedJavaScript={`
-                                // Poll for YouTube's "unavailable" error state and notify RN
-                                (function() {
-                                    var attempts = 0;
-                                    var check = setInterval(function() {
-                                        attempts++;
-                                        var el = document.querySelector('.ytp-error-content-wrap-reason');
-                                        if (el) {
-                                            clearInterval(check);
-                                            window.ReactNativeWebView.postMessage('ERROR:' + el.textContent);
-                                        }
-                                        if (attempts > 20) clearInterval(check);
-                                    }, 500);
-                                })();
-                                true;
-                            `}
-                            onMessage={(e) => {
-                                if (e.nativeEvent.data.startsWith('ERROR:')) setEmbedError(true);
                             }}
                         />
                     )}
@@ -158,7 +220,7 @@ export default function LiveScreen() {
                             <Text style={styles.liveBadgeText}>LIVE</Text>
                         </View>
                     )}
-                    {/* Open in YouTube button (always visible) */}
+                    {/* Open in YouTube button */}
                     {!embedError && (
                         <TouchableOpacity
                             style={styles.ytFallbackBtn}
@@ -174,19 +236,19 @@ export default function LiveScreen() {
                 <View style={[styles.streamInfo, { borderLeftColor: activeStream.color }]}>
                     <Text style={styles.streamEmoji}>{activeStream.icon}</Text>
                     <View>
-                        <Text style={styles.streamTitle}>{activeStream.title}</Text>
-                        <Text style={styles.streamSub}>{activeStream.subtitle}</Text>
+                        <Text style={[styles.streamTitle, { color: theme.textPrimary }]}>{activeStream.title}</Text>
+                        <Text style={[styles.streamSub, { color: theme.gold }]}>{activeStream.subtitle}</Text>
                     </View>
                 </View>
 
                 {/* Stream selector */}
-                <Text style={styles.sectionLabel}>Select Broadcast</Text>
+                <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>Select Broadcast</Text>
                 {STREAMS.map((stream) => {
                     const isActive = activeStream.id === stream.id;
                     return (
                         <TouchableOpacity
                             key={stream.id}
-                            style={[styles.streamCard, isActive && { borderColor: stream.color, borderWidth: 2 }]}
+                            style={[styles.streamCard, { backgroundColor: theme.bgCard, borderColor: theme.border }, isActive && { borderColor: stream.color, borderWidth: 2 }]}
                             activeOpacity={0.8}
                             onPress={() => switchStream(stream)}
                         >
@@ -194,10 +256,10 @@ export default function LiveScreen() {
                                 <Text style={styles.cardEmoji}>{stream.icon}</Text>
                             </View>
                             <View style={styles.cardBody}>
-                                <Text style={[styles.cardTitle, isActive && { color: stream.color }]}>
+                                <Text style={[styles.cardTitle, { color: theme.textPrimary }, isActive && { color: stream.color }]}>
                                     {stream.title}
                                 </Text>
-                                <Text style={styles.cardSub}>{stream.subtitle}</Text>
+                                <Text style={[styles.cardSub, { color: theme.textSecondary }]}>{stream.subtitle}</Text>
                             </View>
                             {isActive ? (
                                 <View style={styles.activePill}>
@@ -205,7 +267,7 @@ export default function LiveScreen() {
                                     <Text style={styles.pillText}>PLAYING</Text>
                                 </View>
                             ) : (
-                                <Feather name="play-circle" size={22} color="#C9A84C" />
+                                <Feather name="play-circle" size={22} color={theme.gold} />
                             )}
                         </TouchableOpacity>
                     );
@@ -216,24 +278,32 @@ export default function LiveScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FDF8F0' },
+    container: { flex: 1 },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
         height: 60,
+        borderBottomWidth: 1,
     },
     backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
-    headerTitle: { color: '#1A1A1A', fontSize: 18, fontWeight: '600' },
+    headerTitle: { fontSize: 18, fontWeight: '600' },
 
     playerWrapper: {
-        width,
-        height: PLAYER_HEIGHT,
+        width: '100%',
         backgroundColor: '#000',
         position: 'relative',
     },
-    webview: { flex: 1, backgroundColor: '#000' },
+    portraitBtn: {
+        position: 'absolute',
+        top: 14,
+        right: 14,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        padding: 8,
+        borderRadius: 20,
+    },
+    webview: { flex: 1, backgroundColor: '#000', margin: 0, padding: 0 },
     liveBadge: {
         position: 'absolute',
         top: 12,
@@ -296,11 +366,10 @@ const styles = StyleSheet.create({
         borderLeftWidth: 4,
     },
     streamEmoji: { fontSize: 32 },
-    streamTitle: { color: '#1A1A1A', fontSize: 18, fontWeight: '700' },
-    streamSub: { color: '#C9A84C', fontSize: 13, marginTop: 2 },
+    streamTitle: { fontSize: 18, fontWeight: '700' },
+    streamSub: { fontSize: 13, marginTop: 2 },
 
     sectionLabel: {
-        color: '#5E5C58',
         fontSize: 12,
         fontWeight: '700',
         textTransform: 'uppercase',
@@ -308,17 +377,14 @@ const styles = StyleSheet.create({
         marginHorizontal: 20,
         marginBottom: 12,
     },
-
     streamCard: {
         flexDirection: 'row',
         alignItems: 'center',
         marginHorizontal: 20,
         marginBottom: 12,
-        backgroundColor: '#FFFFFF',
         borderRadius: 20,
         padding: 14,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
@@ -335,8 +401,8 @@ const styles = StyleSheet.create({
     },
     cardEmoji: { fontSize: 24 },
     cardBody: { flex: 1 },
-    cardTitle: { color: '#1A1A1A', fontSize: 15, fontWeight: '700', marginBottom: 2 },
-    cardSub: { color: '#9A9590', fontSize: 12 },
+    cardTitle: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
+    cardSub: { fontSize: 12 },
     activePill: {
         flexDirection: 'row',
         alignItems: 'center',

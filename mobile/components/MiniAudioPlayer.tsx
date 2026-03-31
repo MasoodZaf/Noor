@@ -1,13 +1,18 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { usePathname } from 'expo-router';
 import { useAudio } from '../context/AudioContext';
+import { useTheme } from '../context/ThemeContext';
 
 export default function MiniAudioPlayer() {
     const { audioState, soundRef, stopAudio, setAudioState } = useAudio();
+    const { theme } = useTheme();
+    const pathname = usePathname();
     const { isVisible, isPlaying, title, reciter, positionMs, durationMs } = audioState;
 
-    if (!isVisible) return null;
+    // Quran reader has its own full player panel — hide the mini player there to avoid duplication
+    if (!isVisible || pathname.startsWith('/quran/')) return null;
 
     const progressPct = durationMs > 0 ? (positionMs / durationMs) * 100 : 0;
 
@@ -24,21 +29,21 @@ export default function MiniAudioPlayer() {
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: theme.bgCard, borderTopColor: theme.border }]}>
             <View style={styles.infoContainer}>
-                <Text style={styles.title} numberOfLines={1}>{title || 'Quran'}</Text>
-                <Text style={styles.reciter} numberOfLines={1}>{reciter}</Text>
+                <Text style={[styles.title, { color: theme.textPrimary }]} numberOfLines={1}>{title || 'Quran'}</Text>
+                <Text style={[styles.reciter, { color: theme.textSecondary }]} numberOfLines={1}>{reciter}</Text>
             </View>
             <View style={styles.controls}>
                 <TouchableOpacity style={styles.controlButton} onPress={togglePlay}>
-                    <Feather name={isPlaying ? 'pause' : 'play'} size={22} color="#C9A84C" />
+                    <Feather name={isPlaying ? 'pause' : 'play'} size={22} color={theme.gold} />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.controlButton} onPress={stopAudio}>
-                    <Feather name="x" size={20} color="#9A9590" />
+                    <Feather name="x" size={20} color={theme.textTertiary} />
                 </TouchableOpacity>
             </View>
-            <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
+            <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
+                <View style={[styles.progressFill, { width: `${progressPct}%`, backgroundColor: theme.gold }]} />
             </View>
         </View>
     );
@@ -47,19 +52,19 @@ export default function MiniAudioPlayer() {
 const styles = StyleSheet.create({
     container: {
         position: 'absolute', bottom: 0, left: 0, right: 0,
-        height: 60, backgroundColor: '#1A1F1D',
-        borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)',
+        height: 60,
+        borderTopWidth: 1,
         flexDirection: 'row', alignItems: 'center',
         paddingHorizontal: 16, paddingBottom: 2,
     },
     infoContainer: { flex: 1, justifyContent: 'center' },
-    title: { color: '#E8E6E1', fontSize: 14, fontWeight: '500' },
-    reciter: { color: '#9A9590', fontSize: 12, marginTop: 2 },
+    title: { fontSize: 14, fontWeight: '500' },
+    reciter: { fontSize: 12, marginTop: 2 },
     controls: { flexDirection: 'row', alignItems: 'center', gap: 16 },
     controlButton: { padding: 4 },
     progressBar: {
         position: 'absolute', bottom: 0, left: 0, right: 0,
-        height: 2, backgroundColor: 'rgba(255,255,255,0.1)',
+        height: 2,
     },
-    progressFill: { height: '100%', backgroundColor: '#C9A84C' },
+    progressFill: { height: '100%' },
 });

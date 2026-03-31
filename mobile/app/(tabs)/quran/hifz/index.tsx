@@ -9,9 +9,21 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+import { useTheme } from '../../../../context/ThemeContext';
+
+// Lightweight connectivity check — no native module required
+async function checkOnline(): Promise<boolean> {
+    try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 4000);
+        await fetch('https://1.1.1.1', { method: 'HEAD', signal: ctrl.signal });
+        clearTimeout(t);
+        return true;
+    } catch { return false; }
+}
 
 const { width } = Dimensions.get('window');
-const HIFZ_KEY = '@hifz_entries';
+const HIFZ_KEY = '@noor/hifz_entries';
 
 // ─── Surah list ─────────────────────────────────────────────────────────────
 const SURAHS: { id: number; name: string; arabic: string; ayahs: number }[] = [
@@ -195,10 +207,32 @@ function formatNextReview(dateStr: string): string {
 }
 
 // ─── AsyncStorage helpers ─────────────────────────────────────────────────────
+const VALID_STATUSES = new Set<string>(['learning', 'memorized', 'needs_review']);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidEntry(e: any): e is HifzEntry {
+    return (
+        typeof e === 'object' && e !== null &&
+        Number.isInteger(e.surahId) && e.surahId >= 1 && e.surahId <= 114 &&
+        typeof e.surahName === 'string' && e.surahName.length > 0 &&
+        typeof e.arabicName === 'string' &&
+        Number.isInteger(e.totalAyahs) && e.totalAyahs > 0 &&
+        VALID_STATUSES.has(e.status) &&
+        typeof e.easeFactor === 'number' && e.easeFactor >= 1.3 &&
+        typeof e.interval === 'number' && e.interval >= 1 &&
+        typeof e.repetitions === 'number' && e.repetitions >= 0 &&
+        typeof e.nextReview === 'string' && DATE_RE.test(e.nextReview) &&
+        typeof e.addedAt === 'string' && DATE_RE.test(e.addedAt)
+    );
+}
+
 async function loadEntries(): Promise<HifzEntry[]> {
     try {
         const raw = await AsyncStorage.getItem(HIFZ_KEY);
-        return raw ? JSON.parse(raw) : [];
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter(isValidEntry);
     } catch { return []; }
 }
 
@@ -210,16 +244,19 @@ async function saveEntries(entries: HifzEntry[]): Promise<void> {
 export default function HifzTrackerScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    const { theme } = useTheme();
 
     const [entries, setEntries] = useState<HifzEntry[]>([]);
     const [activeTab, setActiveTab] = useState<'dashboard' | 'review'>('dashboard');
     const [showAddModal, setShowAddModal] = useState(false);
     const [addSearch, setAddSearch] = useState('');
+    const [isOnline, setIsOnline] = useState(true);
 
-    // Reload whenever screen comes into focus (after returning from drill)
+    // Reload entries + check connectivity whenever screen comes into focus
     useFocusEffect(
         useCallback(() => {
             loadEntries().then(setEntries);
+            checkOnline().then(setIsOnline);
         }, [])
     );
 
@@ -281,13 +318,21 @@ export default function HifzTrackerScreen() {
     }
 
     function startDrill(entry: HifzEntry) {
+        if (!isOnline) {
+            Alert.alert(
+                'No Internet Connection',
+                'Hifz drill requires an active internet connection to load Quran data. Please connect and try again.',
+                [{ text: 'OK' }]
+            );
+            return;
+        }
         router.push(`/quran/hifz/drill?surahId=${entry.surahId}&surahName=${encodeURIComponent(entry.surahName)}` as any);
     }
 
     // ── Status helpers ───────────────────────────────────────────────────────
     const STATUS_COLOR: Record<HifzEntry['status'], string> = {
-        memorized: '#22C55E',
-        learning: '#C9A84C',
+        memorized: theme.accent,
+        learning: theme.gold,
         needs_review: '#E53E3E',
     };
     const STATUS_LABEL: Record<HifzEntry['status'], string> = {
@@ -298,31 +343,39 @@ export default function HifzTrackerScreen() {
 
     // ── Render ───────────────────────────────────────────────────────────────
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                    <Feather name="arrow-left" size={24} color="#C9A84C" />
+                    <Feather name="arrow-left" size={24} color={theme.gold} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Hifz Memory Tracker</Text>
-                <TouchableOpacity style={styles.actionButton} onPress={() => setShowAddModal(true)}>
-                    <Feather name="plus" size={24} color="#1A1A1A" />
+                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Hifz Memory Tracker</Text>
+                <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.bgInput }]} onPress={() => setShowAddModal(true)}>
+                    <Feather name="plus" size={24} color={theme.textPrimary} />
                 </TouchableOpacity>
             </View>
 
+            {/* Offline Banner */}
+            {!isOnline && (
+                <View style={styles.offlineBanner}>
+                    <Feather name="wifi-off" size={14} color="#fff" />
+                    <Text style={styles.offlineBannerText}>No internet — drill sessions require a connection</Text>
+                </View>
+            )}
+
             {/* Tabs */}
-            <View style={styles.tabContainer}>
+            <View style={[styles.tabContainer, { borderBottomColor: theme.border }]}>
                 <TouchableOpacity
-                    style={[styles.tabBtn, activeTab === 'dashboard' && styles.tabBtnActive]}
+                    style={[styles.tabBtn, activeTab === 'dashboard' && [styles.tabBtnActive, { borderBottomColor: theme.gold }]]}
                     onPress={() => setActiveTab('dashboard')}
                 >
-                    <Text style={[styles.tabText, activeTab === 'dashboard' && styles.tabTextActive]}>Dashboard</Text>
+                    <Text style={[styles.tabText, { color: theme.textSecondary }, activeTab === 'dashboard' && [styles.tabTextActive, { color: theme.gold }]]}>Dashboard</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                    style={[styles.tabBtn, activeTab === 'review' && styles.tabBtnActive]}
+                    style={[styles.tabBtn, activeTab === 'review' && [styles.tabBtnActive, { borderBottomColor: theme.gold }]]}
                     onPress={() => setActiveTab('review')}
                 >
-                    <Text style={[styles.tabText, activeTab === 'review' && styles.tabTextActive]}>
+                    <Text style={[styles.tabText, { color: theme.textSecondary }, activeTab === 'review' && [styles.tabTextActive, { color: theme.gold }]]}>
                         SRS Review
                     </Text>
                     {dueEntries.length > 0 && (
@@ -339,14 +392,14 @@ export default function HifzTrackerScreen() {
                         {/* Stats Ring */}
                         <LinearGradient
                             colors={['rgba(201,168,76,0.15)', 'rgba(31,78,61,0.05)']}
-                            style={styles.statsCard}
+                            style={[styles.statsCard, { borderColor: theme.border }]}
                         >
                             <View style={styles.radialContainer}>
                                 <Svg width={150} height={150} viewBox="0 0 150 150">
                                     <Defs>
                                         <SvgGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                            <Stop offset="0%" stopColor="#C9A84C" />
-                                            <Stop offset="100%" stopColor="#8A702D" />
+                                            <Stop offset="0%" stopColor={theme.gold} />
+                                            <Stop offset="100%" stopColor={theme.accent} />
                                         </SvgGradient>
                                     </Defs>
                                     <Circle cx="75" cy="75" r={radius} stroke="rgba(0,0,0,0.07)" strokeWidth={strokeWidth} fill="none" />
@@ -364,37 +417,37 @@ export default function HifzTrackerScreen() {
                                     )}
                                 </Svg>
                                 <View style={styles.radialTextContainer}>
-                                    <Text style={styles.radialNumber}>
-                                        {masteryPct}<Text style={styles.radialPercent}>%</Text>
+                                    <Text style={[styles.radialNumber, { color: theme.textPrimary }]}>
+                                        {masteryPct}<Text style={[styles.radialPercent, { color: theme.gold }]}>%</Text>
                                     </Text>
-                                    <Text style={styles.radialLabel}>Mastery</Text>
+                                    <Text style={[styles.radialLabel, { color: theme.textSecondary }]}>Mastery</Text>
                                 </View>
                             </View>
 
-                            <View style={styles.statsGrid}>
+                            <View style={[styles.statsGrid, { borderTopColor: theme.border }]}>
                                 <View style={styles.statBox}>
-                                    <Text style={styles.statValue}>{entries.length}</Text>
-                                    <Text style={styles.statLabel}>Surahs Tracked</Text>
+                                    <Text style={[styles.statValue, { color: theme.textPrimary }]}>{entries.length}</Text>
+                                    <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Surahs Tracked</Text>
                                 </View>
-                                <View style={[styles.statBox, styles.statBoxMiddle]}>
-                                    <Text style={styles.statValue}>{memorizedCount}</Text>
-                                    <Text style={styles.statLabel}>Memorized</Text>
+                                <View style={[styles.statBox, styles.statBoxMiddle, { borderColor: theme.border }]}>
+                                    <Text style={[styles.statValue, { color: theme.textPrimary }]}>{memorizedCount}</Text>
+                                    <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Memorized</Text>
                                 </View>
                                 <View style={styles.statBox}>
-                                    <Text style={styles.statValue}>{totalAyahsTracked}</Text>
-                                    <Text style={styles.statLabel}>Ayahs Tracked</Text>
+                                    <Text style={[styles.statValue, { color: theme.textPrimary }]}>{totalAyahsTracked}</Text>
+                                    <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Ayahs Tracked</Text>
                                 </View>
                             </View>
                         </LinearGradient>
 
                         {entries.length === 0 ? (
                             <View style={styles.emptyState}>
-                                <Feather name="book-open" size={48} color="rgba(201,168,76,0.4)" />
-                                <Text style={styles.emptyTitle}>Start Your Hifz Journey</Text>
-                                <Text style={styles.emptyDesc}>Tap the + button to add your first surah and begin memorizing with spaced repetition.</Text>
-                                <TouchableOpacity style={styles.emptyBtn} onPress={() => setShowAddModal(true)}>
-                                    <Feather name="plus" size={18} color="#FDF8F0" />
-                                    <Text style={styles.emptyBtnText}>Add Surah</Text>
+                                <Feather name="book-open" size={48} color={theme.accentLight} />
+                                <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>Start Your Hifz Journey</Text>
+                                <Text style={[styles.emptyDesc, { color: theme.textSecondary }]}>Tap the + button to add your first surah and begin memorizing with spaced repetition.</Text>
+                                <TouchableOpacity style={[styles.emptyBtn, { backgroundColor: theme.gold }]} onPress={() => setShowAddModal(true)}>
+                                    <Feather name="plus" size={18} color={theme.textInverse} />
+                                    <Text style={[styles.emptyBtnText, { color: theme.textInverse }]}>Add Surah</Text>
                                 </TouchableOpacity>
                             </View>
                         ) : (
@@ -412,16 +465,16 @@ export default function HifzTrackerScreen() {
                                     </TouchableOpacity>
                                 )}
 
-                                <Text style={styles.sectionTitle}>Your Surahs</Text>
+                                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Your Surahs</Text>
                                 <View style={styles.pipeline}>
                                     {entries.map((entry) => (
-                                        <View key={entry.surahId} style={styles.surahRow}>
+                                        <View key={entry.surahId} style={[styles.surahRow, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
                                             <View style={[styles.surahNumBadge, { backgroundColor: STATUS_COLOR[entry.status] + '20' }]}>
                                                 <Text style={[styles.surahNum, { color: STATUS_COLOR[entry.status] }]}>{entry.surahId}</Text>
                                             </View>
                                             <View style={{ flex: 1 }}>
-                                                <Text style={styles.surahName}>{entry.surahName}</Text>
-                                                <Text style={styles.surahSub}>
+                                                <Text style={[styles.surahName, { color: theme.textPrimary }]}>{entry.surahName}</Text>
+                                                <Text style={[styles.surahSub, { color: theme.textTertiary }]}>
                                                     {entry.totalAyahs} ayahs · Next: {formatNextReview(entry.nextReview)}
                                                 </Text>
                                             </View>
@@ -431,7 +484,7 @@ export default function HifzTrackerScreen() {
                                                 </Text>
                                             </View>
                                             <TouchableOpacity onPress={() => removeEntry(entry.surahId)} style={styles.removeBtn}>
-                                                <Feather name="x" size={16} color="#9CA3AF" />
+                                                <Feather name="x" size={16} color={theme.textTertiary} />
                                             </TouchableOpacity>
                                         </View>
                                     ))}
@@ -442,10 +495,10 @@ export default function HifzTrackerScreen() {
                 ) : (
                     <>
                         {/* SRS Header */}
-                        <View style={styles.srsHeader}>
-                            <Feather name="activity" size={40} color="#C9A84C" style={{ marginBottom: 16 }} />
-                            <Text style={styles.srsTitle}>Spaced Repetition</Text>
-                            <Text style={styles.srsDesc}>
+                        <View style={[styles.srsHeader, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                            <Feather name="activity" size={40} color={theme.gold} style={{ marginBottom: 16 }} />
+                            <Text style={[styles.srsTitle, { color: theme.textPrimary }]}>Spaced Repetition</Text>
+                            <Text style={[styles.srsDesc, { color: theme.textSecondary }]}>
                                 SM-2 algorithm calculates the optimal time to review each surah — right before you forget it.
                             </Text>
                         </View>
@@ -453,14 +506,14 @@ export default function HifzTrackerScreen() {
                         {dueEntries.length === 0 ? (
                             <View style={styles.allDoneBox}>
                                 <Text style={styles.allDoneEmoji}>🎉</Text>
-                                <Text style={styles.allDoneTitle}>All caught up!</Text>
-                                <Text style={styles.allDoneDesc}>No reviews due today. Come back tomorrow to keep your memory sharp.</Text>
+                                <Text style={[styles.allDoneTitle, { color: theme.textPrimary }]}>All caught up!</Text>
+                                <Text style={[styles.allDoneDesc, { color: theme.textSecondary }]}>No reviews due today. Come back tomorrow to keep your memory sharp.</Text>
                             </View>
                         ) : (
                             <>
-                                <Text style={styles.sectionTitle}>Due for Review ({dueEntries.length})</Text>
+                                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Due for Review ({dueEntries.length})</Text>
                                 {dueEntries.map((entry) => (
-                                    <TouchableOpacity key={entry.surahId} style={styles.reviewCard} onPress={() => startDrill(entry)}>
+                                    <TouchableOpacity key={entry.surahId} style={[styles.reviewCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]} onPress={() => startDrill(entry)}>
                                         <LinearGradient
                                             colors={entry.nextReview < today
                                                 ? ['rgba(229,62,62,0.08)', 'transparent']
@@ -469,24 +522,30 @@ export default function HifzTrackerScreen() {
                                         />
                                         <View style={styles.reviewRow}>
                                             <View style={{ flex: 1 }}>
-                                                <Text style={styles.reviewSurah}>{entry.surahName}</Text>
-                                                <Text style={styles.reviewArabic}>{entry.arabicName}</Text>
+                                                <Text style={[styles.reviewSurah, { color: theme.textPrimary }]}>{entry.surahName}</Text>
+                                                <Text style={[styles.reviewArabic, { color: theme.gold }]}>{entry.arabicName}</Text>
                                                 <Text style={[
                                                     styles.reviewDue,
+                                                    { color: theme.textSecondary },
                                                     entry.nextReview <= today && { color: '#E53E3E', fontWeight: '700' }
                                                 ]}>
                                                     {formatNextReview(entry.nextReview)} · {entry.totalAyahs} ayahs
                                                 </Text>
                                             </View>
-                                            <TouchableOpacity style={styles.startBtn} onPress={() => startDrill(entry)}>
-                                                <Feather name="play" size={16} color="#FDF8F0" />
-                                                <Text style={styles.startBtnText}>Start Drill</Text>
+                                            <TouchableOpacity
+                                                style={[styles.startBtn, { backgroundColor: isOnline ? theme.gold : theme.textTertiary }]}
+                                                onPress={() => startDrill(entry)}
+                                            >
+                                                <Feather name={isOnline ? 'play' : 'wifi-off'} size={16} color={theme.textInverse} />
+                                                <Text style={[styles.startBtnText, { color: theme.textInverse }]}>
+                                                    {isOnline ? 'Start Drill' : 'Offline'}
+                                                </Text>
                                             </TouchableOpacity>
                                         </View>
                                         <View style={styles.intervalRow}>
-                                            <Text style={styles.intervalText}>Interval: {entry.interval}d</Text>
-                                            <Text style={styles.intervalText}>EF: {entry.easeFactor.toFixed(2)}</Text>
-                                            <Text style={styles.intervalText}>Rep #{entry.repetitions}</Text>
+                                            <Text style={[styles.intervalText, { color: theme.textTertiary }]}>Interval: {entry.interval}d</Text>
+                                            <Text style={[styles.intervalText, { color: theme.textTertiary }]}>EF: {entry.easeFactor.toFixed(2)}</Text>
+                                            <Text style={[styles.intervalText, { color: theme.textTertiary }]}>Rep #{entry.repetitions}</Text>
                                         </View>
                                     </TouchableOpacity>
                                 ))}
@@ -494,17 +553,17 @@ export default function HifzTrackerScreen() {
                                 {/* Other surahs not yet due */}
                                 {entries.filter(e => e.nextReview > today).length > 0 && (
                                     <>
-                                        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Upcoming</Text>
+                                        <Text style={[styles.sectionTitle, { marginTop: 24, color: theme.textPrimary }]}>Upcoming</Text>
                                         {entries.filter(e => e.nextReview > today).map((entry) => (
-                                            <View key={entry.surahId} style={[styles.reviewCard, { opacity: 0.6 }]}>
+                                            <View key={entry.surahId} style={[styles.reviewCard, { opacity: 0.6, backgroundColor: theme.bgCard, borderColor: theme.border }]}>
                                                 <View style={styles.reviewRow}>
                                                     <View style={{ flex: 1 }}>
-                                                        <Text style={styles.reviewSurah}>{entry.surahName}</Text>
-                                                        <Text style={styles.reviewDue}>{formatNextReview(entry.nextReview)}</Text>
+                                                        <Text style={[styles.reviewSurah, { color: theme.textPrimary }]}>{entry.surahName}</Text>
+                                                        <Text style={[styles.reviewDue, { color: theme.textSecondary }]}>{formatNextReview(entry.nextReview)}</Text>
                                                     </View>
-                                                    <View style={styles.pendingPill}>
-                                                        <Feather name="clock" size={14} color="#9CA3AF" />
-                                                        <Text style={styles.pendingText}>Pending</Text>
+                                                    <View style={[styles.pendingPill, { backgroundColor: theme.bgInput }]}>
+                                                        <Feather name="clock" size={14} color={theme.textTertiary} />
+                                                        <Text style={[styles.pendingText, { color: theme.textTertiary }]}>Pending</Text>
                                                     </View>
                                                 </View>
                                             </View>
@@ -521,20 +580,20 @@ export default function HifzTrackerScreen() {
 
             {/* Add Surah Modal */}
             <Modal visible={showAddModal} animationType="slide" presentationStyle="pageSheet">
-                <View style={styles.modalContainer}>
-                    <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>Add Surah</Text>
+                <View style={[styles.modalContainer, { backgroundColor: theme.bg }]}>
+                    <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+                        <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Surah</Text>
                         <TouchableOpacity onPress={() => { setShowAddModal(false); setAddSearch(''); }}>
-                            <Feather name="x" size={24} color="#1A1A1A" />
+                            <Feather name="x" size={24} color={theme.textPrimary} />
                         </TouchableOpacity>
                     </View>
 
-                    <View style={styles.modalSearch}>
-                        <Feather name="search" size={18} color="#9CA3AF" />
+                    <View style={[styles.modalSearch, { backgroundColor: theme.bgInput }]}>
+                        <Feather name="search" size={18} color={theme.textTertiary} />
                         <TextInput
-                            style={styles.modalSearchInput}
+                            style={[styles.modalSearchInput, { color: theme.textPrimary }]}
                             placeholder="Search surahs..."
-                            placeholderTextColor="#9CA3AF"
+                            placeholderTextColor={theme.textTertiary}
                             value={addSearch}
                             onChangeText={setAddSearch}
                             autoFocus
@@ -546,20 +605,20 @@ export default function HifzTrackerScreen() {
                         keyExtractor={s => String(s.id)}
                         contentContainerStyle={{ paddingBottom: 40 }}
                         renderItem={({ item }) => (
-                            <TouchableOpacity style={styles.surahPickerRow} onPress={() => addSurah(item)}>
-                                <View style={styles.surahPickerNum}>
-                                    <Text style={styles.surahPickerNumText}>{item.id}</Text>
+                            <TouchableOpacity style={[styles.surahPickerRow, { borderBottomColor: theme.border }]} onPress={() => addSurah(item)}>
+                                <View style={[styles.surahPickerNum, { backgroundColor: theme.accentLight }]}>
+                                    <Text style={[styles.surahPickerNumText, { color: theme.gold }]}>{item.id}</Text>
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.surahPickerName}>{item.name}</Text>
-                                    <Text style={styles.surahPickerSub}>{item.ayahs} ayahs</Text>
+                                    <Text style={[styles.surahPickerName, { color: theme.textPrimary }]}>{item.name}</Text>
+                                    <Text style={[styles.surahPickerSub, { color: theme.textTertiary }]}>{item.ayahs} ayahs</Text>
                                 </View>
-                                <Text style={styles.surahPickerArabic}>{item.arabic}</Text>
-                                <Feather name="plus-circle" size={22} color="#C9A84C" style={{ marginLeft: 12 }} />
+                                <Text style={[styles.surahPickerArabic, { color: theme.gold }]}>{item.arabic}</Text>
+                                <Feather name="plus-circle" size={22} color={theme.gold} style={{ marginLeft: 12 }} />
                             </TouchableOpacity>
                         )}
                         ListEmptyComponent={
-                            <Text style={styles.modalEmpty}>
+                            <Text style={[styles.modalEmpty, { color: theme.textTertiary }]}>
                                 {trackedIds.size === 114 ? 'All surahs added!' : 'No surahs found'}
                             </Text>
                         }
@@ -571,7 +630,7 @@ export default function HifzTrackerScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FDF8F0' },
+    container: { flex: 1 },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -581,21 +640,18 @@ const styles = StyleSheet.create({
         paddingBottom: 20,
     },
     backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-    actionButton: {
-        width: 40, height: 40, alignItems: 'center', justifyContent: 'center',
-        backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 20,
-    },
-    headerTitle: { color: '#1A1A1A', fontSize: 18, fontWeight: '600' },
+    actionButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
+    headerTitle: { fontSize: 18, fontWeight: '600' },
 
-    tabContainer: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 20 },
+    tabContainer: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 20, borderBottomWidth: 1 },
     tabBtn: {
         flex: 1, paddingVertical: 12, alignItems: 'center',
-        borderBottomWidth: 2, borderBottomColor: 'rgba(0,0,0,0.05)',
+        borderBottomWidth: 2, borderBottomColor: 'transparent',
         flexDirection: 'row', justifyContent: 'center', gap: 6,
     },
-    tabBtnActive: { borderBottomColor: '#C9A84C' },
-    tabText: { color: '#5E5C58', fontSize: 15, fontWeight: '600' },
-    tabTextActive: { color: '#C9A84C' },
+    tabBtnActive: {},
+    tabText: { fontSize: 15, fontWeight: '600' },
+    tabTextActive: {},
     badge: {
         backgroundColor: '#E53E3E', borderRadius: 10, minWidth: 18, height: 18,
         alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
@@ -606,37 +662,34 @@ const styles = StyleSheet.create({
 
     statsCard: {
         borderRadius: 24, padding: 24, marginBottom: 24,
-        borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)', alignItems: 'center',
+        borderWidth: 1, alignItems: 'center',
     },
     radialContainer: {
         alignItems: 'center', justifyContent: 'center',
         marginBottom: 24, position: 'relative',
     },
     radialTextContainer: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-    radialNumber: { color: '#1A1A1A', fontSize: 36, fontWeight: 'bold' },
-    radialPercent: { fontSize: 20, color: '#C9A84C' },
-    radialLabel: { color: '#5E5C58', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 },
+    radialNumber: { fontSize: 36, fontWeight: 'bold' },
+    radialPercent: { fontSize: 20 },
+    radialLabel: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 },
 
     statsGrid: {
         flexDirection: 'row', width: '100%', justifyContent: 'space-around',
-        borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)', paddingTop: 20,
+        borderTopWidth: 1, paddingTop: 20,
     },
     statBox: { alignItems: 'center', flex: 1 },
-    statBoxMiddle: {
-        borderLeftWidth: 1, borderRightWidth: 1,
-        borderColor: 'rgba(0,0,0,0.06)',
-    },
-    statValue: { color: '#1A1A1A', fontSize: 22, fontWeight: '700', marginBottom: 4 },
-    statLabel: { color: '#5E5C58', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' },
+    statBoxMiddle: { borderLeftWidth: 1, borderRightWidth: 1 },
+    statValue: { fontSize: 22, fontWeight: '700', marginBottom: 4 },
+    statLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' },
 
     emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 24 },
-    emptyTitle: { color: '#1A1A1A', fontSize: 20, fontWeight: '700', marginTop: 20, marginBottom: 10 },
-    emptyDesc: { color: '#5E5C58', fontSize: 15, textAlign: 'center', lineHeight: 24, marginBottom: 28 },
+    emptyTitle: { fontSize: 20, fontWeight: '700', marginTop: 20, marginBottom: 10 },
+    emptyDesc: { fontSize: 15, textAlign: 'center', lineHeight: 24, marginBottom: 28 },
     emptyBtn: {
         flexDirection: 'row', alignItems: 'center', gap: 8,
-        backgroundColor: '#C9A84C', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 20,
+        paddingHorizontal: 24, paddingVertical: 14, borderRadius: 20,
     },
-    emptyBtnText: { color: '#FDF8F0', fontSize: 16, fontWeight: '700' },
+    emptyBtnText: { fontSize: 16, fontWeight: '700' },
 
     dueBanner: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -646,108 +699,90 @@ const styles = StyleSheet.create({
     dueBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     dueBannerText: { color: '#E53E3E', fontSize: 14, fontWeight: '600' },
 
-    sectionTitle: { color: '#1A1A1A', fontSize: 17, fontWeight: '700', marginBottom: 14 },
+    sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 14 },
     pipeline: { gap: 10, marginBottom: 24 },
 
     surahRow: {
         flexDirection: 'row', alignItems: 'center', gap: 12,
-        backgroundColor: '#FFF', padding: 14, borderRadius: 16,
+        padding: 14, borderRadius: 16,
         shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04, shadowRadius: 6, borderWidth: 1, borderColor: 'rgba(0,0,0,0.04)',
+        shadowOpacity: 0.04, shadowRadius: 6, borderWidth: 1,
     },
-    surahNumBadge: {
-        width: 38, height: 38, borderRadius: 19,
-        alignItems: 'center', justifyContent: 'center',
-    },
+    surahNumBadge: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
     surahNum: { fontSize: 13, fontWeight: '700' },
-    surahName: { color: '#1A1A1A', fontSize: 15, fontWeight: '600', marginBottom: 3 },
-    surahSub: { color: '#9CA3AF', fontSize: 12 },
-    statusPill: {
-        paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1,
-    },
+    surahName: { fontSize: 15, fontWeight: '600', marginBottom: 3 },
+    surahSub: { fontSize: 12 },
+    statusPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
     statusPillText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
     removeBtn: { padding: 4 },
 
     srsHeader: {
         alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20,
-        marginBottom: 20, backgroundColor: '#FFFFFF', borderRadius: 20,
-        borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)',
+        marginBottom: 20, borderRadius: 20, borderWidth: 1,
     },
-    srsTitle: { color: '#1A1A1A', fontSize: 22, fontWeight: '700', marginBottom: 10 },
-    srsDesc: { color: '#5E5C58', fontSize: 14, textAlign: 'center', lineHeight: 22 },
+    srsTitle: { fontSize: 22, fontWeight: '700', marginBottom: 10 },
+    srsDesc: { fontSize: 14, textAlign: 'center', lineHeight: 22 },
 
-    allDoneBox: {
-        alignItems: 'center', paddingVertical: 50, paddingHorizontal: 24,
-    },
+    allDoneBox: { alignItems: 'center', paddingVertical: 50, paddingHorizontal: 24 },
     allDoneEmoji: { fontSize: 56, marginBottom: 16 },
-    allDoneTitle: { color: '#1A1A1A', fontSize: 22, fontWeight: '700', marginBottom: 10 },
-    allDoneDesc: { color: '#5E5C58', fontSize: 15, textAlign: 'center', lineHeight: 24 },
+    allDoneTitle: { fontSize: 22, fontWeight: '700', marginBottom: 10 },
+    allDoneDesc: { fontSize: 15, textAlign: 'center', lineHeight: 24 },
 
     reviewCard: {
-        borderRadius: 16, overflow: 'hidden', borderWidth: 1,
-        borderColor: 'rgba(201,168,76,0.25)', marginBottom: 14,
-        backgroundColor: '#FFF',
+        borderRadius: 16, overflow: 'hidden', borderWidth: 1, marginBottom: 14,
     },
     reviewRow: {
         flexDirection: 'row', justifyContent: 'space-between',
         alignItems: 'center', padding: 18, gap: 12,
     },
-    reviewSurah: { color: '#1A1A1A', fontSize: 17, fontWeight: '700', marginBottom: 2 },
+    reviewSurah: { fontSize: 17, fontWeight: '700', marginBottom: 2 },
     reviewArabic: {
-        fontSize: 16, color: '#C9A84C', marginBottom: 4,
+        fontSize: 16, marginBottom: 4,
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
         textAlign: 'left',
     },
-    reviewDue: { color: '#5E5C58', fontSize: 13 },
+    reviewDue: { fontSize: 13 },
     startBtn: {
-        flexDirection: 'row', alignItems: 'center', backgroundColor: '#C9A84C',
+        flexDirection: 'row', alignItems: 'center',
         paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, gap: 6,
     },
-    startBtnText: { color: '#FDF8F0', fontSize: 14, fontWeight: '700' },
-    intervalRow: {
-        flexDirection: 'row', gap: 16,
-        paddingHorizontal: 18, paddingBottom: 12,
-    },
-    intervalText: { color: '#9CA3AF', fontSize: 11 },
+    startBtnText: { fontSize: 14, fontWeight: '700' },
+    intervalRow: { flexDirection: 'row', gap: 16, paddingHorizontal: 18, paddingBottom: 12 },
+    intervalText: { fontSize: 11 },
     pendingPill: {
         flexDirection: 'row', alignItems: 'center', gap: 6,
-        backgroundColor: 'rgba(0,0,0,0.04)', paddingHorizontal: 12,
-        paddingVertical: 8, borderRadius: 20,
+        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
     },
-    pendingText: { color: '#9CA3AF', fontSize: 13, fontWeight: '500' },
+    pendingText: { fontSize: 13, fontWeight: '500' },
+
+    offlineBanner: {
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        backgroundColor: '#c0392b', paddingVertical: 8, paddingHorizontal: 16,
+    },
+    offlineBannerText: { color: '#fff', fontSize: 13, fontWeight: '600', flex: 1 },
 
     // Modal
-    modalContainer: {
-        flex: 1, backgroundColor: '#FDF8F0',
-        paddingTop: Platform.OS === 'ios' ? 20 : 0,
-    },
+    modalContainer: { flex: 1, paddingTop: Platform.OS === 'ios' ? 20 : 0 },
     modalHeader: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-        paddingHorizontal: 20, paddingVertical: 16,
-        borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)',
+        paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1,
     },
-    modalTitle: { color: '#1A1A1A', fontSize: 20, fontWeight: '700' },
+    modalTitle: { fontSize: 20, fontWeight: '700' },
     modalSearch: {
         flexDirection: 'row', alignItems: 'center', gap: 10,
-        margin: 16, paddingHorizontal: 16, paddingVertical: 12,
-        backgroundColor: '#F3F4F6', borderRadius: 16,
+        margin: 16, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 16,
     },
-    modalSearchInput: { flex: 1, fontSize: 16, color: '#1A1A1A' },
+    modalSearchInput: { flex: 1, fontSize: 16 },
     surahPickerRow: {
         flexDirection: 'row', alignItems: 'center', gap: 12,
-        paddingHorizontal: 20, paddingVertical: 14,
-        borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.04)',
+        paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1,
     },
-    surahPickerNum: {
-        width: 36, height: 36, borderRadius: 18,
-        backgroundColor: 'rgba(201,168,76,0.12)', alignItems: 'center', justifyContent: 'center',
-    },
-    surahPickerNumText: { color: '#C9A84C', fontSize: 13, fontWeight: '700' },
-    surahPickerName: { color: '#1A1A1A', fontSize: 15, fontWeight: '600' },
-    surahPickerSub: { color: '#9CA3AF', fontSize: 12, marginTop: 2 },
+    surahPickerNum: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+    surahPickerNumText: { fontSize: 13, fontWeight: '700' },
+    surahPickerName: { fontSize: 15, fontWeight: '600' },
+    surahPickerSub: { fontSize: 12, marginTop: 2 },
     surahPickerArabic: {
-        color: '#C9A84C', fontSize: 18,
-        fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        fontSize: 18, fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
     },
-    modalEmpty: { textAlign: 'center', color: '#9CA3AF', marginTop: 40, fontSize: 15 },
+    modalEmpty: { textAlign: 'center', marginTop: 40, fontSize: 15 },
 });

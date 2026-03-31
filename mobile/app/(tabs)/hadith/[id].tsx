@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useDatabase } from '../../../context/DatabaseContext';
 import { useLanguage } from '../../../context/LanguageContext';
+import { useTheme } from '../../../context/ThemeContext';
+import { useNetworkMode } from '../../../context/NetworkModeContext';
 
 // ─── Fawaz Hadith API (no auth required) ──────────────────────────────────────
 // Same CDN as the Quran API already integrated. 440+ editions, 90+ languages.
@@ -115,6 +117,8 @@ export default function HadithCollectionScreen() {
     const insets    = useSafeAreaInsets();
     const { db }    = useDatabase();
     const { language } = useLanguage();
+    const { theme } = useTheme();
+    const { isOfflineMode } = useNetworkMode();
 
     const collectionId = typeof id === 'string' ? id : 'bukhari';
     const meta         = COLLECTIONS_META[collectionId] ?? COLLECTIONS_META.bukhari;
@@ -125,6 +129,7 @@ export default function HadithCollectionScreen() {
     const [hasMore,      setHasMore]      = useState(true);
     const [usingApi,     setUsingApi]     = useState(false);
     const [displayOffset, setDisplayOffset] = useState(0);
+    const [langSwitchFailed, setLangSwitchFailed] = useState(false);
 
     // Full in-memory collection — avoids refetch on pagination / language switch
     const allHadithsRef  = useRef<HadithItem[]>([]);
@@ -212,7 +217,7 @@ export default function HadithCollectionScreen() {
         setHadiths(prev => isInitial ? mapped : [...prev, ...mapped]);
     };
 
-    // ── Initial load — API first, SQLite fallback ─────────────────────────────
+    // ── Initial load — API first (unless offline mode), SQLite fallback ──────
     useEffect(() => {
         araRawRef.current      = [];
         allHadithsRef.current  = [];
@@ -225,7 +230,11 @@ export default function HadithCollectionScreen() {
 
         (async () => {
             try {
-                await loadFromApi(language, false);
+                if (isOfflineMode) {
+                    await loadFromDb(language, 0, true);
+                } else {
+                    await loadFromApi(language, false);
+                }
             } catch {
                 try {
                     await loadFromDb(language, 0, true);
@@ -236,7 +245,7 @@ export default function HadithCollectionScreen() {
                 setLoading(false);
             }
         })();
-    }, [collectionId]);
+    }, [collectionId, isOfflineMode]);
 
     // ── Language change ───────────────────────────────────────────────────────
     useEffect(() => {
@@ -245,11 +254,14 @@ export default function HadithCollectionScreen() {
 
         if (usingApi && araRawRef.current.length > 0) {
             // Reuse cached Arabic — only fetch new translation
+            setLangSwitchFailed(false);
             (async () => {
                 try {
                     await loadFromApi(language, true);
                 } catch {
-                    // keep existing hadiths, best-effort
+                    // Keep existing content but notify user
+                    console.warn('[Noor/Hadith] Language switch fetch failed');
+                    setLangSwitchFailed(true);
                 }
             })();
         } else {
@@ -297,11 +309,11 @@ export default function HadithCollectionScreen() {
         return (
             <View>
                 {showSection && (
-                    <View style={styles.sectionHeader}>
+                    <View style={[styles.sectionHeader, { borderBottomColor: theme.border }]}>
                         <Text style={[styles.sectionText, { color: meta.color }]}>{item.section}</Text>
                     </View>
                 )}
-                <View style={styles.hadithCard}>
+                <View style={[styles.hadithCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
                     {/* Badge row */}
                     <View style={styles.cardTopRow}>
                         <View style={[styles.bookBadge, { backgroundColor: meta.color + '20' }]}>
@@ -310,7 +322,7 @@ export default function HadithCollectionScreen() {
                             </Text>
                         </View>
                         {item.grade ? (
-                            <View style={[styles.gradeBadge, { borderColor: gradeColor(item.grade) + '60' }]}>
+                            <View style={[styles.gradeBadge, { borderColor: gradeColor(item.grade) + '60', backgroundColor: theme.bgCard }]}>
                                 <View style={[styles.gradeDot, { backgroundColor: gradeColor(item.grade) }]} />
                                 <Text style={[styles.gradeText, { color: gradeColor(item.grade) }]}>
                                     {item.grade}
@@ -320,13 +332,14 @@ export default function HadithCollectionScreen() {
                     </View>
 
                     {/* Arabic */}
-                    <Text style={styles.arabicText}>{item.text_arabic}</Text>
+                    <Text style={[styles.arabicText, { color: theme.textPrimary }]}>{item.text_arabic}</Text>
 
-                    <View style={styles.divider} />
+                    <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
                     {/* Translation */}
                     <Text style={[
                         styles.translationText,
+                        { color: theme.textSecondary },
                         language === 'urdu' && {
                             fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
                             fontSize: 18, textAlign: 'right', lineHeight: 32,
@@ -335,12 +348,12 @@ export default function HadithCollectionScreen() {
                         {item.text_translation}
                     </Text>
 
-                    <View style={styles.actionRow}>
-                        <TouchableOpacity style={styles.actionBtn}>
-                            <Feather name="share-2" size={18} color="#5E5C58" />
+                    <View style={[styles.actionRow, { borderTopColor: theme.border }]}>
+                        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.bgInput }]}>
+                            <Feather name="share-2" size={18} color={theme.textSecondary} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.actionBtn}>
-                            <Feather name="bookmark" size={18} color="#5E5C58" />
+                        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.bgInput }]}>
+                            <Feather name="bookmark" size={18} color={theme.textSecondary} />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -358,44 +371,54 @@ export default function HadithCollectionScreen() {
     };
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { borderBottomColor: theme.border }]}>
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Feather name="arrow-left" size={24} color={meta.color} />
                 </TouchableOpacity>
                 <View style={{ alignItems: 'center' }}>
                     <Text style={[styles.headerTitle, { color: meta.color }]}>{meta.title}</Text>
-                    <Text style={styles.headerSubtitle}>
+                    <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
                         {usingApi
                             ? `${allHadithsRef.current.length.toLocaleString()} Hadiths · Live`
                             : `${meta.count.toLocaleString()} Hadiths · Offline`}
                     </Text>
                 </View>
                 <TouchableOpacity style={styles.filterButton}>
-                    <Feather name="filter" size={22} color="#1A1A1A" />
+                    <Feather name="filter" size={22} color={theme.textPrimary} />
                 </TouchableOpacity>
             </View>
 
             {loading ? (
                 <View style={styles.loaderContainer}>
                     <ActivityIndicator size="large" color={meta.color} />
-                    <Text style={styles.loadingText}>Loading {meta.title}...</Text>
+                    <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading {meta.title}...</Text>
                     {usingApi === false && (
-                        <Text style={styles.loadingSubtext}>Fetching full collection…</Text>
+                        <Text style={[styles.loadingSubtext, { color: theme.textSecondary }]}>Fetching full collection…</Text>
                     )}
                 </View>
             ) : (
-                <FlatList
-                    data={hadiths}
-                    keyExtractor={(item, i) => `${item.id}-${i}`}
-                    renderItem={renderHadith}
-                    contentContainerStyle={styles.listContent}
-                    showsVerticalScrollIndicator={false}
-                    onEndReached={handleLoadMore}
-                    onEndReachedThreshold={0.5}
-                    ListFooterComponent={renderFooter}
-                />
+                <>
+                    {langSwitchFailed && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: theme.bgInput }}>
+                            <Feather name="alert-circle" size={14} color={theme.gold} />
+                            <Text style={{ fontSize: 12, color: theme.textSecondary, flex: 1 }}>
+                                Could not load translations for the selected language. Showing cached content.
+                            </Text>
+                        </View>
+                    )}
+                    <FlatList
+                        data={hadiths}
+                        keyExtractor={(item, i) => `${item.id}-${i}`}
+                        renderItem={renderHadith}
+                        contentContainerStyle={styles.listContent}
+                        showsVerticalScrollIndicator={false}
+                        onEndReached={handleLoadMore}
+                        onEndReachedThreshold={0.5}
+                        ListFooterComponent={renderFooter}
+                    />
+                </>
             )}
         </View>
     );
@@ -403,33 +426,33 @@ export default function HadithCollectionScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FDF8F0' },
+    container: { flex: 1 },
     header: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: 20, paddingTop: 10, paddingBottom: 16,
-        borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)',
+        borderBottomWidth: 1,
     },
     backButton:   { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
     filterButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginRight: -10 },
     headerTitle:  { fontSize: 18, fontWeight: 'bold', letterSpacing: 0.5 },
     headerSubtitle: {
-        color: '#5E5C58', fontSize: 12, marginTop: 4,
+        fontSize: 12, marginTop: 4,
         letterSpacing: 0.5, textTransform: 'uppercase',
     },
     loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    loadingText:    { color: '#5E5C58', marginTop: 16, fontSize: 15 },
-    loadingSubtext: { color: '#5E5C58', marginTop: 6, fontSize: 12 },
+    loadingText:    { marginTop: 16, fontSize: 15 },
+    loadingSubtext: { marginTop: 6, fontSize: 12 },
     listContent:    { paddingHorizontal: 20, paddingTop: 24 },
     sectionHeader: {
         paddingVertical: 10, paddingHorizontal: 4,
         marginBottom: 12, marginTop: 8,
-        borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)',
+        borderBottomWidth: 1,
     },
     sectionText: { fontSize: 13, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
     hadithCard: {
-        backgroundColor: '#FFFFFF', borderRadius: 16,
+        borderRadius: 16,
         padding: 24, marginBottom: 20,
-        borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)',
+        borderWidth: 1,
     },
     cardTopRow: {
         flexDirection: 'row', justifyContent: 'space-between',
@@ -440,21 +463,21 @@ const styles = StyleSheet.create({
     gradeBadge: {
         flexDirection: 'row', alignItems: 'center', gap: 6,
         paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
-        borderWidth: 1, backgroundColor: '#FFFFFF',
+        borderWidth: 1,
     },
     gradeDot:   { width: 6, height: 6, borderRadius: 3 },
     gradeText:  { fontSize: 11, fontWeight: '600', letterSpacing: 0.5 },
     arabicText: {
-        color: '#1A1A1A', fontSize: 22, lineHeight: 40,
+        fontSize: 22, lineHeight: 40,
         textAlign: 'right', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
     },
-    divider: { height: 1, backgroundColor: 'rgba(0,0,0,0.05)', marginVertical: 20 },
-    translationText: { color: '#5E5C58', fontSize: 15, lineHeight: 24 },
+    divider: { height: 1, marginVertical: 20 },
+    translationText: { fontSize: 15, lineHeight: 24 },
     actionRow: {
         flexDirection: 'row', justifyContent: 'flex-end', gap: 16,
         marginTop: 20, paddingTop: 16,
-        borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)',
+        borderTopWidth: 1,
     },
-    actionBtn: { padding: 8, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 12 },
+    actionBtn: { padding: 8, borderRadius: 12 },
     footerLoader: { paddingVertical: 30, alignItems: 'center' },
 });

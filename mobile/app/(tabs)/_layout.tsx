@@ -3,31 +3,33 @@ import React from 'react';
 import { StyleSheet, View, Platform, Dimensions } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
 export default function TabLayout() {
     const insets = useSafeAreaInsets();
+    const { theme } = useTheme();
 
     return (
         <Tabs
             screenOptions={{
                 headerShown: false,
                 tabBarStyle: {
-                    backgroundColor: '#FFFFFF', // New Lively White
+                    backgroundColor: theme.tabBg,
                     borderTopWidth: 1,
-                    borderTopColor: 'rgba(0,0,0,0.03)',
+                    borderTopColor: theme.tabBorder,
                     elevation: 10,
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: -4 },
-                    shadowOpacity: 0.05,
+                    shadowOpacity: theme.isDark ? 0.40 : 0.05,
                     shadowRadius: 10,
                     height: Platform.OS === 'ios' ? 88 + insets.bottom : 64 + insets.bottom,
                     paddingTop: 8,
                     paddingBottom: Platform.OS === 'ios' ? insets.bottom + 8 : insets.bottom + 10,
                 },
-                tabBarActiveTintColor: '#11d452', // Lively Green
-                tabBarInactiveTintColor: '#9ca3af', // Subtle Grey
+                tabBarActiveTintColor: theme.tabActive,
+                tabBarInactiveTintColor: theme.tabInactive,
                 tabBarLabelStyle: {
                     fontSize: 11,
                     fontWeight: '700',
@@ -92,9 +94,9 @@ export default function TabLayout() {
             <Tabs.Screen
                 name="profile"
                 options={{
-                    title: 'Profile',
+                    title: 'Settings',
                     tabBarIcon: ({ color, size }) => (
-                        <Feather name="user" size={24} color={color} />
+                        <Feather name="settings" size={24} color={color} />
                     ),
                 }}
             />

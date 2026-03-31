@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useTheme } from '../../../../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
@@ -39,40 +40,44 @@ const TAFSEER_META: Record<string, { title: string; author: string; desc: string
     },
 };
 
+// Warm amber accent used throughout this screen for the book/tafseer aesthetic
+const BOOK_ACCENT = '#8C4B40';
+
 export default function TafseerVolumesScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { theme } = useTheme();
 
     const tafseerId = typeof id === 'string' ? id : 'ibn_kathir';
     const book = TAFSEER_META[tafseerId] || TAFSEER_META['ibn_kathir'];
     const volumes = Array.from({ length: book.totalVolumes }, (_, i) => i + 1);
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Feather name="arrow-left" size={24} color="#1A1A1A" />
+                    <Feather name="arrow-left" size={24} color={theme.textPrimary} />
                 </TouchableOpacity>
             </View>
 
             {/* Book Info */}
             <View style={styles.bookHeader}>
-                <View style={styles.bookIconContainer}>
-                    <Feather name="book-open" size={36} color="#8C4B40" />
+                <View style={[styles.bookIconContainer, { backgroundColor: BOOK_ACCENT + '1A', borderColor: BOOK_ACCENT + '33' }]}>
+                    <Feather name="book-open" size={36} color={BOOK_ACCENT} />
                 </View>
-                <Text style={styles.bookTitle}>{book.title}</Text>
-                <Text style={styles.bookAuthor}>{book.author}</Text>
-                <Text style={styles.bookDesc}>{book.desc}</Text>
-                <View style={styles.pillBadge}>
-                    <Text style={styles.pillText}>
+                <Text style={[styles.bookTitle, { color: theme.textPrimary }]}>{book.title}</Text>
+                <Text style={[styles.bookAuthor, { color: BOOK_ACCENT }]}>{book.author}</Text>
+                <Text style={[styles.bookDesc, { color: theme.textSecondary }]}>{book.desc}</Text>
+                <View style={[styles.pillBadge, { backgroundColor: theme.bgInput }]}>
+                    <Text style={[styles.pillText, { color: theme.textSecondary }]}>
                         {book.totalVolumes} {book.totalVolumes === 1 ? 'Volume' : 'Volumes'}
                     </Text>
                 </View>
             </View>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
             {/* Volumes Grid */}
             <ScrollView
@@ -84,19 +89,19 @@ export default function TafseerVolumesScreen() {
                     {volumes.map((volNumber) => (
                         <TouchableOpacity
                             key={`vol-${volNumber}`}
-                            style={styles.volumeCard}
+                            style={[styles.volumeCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
                             activeOpacity={0.75}
                             onPress={() =>
                                 router.push(`/quran/tafseer/read?book=${tafseerId}&volume=${volNumber}`)
                             }
                         >
                             <View style={styles.volHeaderRow}>
-                                <Text style={styles.volLabelText}>Vol</Text>
-                                <View style={styles.volNumOrb}>
-                                    <Text style={styles.orbText}>{volNumber}</Text>
+                                <Text style={[styles.volLabelText, { color: theme.textSecondary }]}>Vol</Text>
+                                <View style={[styles.volNumOrb, { backgroundColor: BOOK_ACCENT + '1F', borderColor: BOOK_ACCENT + '40' }]}>
+                                    <Text style={[styles.orbText, { color: BOOK_ACCENT }]}>{volNumber}</Text>
                                 </View>
                             </View>
-                            <Feather name="bookmark" size={18} color="#B0A898" style={{ marginTop: 16 }} />
+                            <Feather name="bookmark" size={18} color={theme.textTertiary} style={{ marginTop: 16 }} />
                         </TouchableOpacity>
                     ))}
                 </View>
@@ -109,7 +114,6 @@ export default function TafseerVolumesScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FDF6E3',
     },
     header: {
         paddingHorizontal: 16,
@@ -133,15 +137,12 @@ const styles = StyleSheet.create({
         width: 72,
         height: 72,
         borderRadius: 36,
-        backgroundColor: 'rgba(140,75,64,0.1)',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: 'rgba(140,75,64,0.2)',
     },
     bookTitle: {
-        color: '#1A1A1A',
         fontSize: 24,
         fontWeight: 'bold',
         marginBottom: 6,
@@ -149,13 +150,11 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     bookAuthor: {
-        color: '#8C4B40',
         fontSize: 14,
         fontWeight: '600',
         marginBottom: 14,
     },
     bookDesc: {
-        color: '#5E5C58',
         fontSize: 14,
         textAlign: 'center',
         lineHeight: 22,
@@ -165,10 +164,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 7,
         borderRadius: 20,
-        backgroundColor: '#EAE2CF',
     },
     pillText: {
-        color: '#5E5C58',
         fontSize: 12,
         fontWeight: '700',
         textTransform: 'uppercase',
@@ -176,7 +173,6 @@ const styles = StyleSheet.create({
     },
     divider: {
         height: 1,
-        backgroundColor: 'rgba(0,0,0,0.06)',
         marginHorizontal: 0,
     },
     scrollContent: {
@@ -192,9 +188,7 @@ const styles = StyleSheet.create({
     volumeCard: {
         width: (width - 56) / 2,
         borderRadius: 16,
-        backgroundColor: '#F4EBD9',
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.06)',
         padding: 20,
         alignItems: 'center',
         justifyContent: 'center',
@@ -205,7 +199,6 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     volLabelText: {
-        color: '#5E5C58',
         fontSize: 14,
         fontWeight: '600',
         textTransform: 'uppercase',
@@ -215,14 +208,11 @@ const styles = StyleSheet.create({
         width: 38,
         height: 38,
         borderRadius: 19,
-        backgroundColor: 'rgba(140,75,64,0.12)',
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(140,75,64,0.25)',
     },
     orbText: {
-        color: '#8C4B40',
         fontSize: 17,
         fontWeight: 'bold',
     },

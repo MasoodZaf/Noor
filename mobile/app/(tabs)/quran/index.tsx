@@ -4,6 +4,47 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useDatabase } from '../../../context/DatabaseContext';
 import { useRouter } from 'expo-router';
+import { useTheme } from '../../../context/ThemeContext';
+import { sanitizeArabicText } from '../../../utils/arabic';
+
+// Common transliteration / Urdu-romanised alternate names known to South Asian users
+const SURAH_ALTERNATE_NAMES: Record<number, string> = {
+    1: 'fatiha hamd opening',
+    2: 'baqara baqarah bakara cow',
+    3: 'imran aal-e-imran ali imran',
+    4: 'nisa nisaa women',
+    5: 'maidah maida table spread',
+    6: 'anam cattle',
+    7: 'araf heights',
+    9: 'tawbah taubah repentance baraat',
+    12: 'yusuf joseph',
+    14: 'ibrahim abraham',
+    18: 'kahf cave',
+    19: 'maryam mary',
+    24: 'noor nur light',
+    31: 'luqman',
+    36: 'ya-sin yaseen ya sin yasin',
+    55: 'rahman rehman ar-rahman',
+    56: 'waqia waqiah inevitable',
+    57: 'hadid iron',
+    62: 'juma jumuah friday',
+    67: 'mulk tabarak dominion',
+    76: 'insan dahr human time',
+    78: 'naba news',
+    87: 'ala most high',
+    89: 'fajr dawn',
+    93: 'duha morning hours',
+    94: 'sharh inshirah relief',
+    99: 'zalzala earthquake',
+    100: 'adiyat',
+    108: 'kausar kawthar',
+    109: 'kafirun kafiroon disbelievers',
+    110: 'nasr victory',
+    111: 'lahab masad flame',
+    112: 'ikhlas tawhid sincerity',
+    113: 'falaq dawn',
+    114: 'nas mankind',
+};
 
 const POPULAR_TAFSEERS = [
     { id: 'ibn_kathir', title: 'Tafsir Ibn Kathir', author: 'Isma\'il ibn Kathir', desc: 'Highly regarded, widely used classical tafsir.' },
@@ -17,6 +58,7 @@ export default function QuranIndexScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { db } = useDatabase();
+    const { theme } = useTheme();
 
     const [surahs, setSurahs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -25,88 +67,96 @@ export default function QuranIndexScreen() {
 
     useEffect(() => {
         if (!db) return;
-
         const loadAllSurahs = async () => {
             try {
                 const results = await db?.getAllAsync('SELECT * FROM surahs ORDER BY number ASC');
                 setSurahs(results as any[]);
             } catch (error) {
-                console.error("Error fetching all Surahs:", error);
+                console.error('Error fetching all Surahs:', error);
             } finally {
                 setLoading(false);
             }
         };
-
         loadAllSurahs();
     }, [db]);
 
-    const filteredSurahs = surahs.filter(s =>
-        s.name_english.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.name_arabic.includes(searchQuery)
-    );
+    const q = searchQuery.toLowerCase().trim();
+    // Strip diacritics from both query and Arabic name so e.g. "فاتحة" matches "فَاتِحَة"
+    const qStripped = sanitizeArabicText(q);
+    const filteredSurahs = surahs.filter(s => {
+        if (!q) return true;
+        const altNames = SURAH_ALTERNATE_NAMES[s.number] ?? '';
+        return (
+            s.name_english.toLowerCase().includes(q) ||
+            sanitizeArabicText(s.name_arabic).includes(qStripped) ||
+            (s.name_transliteration && s.name_transliteration.toLowerCase().includes(q)) ||
+            altNames.includes(q)
+        );
+    });
 
-    // Placeholder 30 Juz Array
     const juzArray = Array.from({ length: 30 }, (_, i) => i + 1);
 
     if (loading) {
         return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color="#C9A84C" />
-                <Text style={{ color: '#5E5C58', marginTop: 16 }}>Loading Mushaf...</Text>
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg }]}>
+                <ActivityIndicator size="large" color={theme.accent} />
+                <Text style={{ color: theme.textSecondary, marginTop: 16 }}>Loading Mushaf...</Text>
             </View>
         );
     }
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Al-Quran</Text>
+            <View style={[styles.header, { borderBottomColor: theme.border }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <Text style={[styles.headerTitle, { marginBottom: 0, color: theme.textPrimary }]}>Al-Quran</Text>
+                    <TouchableOpacity
+                        onPress={() => router.push('/search?scope=quran' as any)}
+                        style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.bgInput, alignItems: 'center', justifyContent: 'center' }}
+                    >
+                        <Feather name="search" size={20} color={theme.textPrimary} />
+                    </TouchableOpacity>
+                </View>
 
-                {/* Hifz Tracker Action Banner */}
-                <TouchableOpacity style={styles.hifzBanner} onPress={() => router.push('/quran/hifz')}>
+                {/* Hifz Tracker Banner — temporarily disabled (coming soon) */}
+                {/* <TouchableOpacity style={[styles.hifzBanner, { backgroundColor: theme.bgCard, borderColor: theme.border }]} onPress={() => router.push('/quran/hifz')}>
                     <View style={styles.hifzBannerLeft}>
-                        <Feather name="trending-up" size={24} color="#11d452" />
-                        <View style={{ marginLeft: 16 }}>
-                            <Text style={styles.hifzBannerTitle}>Hifz Progress</Text>
-                            <Text style={styles.hifzBannerSub}>Track memorization using SRS</Text>
+                        <Feather name="trending-up" size={22} color={theme.accent} />
+                        <View style={{ marginLeft: 14 }}>
+                            <Text style={[styles.hifzBannerTitle, { color: theme.textPrimary }]}>Hifz Progress</Text>
+                            <Text style={[styles.hifzBannerSub, { color: theme.textSecondary }]}>Track memorization using SRS</Text>
                         </View>
                     </View>
-                    <Feather name="chevron-right" size={20} color="#8A8A8A" />
-                </TouchableOpacity>
+                    <Feather name="chevron-right" size={18} color={theme.textSecondary} />
+                </TouchableOpacity> */}
 
-                <View style={styles.searchBar}>
-                    <Feather name="search" size={20} color="#8A8A8A" style={styles.searchIcon} />
+                {/* Search */}
+                <View style={[styles.searchBar, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                    <Feather name="search" size={18} color={theme.textSecondary} style={{ marginRight: 10 }} />
                     <TextInput
-                        style={styles.searchInput}
-                        placeholder="Search Surah or Juz..."
-                        placeholderTextColor="#5E5C58"
+                        style={[styles.searchInput, { color: theme.textPrimary }]}
+                        placeholder="Search Surah..."
+                        placeholderTextColor={theme.textSecondary}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
-                        keyboardAppearance="dark"
+                        keyboardAppearance={theme.isDark ? 'dark' : 'light'}
                     />
                 </View>
 
-                {/* Tab Switcher */}
+                {/* Tabs */}
                 <View style={styles.tabContainer}>
-                    <TouchableOpacity
-                        style={[styles.tabBtn, activeTab === 'surah' && styles.tabBtnActive]}
-                        onPress={() => setActiveTab('surah')}
-                    >
-                        <Text style={[styles.tabText, activeTab === 'surah' && styles.tabTextActive]}>Surah</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.tabBtn, activeTab === 'juz' && styles.tabBtnActive]}
-                        onPress={() => setActiveTab('juz')}
-                    >
-                        <Text style={[styles.tabText, activeTab === 'juz' && styles.tabTextActive]}>Juz</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.tabBtn, activeTab === 'tafseer' && styles.tabBtnActive]}
-                        onPress={() => setActiveTab('tafseer')}
-                    >
-                        <Text style={[styles.tabText, activeTab === 'tafseer' && styles.tabTextActive]}>Tafseer</Text>
-                    </TouchableOpacity>
+                    {(['surah', 'juz', 'tafseer'] as const).map(tab => (
+                        <TouchableOpacity
+                            key={tab}
+                            style={[styles.tabBtn, activeTab === tab && [styles.tabBtnActive, { borderColor: theme.accent }]]}
+                            onPress={() => setActiveTab(tab)}
+                        >
+                            <Text style={[styles.tabText, { color: theme.textSecondary }, activeTab === tab && { color: theme.textPrimary, fontWeight: 'bold' }]}>
+                                {tab === 'surah' ? 'Surah' : tab === 'juz' ? 'Juz' : 'Tafseer'}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
                 </View>
             </View>
 
@@ -114,56 +164,68 @@ export default function QuranIndexScreen() {
                 style={{ flex: 1 }}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.listContent}
+                keyboardShouldPersistTaps="handled"
             >
                 {activeTab === 'surah' ? (
-                    filteredSurahs.map((surah, index) => (
+                    filteredSurahs.map(surah => (
                         <TouchableOpacity
                             key={surah.number}
-                            style={styles.listItem}
+                            style={[styles.surahCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
                             onPress={() => router.push(`/quran/${surah.number}`)}
+                            activeOpacity={0.75}
                         >
-                            <View style={styles.itemLeft}>
-                                <View style={styles.numberOrb}>
-                                    <Text style={styles.numberText}>{surah.number}</Text>
-                                </View>
-                                <View>
-                                    <Text style={styles.engName}>{surah.name_english}</Text>
-                                    <Text style={styles.subtext}>{surah.revelation_type.toUpperCase()} • {surah.ayah_count} VERSES</Text>
-                                </View>
+                            {/* Surah number */}
+                            <Text style={[styles.surahNumber, { color: theme.textPrimary }]}>{surah.number}</Text>
+
+                            {/* Arabic name */}
+                            <Text style={[styles.arabicName, { color: theme.textPrimary }]}>{surah.name_arabic}</Text>
+
+                            {/* English name + meta */}
+                            <View style={styles.nameBlock}>
+                                <Text style={[styles.engName, { color: theme.textPrimary }]}>{surah.name_english}</Text>
+                                {surah.name_transliteration && surah.name_transliteration !== surah.name_english && (
+                                    <Text style={[styles.metaText, { color: theme.accent, fontStyle: 'italic' }]} numberOfLines={1}>{surah.name_transliteration}</Text>
+                                )}
+                                <Text style={[styles.metaText, { color: theme.textSecondary }]}>
+                                    {surah.revelation_type
+                                        ? surah.revelation_type.charAt(0).toUpperCase() + surah.revelation_type.slice(1).toLowerCase()
+                                        : ''}{surah.ayah_count ? ` • ${surah.ayah_count} verses` : ''}
+                                </Text>
                             </View>
-                            <Text style={styles.arabicName}>{surah.name_arabic}</Text>
                         </TouchableOpacity>
                     ))
                 ) : activeTab === 'juz' ? (
                     <View style={styles.juzGrid}>
-                        {juzArray.map((juzNum) => (
+                        {juzArray.map(juzNum => (
                             <TouchableOpacity
                                 key={juzNum}
-                                style={styles.juzCard}
+                                style={[styles.juzCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
                                 onPress={() => router.push(`/quran/juz/${juzNum}`)}
+                                activeOpacity={0.75}
                             >
-                                <Text style={styles.juzTitle}>Juz {juzNum}</Text>
-                                <Feather name="book-open" size={16} color="#11d452" />
+                                <Text style={[styles.juzTitle, { color: theme.textPrimary }]}>Juz {juzNum}</Text>
+                                <Feather name="book-open" size={16} color={theme.accent} />
                             </TouchableOpacity>
                         ))}
                     </View>
                 ) : (
-                    <View style={styles.tafseerList}>
-                        {POPULAR_TAFSEERS.map((tafseer) => (
+                    <View style={{ gap: 12 }}>
+                        {POPULAR_TAFSEERS.map(tafseer => (
                             <TouchableOpacity
                                 key={tafseer.id}
-                                style={styles.tafseerCard}
+                                style={[styles.tafseerCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
                                 onPress={() => router.push(`/quran/tafseer/${tafseer.id}`)}
+                                activeOpacity={0.75}
                             >
-                                <View style={styles.tafseerIconBox}>
-                                    <Feather name="book" size={20} color="#11d452" />
+                                <View style={[styles.tafseerIconBox, { backgroundColor: theme.accentLight }]}>
+                                    <Feather name="book" size={20} color={theme.accent} />
                                 </View>
                                 <View style={styles.tafseerInfo}>
-                                    <Text style={styles.tafseerTitle}>{tafseer.title}</Text>
-                                    <Text style={styles.tafseerAuthor}>{tafseer.author}</Text>
-                                    <Text style={styles.tafseerDesc} numberOfLines={2}>{tafseer.desc}</Text>
+                                    <Text style={[styles.tafseerTitle, { color: theme.textPrimary }]}>{tafseer.title}</Text>
+                                    <Text style={[styles.tafseerAuthor, { color: theme.accent }]}>{tafseer.author}</Text>
+                                    <Text style={[styles.tafseerDesc, { color: theme.textSecondary }]} numberOfLines={2}>{tafseer.desc}</Text>
                                 </View>
-                                <Feather name="chevron-right" size={20} color="#8A8A8A" />
+                                <Feather name="chevron-right" size={18} color={theme.textSecondary} />
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -176,74 +238,55 @@ export default function QuranIndexScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f6f8f6',
     },
     header: {
-        paddingHorizontal: 24,
+        paddingHorizontal: 20,
         paddingTop: 10,
-        paddingBottom: 16,
+        paddingBottom: 12,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
     headerTitle: {
-        fontSize: 28,
+        fontSize: 26,
         fontWeight: 'bold',
-        color: '#1A1A1A',
-        marginBottom: 20,
+        marginBottom: 16,
         fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
     },
     hifzBanner: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: '#FFFFFF',
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 5,
+        borderRadius: 14,
+        padding: 14,
+        marginBottom: 16,
     },
     hifzBannerLeft: {
         flexDirection: 'row',
         alignItems: 'center',
     },
     hifzBannerTitle: {
-        color: '#1A1A1A',
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: '600',
         marginBottom: 2,
     },
     hifzBannerSub: {
-        color: '#8A8A8A',
-        fontSize: 13,
+        fontSize: 12,
     },
     searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFFFFF',
         borderRadius: 12,
-        paddingHorizontal: 16,
-        height: 48,
-        marginBottom: 20,
+        paddingHorizontal: 14,
+        height: 44,
+        marginBottom: 16,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
-    },
-    searchIcon: {
-        marginRight: 10,
     },
     searchInput: {
         flex: 1,
-        color: '#1A1A1A',
-        fontSize: 16,
+        fontSize: 15,
     },
     tabContainer: {
         flexDirection: 'row',
-        backgroundColor: 'transparent',
-        padding: 4,
     },
     tabBtn: {
         flex: 1,
@@ -252,139 +295,102 @@ const styles = StyleSheet.create({
         borderBottomWidth: 2,
         borderColor: 'transparent',
     },
-    tabBtnActive: {
-        borderColor: '#11d452',
-    },
+    tabBtnActive: {},
     tabText: {
-        color: '#8A8A8A',
         fontSize: 14,
         fontWeight: '600',
     },
-    tabTextActive: {
-        color: '#11d452',
-        fontWeight: 'bold',
-    },
+    tabTextActive: {},
     listContent: {
-        paddingHorizontal: 20,
-        paddingTop: 10,
-        paddingBottom: 40,
-        gap: 12,
-    },
-    listItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 16,
         paddingHorizontal: 16,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
+        paddingTop: 14,
+        paddingBottom: 48,
+        gap: 10,
     },
-    itemLeft: {
+    // ── Surah card ─────────────────────────────────────────────────────────────
+    surahCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+        paddingHorizontal: 18,
+        paddingVertical: 18,
     },
-    numberOrb: {
+    surahNumber: {
         width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(17, 212, 82, 0.1)', // #11d452 with 10% opacity
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    numberText: {
-        color: '#11d452',
-        fontSize: 14,
+        fontSize: 22,
         fontWeight: 'bold',
-    },
-    engName: {
-        color: '#1A1A1A',
-        fontSize: 16,
-        fontWeight: 'bold',
-        marginBottom: 4,
-        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    },
-    subtext: {
-        color: '#8A8A8A',
-        fontSize: 11,
-        letterSpacing: 0.5,
     },
     arabicName: {
-        color: '#11d452',
+        width: 110,
         fontSize: 22,
+        textAlign: 'center',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
-        fontWeight: '600',
     },
+    nameBlock: {
+        flex: 1,
+        paddingLeft: 12,
+    },
+    engName: {
+        fontSize: 17,
+        fontWeight: '700',
+        marginBottom: 3,
+    },
+    metaText: {
+        fontSize: 13,
+    },
+    // ── Juz grid ───────────────────────────────────────────────────────────────
     juzGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         justifyContent: 'space-between',
-        paddingTop: 10,
     },
     juzCard: {
         width: '48%',
-        backgroundColor: '#FFFFFF',
         borderRadius: 16,
-        padding: 24,
+        padding: 22,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 16,
+        marginBottom: 12,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
-        gap: 12,
+        gap: 10,
     },
     juzTitle: {
-        color: '#1A1A1A',
         fontSize: 16,
         fontWeight: 'bold',
     },
-    tafseerList: {
-        paddingTop: 10,
-        gap: 16,
-    },
+    // ── Tafseer ────────────────────────────────────────────────────────────────
     tafseerCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFFFFF',
         borderRadius: 16,
         padding: 16,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 5,
     },
     tafseerIconBox: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: 'rgba(17, 212, 82, 0.1)',
+        width: 46,
+        height: 46,
+        borderRadius: 23,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 16,
+        marginRight: 14,
     },
     tafseerInfo: {
         flex: 1,
-        marginRight: 16,
+        marginRight: 12,
     },
     tafseerTitle: {
-        color: '#1A1A1A',
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: 'bold',
-        marginBottom: 4,
+        marginBottom: 3,
     },
     tafseerAuthor: {
-        color: '#11d452',
-        fontSize: 13,
-        fontWeight: 'bold',
-        marginBottom: 4,
+        fontSize: 12,
+        fontWeight: '600',
+        marginBottom: 3,
     },
     tafseerDesc: {
-        color: '#8A8A8A',
         fontSize: 12,
         lineHeight: 18,
-    }
+    },
 });

@@ -6,6 +6,8 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../context/ThemeContext';
+import type { AppTheme } from '../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
@@ -200,30 +202,31 @@ const figStyles = StyleSheet.create({
 
 
 // ─── Animation Modal ──────────────────────────────────────────────────────────
-function AnimationModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+function AnimationModal({ visible, onClose, theme }: { visible: boolean; onClose: () => void; theme: AppTheme }) {
     const [idx, setIdx] = useState(0);
     const insets = useSafeAreaInsets();
 
     useEffect(() => { if (visible) setIdx(0); }, [visible]);
 
-    // Auto-advance; resets timer on manual navigation too
+    // Auto-advance — deps contain only [visible] so the interval runs continuously
+    // without restarting on manual navigation. setIdx uses functional form to avoid stale closure.
     useEffect(() => {
         if (!visible) return;
         const id = setInterval(() => setIdx(i => (i + 1) % ARKAAN.length), 4500);
         return () => clearInterval(id);
-    }, [visible, idx]);
+    }, [visible]);
 
     const rukun = ARKAAN[idx];
     const color = (RULE_COLORS as any)[rukun.id] ?? '#7B4FA6';
 
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
-            <View style={[modalStyles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+            <View style={[modalStyles.container, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: theme.bg }]}>
                 {/* Header */}
                 <View style={modalStyles.header}>
-                    <Text style={modalStyles.headerTitle}>Salah Positions</Text>
+                    <Text style={[modalStyles.headerTitle, { color: theme.textPrimary }]}>Salah Positions</Text>
                     <TouchableOpacity onPress={onClose} style={modalStyles.closeBtn}>
-                        <Feather name="x" size={22} color="#1A1A1A" />
+                        <Feather name="x" size={22} color={theme.textPrimary} />
                     </TouchableOpacity>
                 </View>
 
@@ -233,8 +236,8 @@ function AnimationModal({ visible, onClose }: { visible: boolean; onClose: () =>
                         <Text style={modalStyles.numText}>{rukun.number}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                        <Text style={modalStyles.posTitle}>{rukun.title}</Text>
-                        <Text style={modalStyles.posSub}>{rukun.subtitle}</Text>
+                        <Text style={[modalStyles.posTitle, { color: theme.textPrimary }]}>{rukun.title}</Text>
+                        <Text style={[modalStyles.posSub, { color: theme.textTertiary }]}>{rukun.subtitle}</Text>
                     </View>
                     <Text style={[modalStyles.posArabic, { color }]}>{rukun.arabic}</Text>
                 </View>
@@ -245,13 +248,13 @@ function AnimationModal({ visible, onClose }: { visible: boolean; onClose: () =>
                 </View>
 
                 {/* Description */}
-                <Text style={modalStyles.desc} numberOfLines={3}>{rukun.description}</Text>
+                <Text style={[modalStyles.desc, { color: theme.textSecondary }]} numberOfLines={3}>{rukun.description}</Text>
 
                 {/* Dot indicators */}
                 <View style={modalStyles.dots}>
                     {ARKAAN.map((_, i) => (
                         <TouchableOpacity key={i} onPress={() => setIdx(i)}>
-                            <View style={[modalStyles.dot, i === idx && { backgroundColor: color, width: 18 }]} />
+                            <View style={[modalStyles.dot, { backgroundColor: theme.border }, i === idx && { backgroundColor: color, width: 18 }]} />
                         </TouchableOpacity>
                     ))}
                 </View>
@@ -259,19 +262,19 @@ function AnimationModal({ visible, onClose }: { visible: boolean; onClose: () =>
                 {/* Prev / Next */}
                 <View style={modalStyles.navRow}>
                     <TouchableOpacity
-                        style={[modalStyles.navBtn, { opacity: idx === 0 ? 0.35 : 1 }]}
+                        style={[modalStyles.navBtn, { backgroundColor: theme.bgCard, opacity: idx === 0 ? 0.35 : 1 }]}
                         onPress={() => setIdx(i => Math.max(0, i - 1))}
                     >
-                        <Feather name="chevron-left" size={22} color="#1A1A1A" />
-                        <Text style={modalStyles.navText}>Prev</Text>
+                        <Feather name="chevron-left" size={22} color={theme.textPrimary} />
+                        <Text style={[modalStyles.navText, { color: theme.textPrimary }]}>Prev</Text>
                     </TouchableOpacity>
-                    <Text style={modalStyles.navCount}>{idx + 1} / {ARKAAN.length}</Text>
+                    <Text style={[modalStyles.navCount, { color: theme.textTertiary }]}>{idx + 1} / {ARKAAN.length}</Text>
                     <TouchableOpacity
-                        style={[modalStyles.navBtn, { opacity: idx === ARKAAN.length - 1 ? 0.35 : 1 }]}
+                        style={[modalStyles.navBtn, { backgroundColor: theme.bgCard, opacity: idx === ARKAAN.length - 1 ? 0.35 : 1 }]}
                         onPress={() => setIdx(i => Math.min(ARKAAN.length - 1, i + 1))}
                     >
-                        <Text style={modalStyles.navText}>Next</Text>
-                        <Feather name="chevron-right" size={22} color="#1A1A1A" />
+                        <Text style={[modalStyles.navText, { color: theme.textPrimary }]}>Next</Text>
+                        <Feather name="chevron-right" size={22} color={theme.textPrimary} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -280,94 +283,36 @@ function AnimationModal({ visible, onClose }: { visible: boolean; onClose: () =>
 }
 
 const modalStyles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F7F4EF' },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 16,
-        height: 52,
-    },
-    headerTitle: { fontSize: 17, fontWeight: '700', color: '#1A1A1A' },
-    closeBtn: {
-        position: 'absolute',
-        right: 16,
-        width: 40, height: 40,
-        alignItems: 'center', justifyContent: 'center',
-    },
-    labelRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        paddingHorizontal: 20,
-        marginBottom: 16,
-    },
-    numBadge: {
-        width: 36, height: 36, borderRadius: 10,
-        alignItems: 'center', justifyContent: 'center',
-    },
+    container: { flex: 1 },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, height: 52 },
+    headerTitle: { fontSize: 17, fontWeight: '700' },
+    closeBtn: { position: 'absolute', right: 16, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    labelRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, marginBottom: 16 },
+    numBadge: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     numText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
-    posTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A1A' },
-    posSub: { fontSize: 13, color: '#8A8A8A', marginTop: 1 },
-    posArabic: {
-        fontSize: 24,
-        fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
-        marginRight: 4,
-    },
-    figureArea: {
-        alignSelf: 'center',
-        borderRadius: 28,
-        borderWidth: 2,
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-        marginBottom: 20,
-    },
-    desc: {
-        fontSize: 14,
-        color: '#3A3A3A',
-        lineHeight: 22,
-        paddingHorizontal: 24,
-        textAlign: 'center',
-        marginBottom: 24,
-    },
-    dots: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 6,
-        marginBottom: 28,
-    },
-    dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#D0C8C0' },
-    navRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 24,
-    },
+    posTitle: { fontSize: 18, fontWeight: '700' },
+    posSub: { fontSize: 13, marginTop: 1 },
+    posArabic: { fontSize: 24, fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', marginRight: 4 },
+    figureArea: { alignSelf: 'center', borderRadius: 28, borderWidth: 2, alignItems: 'center', justifyContent: 'center', padding: 16, marginBottom: 20 },
+    desc: { fontSize: 14, lineHeight: 22, paddingHorizontal: 24, textAlign: 'center', marginBottom: 24 },
+    dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginBottom: 28 },
+    dot: { width: 7, height: 7, borderRadius: 4 },
+    navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24 },
     navBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        backgroundColor: '#FFFFFF',
-        paddingHorizontal: 18,
-        paddingVertical: 12,
-        borderRadius: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 6,
-        elevation: 2,
+        flexDirection: 'row', alignItems: 'center', gap: 6,
+        paddingHorizontal: 18, paddingVertical: 12, borderRadius: 16,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
     },
-    navText: { fontSize: 15, fontWeight: '600', color: '#1A1A1A' },
-    navCount: { fontSize: 14, color: '#8A8A8A', fontWeight: '500' },
+    navText: { fontSize: 15, fontWeight: '600' },
+    navCount: { fontSize: 14, fontWeight: '500' },
 });
 
 // ─── Rukun Card ───────────────────────────────────────────────────────────────
-function RukunCard({ rukun, expanded, onToggle }: {
+function RukunCard({ rukun, expanded, onToggle, theme }: {
     rukun: typeof ARKAAN[0];
     expanded: boolean;
     onToggle: () => void;
+    theme: AppTheme;
 }) {
     const color = (RULE_COLORS as any)[rukun.id] ?? '#7B4FA6';
     const expandAnim = useRef(new Animated.Value(0)).current;
@@ -384,18 +329,18 @@ function RukunCard({ rukun, expanded, onToggle }: {
     const rotate = expandAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
 
     return (
-        <View style={[cardStyles.container, { borderLeftColor: color }]}>
+        <View style={[cardStyles.container, { borderLeftColor: color, backgroundColor: theme.bgCard }]}>
             <TouchableOpacity onPress={onToggle} activeOpacity={0.8} style={cardStyles.header}>
                 <View style={[cardStyles.numberBadge, { backgroundColor: color }]}>
                     <Text style={cardStyles.numberText}>{rukun.number}</Text>
                 </View>
                 <View style={cardStyles.headerText}>
-                    <Text style={cardStyles.title}>{rukun.title}</Text>
-                    <Text style={cardStyles.subtitle}>{rukun.subtitle}</Text>
+                    <Text style={[cardStyles.title, { color: theme.textPrimary }]}>{rukun.title}</Text>
+                    <Text style={[cardStyles.subtitle, { color: theme.textTertiary }]}>{rukun.subtitle}</Text>
                 </View>
                 <Text style={[cardStyles.arabic, { color }]}>{rukun.arabic}</Text>
                 <Animated.View style={{ transform: [{ rotate }] }}>
-                    <Feather name="chevron-down" size={20} color="#8A8A8A" />
+                    <Feather name="chevron-down" size={20} color={theme.textTertiary} />
                 </Animated.View>
             </TouchableOpacity>
 
@@ -407,26 +352,26 @@ function RukunCard({ rukun, expanded, onToggle }: {
                     </View>
 
                     {/* Description */}
-                    <Text style={cardStyles.description}>{rukun.description}</Text>
+                    <Text style={[cardStyles.description, { color: theme.textSecondary }]}>{rukun.description}</Text>
 
                     {/* Du'a block */}
                     {rukun.arabic_text && (
                         <View style={[cardStyles.duaBlock, { backgroundColor: color + '10', borderColor: color + '25' }]}>
                             <Text style={[cardStyles.duaArabic, { color }]}>{rukun.arabic_text}</Text>
                             {rukun.transliteration && (
-                                <Text style={cardStyles.duaTranslit}>{rukun.transliteration}</Text>
+                                <Text style={[cardStyles.duaTranslit, { color: theme.textSecondary }]}>{rukun.transliteration}</Text>
                             )}
                             {rukun.translation && (
-                                <Text style={cardStyles.duaTrans}>"{rukun.translation}"</Text>
+                                <Text style={[cardStyles.duaTrans, { color: theme.textTertiary }]}>"{rukun.translation}"</Text>
                             )}
                         </View>
                     )}
 
                     {/* Note */}
                     {rukun.note && (
-                        <View style={cardStyles.noteRow}>
-                            <Feather name="info" size={13} color="#C9A84C" />
-                            <Text style={cardStyles.noteText}>{rukun.note}</Text>
+                        <View style={[cardStyles.noteRow, { backgroundColor: theme.accentLight }]}>
+                            <Feather name="info" size={13} color={theme.gold} />
+                            <Text style={[cardStyles.noteText, { color: theme.textSecondary }]}>{rukun.note}</Text>
                         </View>
                     )}
                 </View>
@@ -437,80 +382,34 @@ function RukunCard({ rukun, expanded, onToggle }: {
 
 const cardStyles = StyleSheet.create({
     container: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 16,
-        marginBottom: 12,
-        borderLeftWidth: 4,
-        overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 2,
+        borderRadius: 16, marginBottom: 12, borderLeftWidth: 4, overflow: 'hidden',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
     },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 16,
-        gap: 12,
-    },
-    numberBadge: {
-        width: 32, height: 32, borderRadius: 10,
-        alignItems: 'center', justifyContent: 'center',
-    },
+    header: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
+    numberBadge: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     numberText: { color: '#FFF', fontWeight: '800', fontSize: 14 },
     headerText: { flex: 1 },
-    title: { fontSize: 16, fontWeight: '700', color: '#1A1A1A' },
-    subtitle: { fontSize: 12, color: '#8A8A8A', marginTop: 1 },
-    arabic: {
-        fontSize: 20,
-        fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
-        marginRight: 4,
-    },
+    title: { fontSize: 16, fontWeight: '700' },
+    subtitle: { fontSize: 12, marginTop: 1 },
+    arabic: { fontSize: 20, fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', marginRight: 4 },
     body: { paddingHorizontal: 16, paddingBottom: 20 },
-    description: { fontSize: 14, color: '#3A3A3A', lineHeight: 22, marginBottom: 16 },
-    duaBlock: {
-        borderRadius: 14,
-        borderWidth: 1,
-        padding: 16,
-        marginBottom: 14,
-        alignItems: 'center',
-    },
+    description: { fontSize: 14, lineHeight: 22, marginBottom: 16 },
+    duaBlock: { borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 14, alignItems: 'center' },
     duaArabic: {
-        fontSize: 22,
-        fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
-        textAlign: 'center',
-        lineHeight: 38,
-        marginBottom: 8,
+        fontSize: 22, fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        textAlign: 'center', lineHeight: 38, marginBottom: 8,
     },
-    duaTranslit: {
-        fontSize: 13,
-        fontStyle: 'italic',
-        color: '#5A5A5A',
-        textAlign: 'center',
-        marginBottom: 6,
-    },
-    duaTrans: {
-        fontSize: 13,
-        color: '#7A7A7A',
-        textAlign: 'center',
-        lineHeight: 20,
-    },
-    noteRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: 8,
-        backgroundColor: '#FFFBF0',
-        borderRadius: 10,
-        padding: 10,
-    },
-    noteText: { flex: 1, fontSize: 12, color: '#7A6830', lineHeight: 18 },
+    duaTranslit: { fontSize: 13, fontStyle: 'italic', textAlign: 'center', marginBottom: 6 },
+    duaTrans: { fontSize: 13, textAlign: 'center', lineHeight: 20 },
+    noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 10, padding: 10 },
+    noteText: { flex: 1, fontSize: 12, lineHeight: 18 },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function SalahScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { theme } = useTheme();
     const [expandedId, setExpandedId] = useState<string | null>('takbir');
     const [showAnimModal, setShowAnimModal] = useState(false);
 
@@ -528,33 +427,33 @@ export default function SalahScreen() {
     );
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* ── Header ── */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={goBack} style={styles.headerBtn}>
-                    <Feather name="arrow-left" size={22} color="#1A1A1A" />
+                    <Feather name="arrow-left" size={22} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
-                    <Text style={styles.headerTitle}>Salah Guide</Text>
-                    <Text style={styles.headerSub}>الصَّلَاة — The Prayer</Text>
+                    <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Salah Guide</Text>
+                    <Text style={[styles.headerSub, { color: theme.accent }]}>الصَّلَاة — The Prayer</Text>
                 </View>
                 <View style={{ width: 40 }} />
             </View>
 
             {/* ── Intro banner ── */}
-            <View style={styles.banner}>
-                <Text style={styles.bannerTitle}>Arkaan as-Salah</Text>
-                <Text style={styles.bannerDesc}>
+            <View style={[styles.banner, { backgroundColor: theme.bgCard }]}>
+                <Text style={[styles.bannerTitle, { color: theme.textPrimary }]}>Arkaan as-Salah</Text>
+                <Text style={[styles.bannerDesc, { color: theme.textSecondary }]}>
                     The essential pillars of prayer — tap each rukun to see the position, Arabic supplication, and guidance.
                 </Text>
                 <View style={styles.bannerRow}>
-                    <View style={styles.bannerBadge}>
-                        <Feather name="layers" size={13} color="#7B4FA6" />
-                        <Text style={styles.bannerBadgeText}>9 Arkaan</Text>
+                    <View style={[styles.bannerBadge, { backgroundColor: theme.accentLight }]}>
+                        <Feather name="layers" size={13} color={theme.accent} />
+                        <Text style={[styles.bannerBadgeText, { color: theme.accent }]}>9 Arkaan</Text>
                     </View>
-                    <TouchableOpacity style={styles.bannerBadge} onPress={() => setShowAnimModal(true)} activeOpacity={0.75}>
-                        <Feather name="activity" size={13} color="#7B4FA6" />
-                        <Text style={styles.bannerBadgeText}>Animated positions</Text>
+                    <TouchableOpacity style={[styles.bannerBadge, { backgroundColor: theme.accentLight }]} onPress={() => setShowAnimModal(true)} activeOpacity={0.75}>
+                        <Feather name="activity" size={13} color={theme.accent} />
+                        <Text style={[styles.bannerBadgeText, { color: theme.accent }]}>Animated positions</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -570,12 +469,13 @@ export default function SalahScreen() {
                         rukun={rukun}
                         expanded={expandedId === rukun.id}
                         onToggle={() => setExpandedId(id => id === rukun.id ? null : rukun.id)}
+                        theme={theme}
                     />
                 ))}
 
                 {/* Closing note */}
-                <View style={styles.closingNote}>
-                    <Text style={styles.closingTitle}>Numbers of Rak\'ahs</Text>
+                <View style={[styles.closingNote, { backgroundColor: theme.bgCard }]}>
+                    <Text style={[styles.closingTitle, { color: theme.textPrimary }]}>Numbers of Rak\'ahs</Text>
                     {[
                         { name: 'Fajr',   fard: 2, sunnah: '2 sunnah before' },
                         { name: 'Dhuhr',  fard: 4, sunnah: '4 before + 2 after' },
@@ -583,92 +483,52 @@ export default function SalahScreen() {
                         { name: 'Maghrib',fard: 3, sunnah: '2 after' },
                         { name: 'Isha',   fard: 4, sunnah: '2 after + 3 witr' },
                     ].map(p => (
-                        <View key={p.name} style={styles.prayerRow}>
-                            <Text style={styles.prayerName}>{p.name}</Text>
+                        <View key={p.name} style={[styles.prayerRow, { borderBottomColor: theme.border }]}>
+                            <Text style={[styles.prayerName, { color: theme.textPrimary }]}>{p.name}</Text>
                             <View style={styles.prayerDetail}>
-                                <View style={styles.fardBadge}><Text style={styles.fardText}>{p.fard} Fard</Text></View>
-                                <Text style={styles.sunnahText}>{p.sunnah}</Text>
+                                <View style={[styles.fardBadge, { backgroundColor: theme.accentLight }]}><Text style={[styles.fardText, { color: theme.accent }]}>{p.fard} Fard</Text></View>
+                                <Text style={[styles.sunnahText, { color: theme.textTertiary }]}>{p.sunnah}</Text>
                             </View>
                         </View>
                     ))}
                 </View>
             </ScrollView>
 
-            <AnimationModal visible={showAnimModal} onClose={() => setShowAnimModal(false)} />
+            <AnimationModal visible={showAnimModal} onClose={() => setShowAnimModal(false)} theme={theme} />
         </View>
     );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F7F4EF' },
-
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        height: 52,
-    },
+    container: { flex: 1 },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, height: 52 },
     headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     headerCenter: { alignItems: 'center' },
-    headerTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A1A' },
-    headerSub: {
-        fontSize: 12,
-        color: '#7B4FA6',
-        fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
-    },
-
+    headerTitle: { fontSize: 18, fontWeight: '700' },
+    headerSub: { fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif' },
     banner: {
-        marginHorizontal: 16,
-        marginVertical: 12,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 20,
-        padding: 18,
-        shadowColor: '#7B4FA6',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 3,
+        marginHorizontal: 16, marginVertical: 12, borderRadius: 20, padding: 18,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 3,
     },
-    bannerTitle: { fontSize: 17, fontWeight: '800', color: '#1A1A1A', marginBottom: 6 },
-    bannerDesc: { fontSize: 13, color: '#5A5A5A', lineHeight: 20, marginBottom: 12 },
+    bannerTitle: { fontSize: 17, fontWeight: '800', marginBottom: 6 },
+    bannerDesc: { fontSize: 13, lineHeight: 20, marginBottom: 12 },
     bannerRow: { flexDirection: 'row', gap: 10 },
     bannerBadge: {
         flexDirection: 'row', alignItems: 'center', gap: 5,
-        backgroundColor: '#F3EDF9', borderRadius: 12,
-        paddingHorizontal: 10, paddingVertical: 5,
+        borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5,
     },
-    bannerBadgeText: { fontSize: 12, fontWeight: '600', color: '#7B4FA6' },
-
+    bannerBadgeText: { fontSize: 12, fontWeight: '600' },
     list: { paddingHorizontal: 16, paddingBottom: 40 },
-
     closingNote: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 16,
-        padding: 16,
-        marginTop: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
+        borderRadius: 16, padding: 16, marginTop: 8,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
     },
-    closingTitle: { fontSize: 15, fontWeight: '700', color: '#1A1A1A', marginBottom: 14 },
-    prayerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F0EDE6',
-    },
-    prayerName: { fontSize: 14, fontWeight: '700', color: '#1A1A1A', width: 70 },
+    closingTitle: { fontSize: 15, fontWeight: '700', marginBottom: 14 },
+    prayerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1 },
+    prayerName: { fontSize: 14, fontWeight: '700', width: 70 },
     prayerDetail: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' },
-    fardBadge: {
-        backgroundColor: '#7B4FA620',
-        borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
-    },
-    fardText: { fontSize: 12, fontWeight: '700', color: '#7B4FA6' },
-    sunnahText: { fontSize: 11, color: '#8A8A8A', flex: 1, textAlign: 'right' },
+    fardBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+    fardText: { fontSize: 12, fontWeight: '700' },
+    sunnahText: { fontSize: 11, flex: 1, textAlign: 'right' },
 });

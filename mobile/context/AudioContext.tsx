@@ -18,6 +18,8 @@ interface AudioContextType {
     soundRef: React.MutableRefObject<AudioPlayer | null>;
     setAudioState: React.Dispatch<React.SetStateAction<AudioState>>;
     stopAudio: () => void;
+    /** expo-av screens register their stop callback here so stopAudio() can halt them too */
+    expAvStopRef: React.MutableRefObject<(() => void) | null>;
 }
 
 const DEFAULT_STATE: AudioState = {
@@ -36,6 +38,7 @@ const AudioContext = createContext<AudioContextType | null>(null);
 export function AudioProvider({ children }: { children: React.ReactNode }) {
     const [audioState, setAudioState] = useState<AudioState>(DEFAULT_STATE);
     const soundRef = useRef<AudioPlayer | null>(null);
+    const expAvStopRef = useRef<(() => void) | null>(null);
 
     // Initialize audio session once — options differ per platform
     useEffect(() => {
@@ -57,15 +60,15 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const stopAudio = () => {
-        if (soundRef.current) {
-            try { soundRef.current.remove(); } catch {}
-            soundRef.current = null;
-        }
+        // Stop expo-audio (Quran reader) — finally guarantees null even if remove() throws
+        try { soundRef.current?.remove(); } catch {} finally { soundRef.current = null; }
+        // Stop any registered expo-av player (qaida, audio-player, recitation)
+        try { expAvStopRef.current?.(); } catch {} finally { expAvStopRef.current = null; }
         setAudioState(DEFAULT_STATE);
     };
 
     return (
-        <AudioContext.Provider value={{ audioState, soundRef, setAudioState, stopAudio }}>
+        <AudioContext.Provider value={{ audioState, soundRef, setAudioState, stopAudio, expAvStopRef }}>
             {children}
         </AudioContext.Provider>
     );

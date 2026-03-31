@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, ActivityIndicator, Alert, Pressable, Switch } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../utils/supabase';
 import { useLanguage } from '../../context/LanguageContext';
+import { useTheme } from '../../context/ThemeContext';
+import type { ThemeMode } from '../../context/ThemeContext';
+import { useNetworkMode } from '../../context/NetworkModeContext';
 
 export default function ProfileScreen() {
     const insets = useSafeAreaInsets();
     const { language, setLanguage } = useLanguage();
+    const { theme, themeMode, setThemeMode } = useTheme();
+    const { isOfflineMode, setOfflineMode } = useNetworkMode();
     const [session, setSession] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
@@ -33,55 +38,140 @@ export default function ProfileScreen() {
     const [authLoading, setAuthLoading] = useState(false);
 
     useEffect(() => {
-        // Fetch current session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setLoading(false);
-        });
+        let mounted = true;
 
-        // Listen for auth changes
+        (async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (mounted) { setSession(session); setLoading(false); }
+            } catch (e) {
+                console.warn('[Noor/Auth] Session check failed:', e);
+                if (mounted) setLoading(false);
+            }
+        })();
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setSession(session);
+            if (mounted) setSession(session);
         });
 
-        return () => subscription.unsubscribe();
+        return () => { mounted = false; subscription.unsubscribe(); };
     }, []);
 
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
     const handleLogin = async () => {
-        if (!email || !password) {
+        if (!email.trim() || !password) {
             Alert.alert("Required", "Please enter email and password.");
+            return;
+        }
+        if (!EMAIL_REGEX.test(email.trim())) {
+            Alert.alert("Invalid Email", "Please enter a valid email address.");
+            return;
+        }
+        if (password.length < 6) {
+            Alert.alert("Password Too Short", "Password must be at least 6 characters.");
             return;
         }
         setAuthLoading(true);
         const { error } = await supabase.auth.signInWithPassword({
-            email,
+            email: email.trim(),
             password,
         });
 
         if (error) Alert.alert("Login Failed", error.message);
+        else { setEmail(''); setPassword(''); }
         setAuthLoading(false);
     };
 
     const handleSignUp = async () => {
-        if (!email || !password) {
+        if (!email.trim() || !password) {
             Alert.alert("Required", "Please enter email and password.");
+            return;
+        }
+        if (!EMAIL_REGEX.test(email.trim())) {
+            Alert.alert("Invalid Email", "Please enter a valid email address.");
+            return;
+        }
+        if (password.length < 6) {
+            Alert.alert("Weak Password", "Password must be at least 6 characters long.");
             return;
         }
         setAuthLoading(true);
         const { error } = await supabase.auth.signUp({
-            email,
+            email: email.trim(),
             password,
         });
 
         if (error) Alert.alert("Sign Up Failed", error.message);
-        else Alert.alert("Success", "Check your email for the confirmation link!");
+        else { Alert.alert("Success", "Check your email for the confirmation link!"); setEmail(''); setPassword(''); }
         setAuthLoading(false);
     };
 
+    type PickerOption = { mode: ThemeMode; label: string; desc: string; swatches: string[]; icon: React.ComponentProps<typeof Feather>['name'] };
+    const PICKER_OPTIONS: PickerOption[] = [
+        { mode: 'auto',     label: 'Auto',            desc: 'Changes with time of day', swatches: ['#FDF8EF', '#0D1A13', '#0C0F18'], icon: 'clock' },
+        { mode: 'warm',     label: 'Warm Parchment',  desc: 'Light · cream tones',      swatches: ['#FDF8EF', '#1A9B55', '#B8912A'], icon: 'sun' },
+        { mode: 'forest',   label: 'Forest Dark',     desc: 'Dark · green & warm',      swatches: ['#0D1A13', '#2ECC94', '#C9A84C'], icon: 'moon' },
+        { mode: 'midnight', label: 'Midnight Blue',   desc: 'Dark · navy & cool',       swatches: ['#0C0F18', '#3DC87A', '#C9A84C'], icon: 'star' },
+    ];
+
+    const ThemePickerSection = () => (
+        <View style={{ marginBottom: 30 }}>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Appearance</Text>
+            <View style={{ gap: 10 }}>
+                {PICKER_OPTIONS.map(opt => {
+                    const active = themeMode === opt.mode;
+                    return (
+                        <Pressable
+                            key={opt.mode}
+                            onPress={() => setThemeMode(opt.mode as ThemeMode)}
+                            style={[
+                                themePickerStyles.card,
+                                {
+                                    backgroundColor: theme.bgCard,
+                                    borderColor: active ? theme.accent : theme.border,
+                                    borderWidth: active ? 2 : 1,
+                                },
+                            ]}
+                        >
+                            {/* Left: icon + text */}
+                            <View style={themePickerStyles.cardLeft}>
+                                <View style={[themePickerStyles.iconBox, {
+                                    backgroundColor: active ? theme.accentLight : (theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'),
+                                }]}>
+                                    <Feather name={opt.icon} size={18} color={active ? theme.accent : theme.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[themePickerStyles.label, { color: theme.textPrimary }]}>{opt.label}</Text>
+                                    <Text style={[themePickerStyles.desc, { color: theme.textSecondary }]}>{opt.desc}</Text>
+                                </View>
+                            </View>
+
+                            {/* Right: color swatches + checkmark */}
+                            <View style={themePickerStyles.cardRight}>
+                                <View style={themePickerStyles.swatches}>
+                                    {opt.swatches.map((c, i) => (
+                                        <View key={i} style={[themePickerStyles.swatch, { backgroundColor: c, marginLeft: i > 0 ? -6 : 0 }]} />
+                                    ))}
+                                </View>
+                                <View style={[themePickerStyles.check, {
+                                    backgroundColor: active ? theme.accent : 'transparent',
+                                    borderColor: active ? theme.accent : theme.border,
+                                }]}>
+                                    {active && <Feather name="check" size={12} color={theme.textInverse} />}
+                                </View>
+                            </View>
+                        </Pressable>
+                    );
+                })}
+            </View>
+        </View>
+    );
+
     if (loading) {
         return (
-            <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
-                <ActivityIndicator size="large" color="#C9A84C" />
+            <View style={[styles.container, { backgroundColor: theme.bg, alignItems: 'center', justifyContent: 'center' }]}>
+                <ActivityIndicator size="large" color={theme.gold} />
             </View>
         );
     }
@@ -89,57 +179,79 @@ export default function ProfileScreen() {
     if (!session) {
         // Unauthenticated View
         return (
-            <View style={[styles.container, { paddingTop: insets.top }]}>
+            <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
                 <ScrollView contentContainerStyle={styles.authContainer} keyboardShouldPersistTaps="handled">
                     <View style={styles.authHeader}>
-                        <View style={styles.authIconContainer}>
-                            <Feather name="shield" size={40} color="#C9A84C" />
+                        <View style={[styles.authIconContainer, { backgroundColor: theme.gold + '1A', borderColor: theme.gold + '33' }]}>
+                            <Feather name="shield" size={40} color={theme.gold} />
                         </View>
-                        <Text style={styles.authTitle}>Your Noor Account</Text>
-                        <Text style={styles.authDesc}>Sync your Bookmarks, SRS Memory progress, and Prayer History securely to the cloud.</Text>
+                        <Text style={[styles.authTitle, { color: theme.textPrimary }]}>Your Falah Account</Text>
+                        <Text style={[styles.authDesc, { color: theme.textSecondary }]}>Sync your Bookmarks, SRS Memory progress, and Prayer History securely to the cloud.</Text>
                     </View>
 
                     {/* Translation Preferences (Always available) */}
-                    <Text style={styles.sectionTitle}>Preferences</Text>
-                    <View style={styles.menuGroup}>
+                    <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Preferences</Text>
+                    <View style={[styles.menuGroup, { backgroundColor: theme.bgCard, borderColor: theme.border, marginBottom: 20 }]}>
                         <TouchableOpacity
-                            style={styles.menuItem}
+                            style={[styles.menuItem, { borderBottomColor: theme.border }]}
                             onPress={cycleLanguage}
                         >
                             <View style={styles.menuItemLeft}>
-                                <View style={[styles.menuIconBox, { backgroundColor: 'rgba(201, 168, 76, 0.1)' }]}>
-                                    <Feather name="globe" size={18} color="#C9A84C" />
+                                <View style={[styles.menuIconBox, { backgroundColor: theme.gold + '1A' }]}>
+                                    <Feather name="globe" size={18} color={theme.gold} />
                                 </View>
                                 <View>
-                                    <Text style={styles.menuItemText}>Translation Language</Text>
-                                    <Text style={styles.menuItemSubText}>Tap to switch format</Text>
+                                    <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>Translation Language</Text>
+                                    <Text style={[styles.menuItemSubText, { color: theme.textSecondary }]}>Tap to switch format</Text>
                                 </View>
                             </View>
-                            <View style={styles.badgeContainer}>
-                                <Text style={styles.badgeText}>{LANGUAGE_DISPLAY[language] || 'English'}</Text>
+                            <View style={[styles.badgeContainer, { borderColor: theme.gold + '4D', backgroundColor: theme.gold + '1A' }]}>
+                                <Text style={[styles.badgeText, { color: theme.gold }]}>{LANGUAGE_DISPLAY[language] || 'English'}</Text>
                             </View>
                         </TouchableOpacity>
+                        <View style={[styles.menuItem, { borderBottomWidth: 0 }]}>
+                            <View style={styles.menuItemLeft}>
+                                <View style={[styles.menuIconBox, { backgroundColor: isOfflineMode ? theme.bgInput : theme.gold + '1A' }]}>
+                                    <Feather name={isOfflineMode ? 'wifi-off' : 'wifi'} size={18} color={isOfflineMode ? theme.textSecondary : theme.gold} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>
+                                        {isOfflineMode ? 'Offline Mode' : 'Online Mode'}
+                                    </Text>
+                                    <Text style={[styles.menuItemSubText, { color: theme.textSecondary }]}>
+                                        {isOfflineMode ? 'Using local data only' : 'Fetching live content & audio'}
+                                    </Text>
+                                </View>
+                            </View>
+                            <Switch
+                                value={isOfflineMode}
+                                onValueChange={setOfflineMode}
+                                trackColor={{ false: theme.accent + '66', true: theme.bgInput }}
+                                thumbColor={isOfflineMode ? theme.textSecondary : theme.gold}
+                            />
+                        </View>
                     </View>
+                    <ThemePickerSection />
 
                     <View style={styles.inputStack}>
-                        <View style={styles.inputWrapper}>
-                            <Feather name="mail" size={20} color="#5E5C58" style={styles.inputIcon} />
+                        <View style={[styles.inputWrapper, { backgroundColor: theme.bgInput, borderColor: theme.border }]}>
+                            <Feather name="mail" size={20} color={theme.textSecondary} style={styles.inputIcon} />
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, { color: theme.textPrimary }]}
                                 placeholder="Email Address"
-                                placeholderTextColor="#5E5C58"
+                                placeholderTextColor={theme.textSecondary}
                                 autoCapitalize="none"
                                 keyboardType="email-address"
                                 value={email}
                                 onChangeText={setEmail}
                             />
                         </View>
-                        <View style={styles.inputWrapper}>
-                            <Feather name="lock" size={20} color="#5E5C58" style={styles.inputIcon} />
+                        <View style={[styles.inputWrapper, { backgroundColor: theme.bgInput, borderColor: theme.border }]}>
+                            <Feather name="lock" size={20} color={theme.textSecondary} style={styles.inputIcon} />
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, { color: theme.textPrimary }]}
                                 placeholder="Password"
-                                placeholderTextColor="#5E5C58"
+                                placeholderTextColor={theme.textSecondary}
                                 secureTextEntry
                                 value={password}
                                 onChangeText={setPassword}
@@ -148,35 +260,35 @@ export default function ProfileScreen() {
                     </View>
 
                     {authLoading ? (
-                        <ActivityIndicator size="large" color="#C9A84C" style={{ marginVertical: 30 }} />
+                        <ActivityIndicator size="large" color={theme.gold} style={{ marginVertical: 30 }} />
                     ) : (
                         <View style={styles.authActionRow}>
-                            <TouchableOpacity style={styles.primaryBtn} onPress={handleLogin}>
-                                <Text style={styles.primaryBtnText}>Log In</Text>
+                            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: theme.gold }]} onPress={handleLogin}>
+                                <Text style={[styles.primaryBtnText, { color: theme.textInverse }]}>Log In</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.secondaryBtn} onPress={handleSignUp}>
-                                <Text style={styles.secondaryBtnText}>Create Free Account</Text>
+                            <TouchableOpacity style={[styles.secondaryBtn, { borderColor: theme.border }]} onPress={handleSignUp}>
+                                <Text style={[styles.secondaryBtnText, { color: theme.textPrimary }]}>Create Free Account</Text>
                             </TouchableOpacity>
                         </View>
                     )}
 
                     {/* About & Legal Section - Unobtrusive (Unauthenticated view) */}
                     <View style={{ marginTop: 40 }}>
-                        <Text style={styles.sectionTitle}>About</Text>
-                        <View style={styles.menuGroup}>
-                            <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert("About Noor", "Version 1.0.0\n\nDesigned to elevate your daily spiritual connection with a premium, seamless interface.\n\nBy MZ and MBZ")}>
+                        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>About</Text>
+                        <View style={[styles.menuGroup, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={() => Alert.alert("About Falah", "Version 1.0.0\n\nDesigned to elevate your daily spiritual connection with a premium, seamless interface.\n\nBy MZ and MBZ")}>
                                 <View style={styles.menuItemLeft}>
-                                    <View style={styles.menuIconBox}><Feather name="info" size={18} color="#1A1A1A" /></View>
-                                    <Text style={styles.menuItemText}>About Noor</Text>
+                                    <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="info" size={18} color={theme.textPrimary} /></View>
+                                    <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>About Falah</Text>
                                 </View>
-                                <Feather name="chevron-right" size={20} color="#5E5C58" />
+                                <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.menuItem}>
+                            <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]}>
                                 <View style={styles.menuItemLeft}>
-                                    <View style={styles.menuIconBox}><Feather name="shield" size={18} color="#1A1A1A" /></View>
-                                    <Text style={styles.menuItemText}>Privacy Policy</Text>
+                                    <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="shield" size={18} color={theme.textPrimary} /></View>
+                                    <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>Privacy Policy</Text>
                                 </View>
-                                <Feather name="chevron-right" size={20} color="#5E5C58" />
+                                <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -187,111 +299,133 @@ export default function ProfileScreen() {
 
     // Authenticated View
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Profile & Settings</Text>
+        <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
+            <View style={[styles.header, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Settings</Text>
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
                 {/* ID Card */}
                 <LinearGradient
-                    colors={['rgba(201, 168, 76, 0.15)', 'rgba(31, 78, 61, 0.05)']}
-                    style={styles.idCard}
+                    colors={[theme.gold + '26', theme.accent + '0D']}
+                    style={[styles.idCard, { borderColor: theme.gold + '4D' }]}
                 >
-                    <View style={styles.idHeader}>
-                        <View style={styles.avatar}>
-                            <Feather name="user" size={30} color="#C9A84C" />
+                    <View style={[styles.idHeader, { borderBottomColor: theme.border }]}>
+                        <View style={[styles.avatar, { backgroundColor: theme.bgInput, borderColor: theme.border }]}>
+                            <Feather name="user" size={30} color={theme.gold} />
                         </View>
                         <View style={{ flex: 1, marginLeft: 16 }}>
-                            <Text style={styles.emailText}>{session.user.email}</Text>
-                            <Text style={styles.statusText}>Cloud Sync Active</Text>
+                            <Text style={[styles.emailText, { color: theme.textPrimary }]}>{session.user.email}</Text>
+                            <Text style={[styles.statusText, { color: theme.gold }]}>Cloud Sync Active</Text>
                         </View>
                     </View>
                     <View style={styles.idStats}>
                         <View style={styles.idStatBox}>
-                            <Text style={styles.statVal}>0</Text>
-                            <Text style={styles.statLbl}>Days Streak</Text>
+                            <Text style={[styles.statVal, { color: theme.textPrimary }]}>0</Text>
+                            <Text style={[styles.statLbl, { color: theme.textSecondary }]}>Days Streak</Text>
                         </View>
-                        <View style={[styles.idStatBox, { borderLeftWidth: 1, borderLeftColor: 'rgba(0,0,0,0.05)' }]}>
-                            <Text style={styles.statVal}>Basic</Text>
-                            <Text style={styles.statLbl}>Plan level</Text>
+                        <View style={[styles.idStatBox, { borderLeftWidth: 1, borderLeftColor: theme.border }]}>
+                            <Text style={[styles.statVal, { color: theme.textPrimary }]}>Basic</Text>
+                            <Text style={[styles.statLbl, { color: theme.textSecondary }]}>Plan level</Text>
                         </View>
                     </View>
                 </LinearGradient>
 
                 {/* Translation Preferences */}
-                <Text style={styles.sectionTitle}>Preferences</Text>
-                <View style={styles.menuGroup}>
+                <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Preferences</Text>
+                <View style={[styles.menuGroup, { backgroundColor: theme.bgCard, borderColor: theme.border, marginBottom: 20 }]}>
                     <TouchableOpacity
-                        style={styles.menuItem}
+                        style={[styles.menuItem, { borderBottomColor: theme.border }]}
                         onPress={cycleLanguage}
                     >
                         <View style={styles.menuItemLeft}>
-                            <View style={[styles.menuIconBox, { backgroundColor: 'rgba(201, 168, 76, 0.1)' }]}>
-                                <Feather name="globe" size={18} color="#C9A84C" />
+                            <View style={[styles.menuIconBox, { backgroundColor: theme.gold + '1A' }]}>
+                                <Feather name="globe" size={18} color={theme.gold} />
                             </View>
                             <View>
-                                <Text style={styles.menuItemText}>Translation Language</Text>
-                                <Text style={styles.menuItemSubText}>Tap to switch format</Text>
+                                <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>Translation Language</Text>
+                                <Text style={[styles.menuItemSubText, { color: theme.textSecondary }]}>Tap to switch format</Text>
                             </View>
                         </View>
-                        <View style={styles.badgeContainer}>
-                            <Text style={styles.badgeText}>{LANGUAGE_DISPLAY[language] || 'English'}</Text>
+                        <View style={[styles.badgeContainer, { borderColor: theme.gold + '4D', backgroundColor: theme.gold + '1A' }]}>
+                            <Text style={[styles.badgeText, { color: theme.gold }]}>{LANGUAGE_DISPLAY[language] || 'English'}</Text>
                         </View>
                     </TouchableOpacity>
+                    <View style={[styles.menuItem, { borderBottomWidth: 0 }]}>
+                        <View style={styles.menuItemLeft}>
+                            <View style={[styles.menuIconBox, { backgroundColor: isOfflineMode ? theme.bgInput : theme.gold + '1A' }]}>
+                                <Feather name={isOfflineMode ? 'wifi-off' : 'wifi'} size={18} color={isOfflineMode ? theme.textSecondary : theme.gold} />
+                            </View>
+                            <View>
+                                <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>
+                                    {isOfflineMode ? 'Offline Mode' : 'Online Mode'}
+                                </Text>
+                                <Text style={[styles.menuItemSubText, { color: theme.textSecondary }]}>
+                                    {isOfflineMode ? 'Using local data only' : 'Fetching live content & audio'}
+                                </Text>
+                            </View>
+                        </View>
+                        <Switch
+                            value={isOfflineMode}
+                            onValueChange={setOfflineMode}
+                            trackColor={{ false: theme.accent + '66', true: theme.bgInput }}
+                            thumbColor={isOfflineMode ? theme.textSecondary : theme.gold}
+                        />
+                    </View>
                 </View>
+                <ThemePickerSection />
 
                 {/* Settings Menu */}
-                <Text style={styles.sectionTitle}>Account</Text>
-                <View style={styles.menuGroup}>
-                    <TouchableOpacity style={styles.menuItem}>
+                <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Account</Text>
+                <View style={[styles.menuGroup, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                    <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]}>
                         <View style={styles.menuItemLeft}>
-                            <View style={styles.menuIconBox}><Feather name="bell" size={18} color="#1A1A1A" /></View>
-                            <Text style={styles.menuItemText}>Adhan Notifications</Text>
+                            <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="bell" size={18} color={theme.textPrimary} /></View>
+                            <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>Adhan Notifications</Text>
                         </View>
-                        <Feather name="chevron-right" size={20} color="#5E5C58" />
+                        <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.menuItem}>
+                    <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]}>
                         <View style={styles.menuItemLeft}>
-                            <View style={styles.menuIconBox}><Feather name="map-pin" size={18} color="#1A1A1A" /></View>
-                            <Text style={styles.menuItemText}>Calculation Method (Karachi)</Text>
+                            <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="map-pin" size={18} color={theme.textPrimary} /></View>
+                            <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>Calculation Method (Karachi)</Text>
                         </View>
-                        <Feather name="chevron-right" size={20} color="#5E5C58" />
+                        <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.menuItem}>
+                    <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]}>
                         <View style={styles.menuItemLeft}>
-                            <View style={styles.menuIconBox}><Feather name="download-cloud" size={18} color="#1A1A1A" /></View>
-                            <Text style={styles.menuItemText}>Force Sync Database</Text>
+                            <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="download-cloud" size={18} color={theme.textPrimary} /></View>
+                            <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>Force Sync Database</Text>
                         </View>
-                        <Feather name="chevron-right" size={20} color="#5E5C58" />
+                        <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                     </TouchableOpacity>
                 </View>
 
-                {/* About & Legal Section - Unobtrusive */}
-                <Text style={styles.sectionTitle}>About</Text>
-                <View style={styles.menuGroup}>
-                    <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert("About Noor", "Version 1.0.0\n\nDesigned to elevate your daily spiritual connection with a premium, seamless interface.\n\nBy MZ and MBZ")}>
+                {/* About & Legal Section */}
+                <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>About</Text>
+                <View style={[styles.menuGroup, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                    <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={() => Alert.alert("About Falah", "Version 1.0.0\n\nDesigned to elevate your daily spiritual connection with a premium, seamless interface.\n\nBy MZ and MBZ")}>
                         <View style={styles.menuItemLeft}>
-                            <View style={styles.menuIconBox}><Feather name="info" size={18} color="#1A1A1A" /></View>
-                            <Text style={styles.menuItemText}>About Noor</Text>
+                            <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="info" size={18} color={theme.textPrimary} /></View>
+                            <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>About Falah</Text>
                         </View>
-                        <Feather name="chevron-right" size={20} color="#5E5C58" />
+                        <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.menuItem}>
+                    <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]}>
                         <View style={styles.menuItemLeft}>
-                            <View style={styles.menuIconBox}><Feather name="shield" size={18} color="#1A1A1A" /></View>
-                            <Text style={styles.menuItemText}>Privacy Policy</Text>
+                            <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="shield" size={18} color={theme.textPrimary} /></View>
+                            <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>Privacy Policy</Text>
                         </View>
-                        <Feather name="chevron-right" size={20} color="#5E5C58" />
+                        <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                     </TouchableOpacity>
                 </View>
 
                 {/* Premium Teaser */}
-                <TouchableOpacity style={styles.premiumBanner}>
-                    <Feather name="star" size={24} color="#FDF8F0" style={{ marginRight: 16 }} />
+                <TouchableOpacity style={[styles.premiumBanner, { backgroundColor: theme.gold }]}>
+                    <Feather name="star" size={24} color={theme.textInverse} style={{ marginRight: 16 }} />
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.premiumBannerTitle}>Upgrade to Noor Pro</Text>
-                        <Text style={styles.premiumBannerDesc}>Unlock unlimited Hifz tracking & Audio.</Text>
+                        <Text style={[styles.premiumBannerTitle, { color: theme.textInverse }]}>Upgrade to Falah Pro</Text>
+                        <Text style={[styles.premiumBannerDesc, { color: theme.textInverse + 'CC' }]}>Unlock unlimited Hifz tracking & Audio.</Text>
                     </View>
                 </TouchableOpacity>
 
@@ -316,64 +450,118 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FDF8F0' },
+    container: { flex: 1 },
     authContainer: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 60 },
     authHeader: { alignItems: 'center', marginBottom: 40 },
     authIconContainer: {
         width: 80, height: 80, borderRadius: 40,
-        backgroundColor: 'rgba(201, 168, 76, 0.1)',
         alignItems: 'center', justifyContent: 'center',
-        marginBottom: 20, borderWidth: 1, borderColor: 'rgba(201, 168, 76, 0.2)'
+        marginBottom: 20, borderWidth: 1,
     },
-    authTitle: { color: '#1A1A1A', fontSize: 28, fontWeight: 'bold', marginBottom: 12 },
-    authDesc: { color: '#5E5C58', fontSize: 15, textAlign: 'center', lineHeight: 24, paddingHorizontal: 20 },
+    authTitle: { fontSize: 28, fontWeight: 'bold', marginBottom: 12 },
+    authDesc: { fontSize: 15, textAlign: 'center', lineHeight: 24, paddingHorizontal: 20 },
     inputStack: { gap: 16, marginBottom: 40 },
     inputWrapper: {
         flexDirection: 'row', alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.05)',
         borderRadius: 16, paddingHorizontal: 16, height: 60,
-        borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)'
+        borderWidth: 1,
     },
     inputIcon: { marginRight: 16 },
-    input: { flex: 1, color: '#1A1A1A', fontSize: 16, height: '100%' },
+    input: { flex: 1, fontSize: 16, height: '100%' },
     authActionRow: { gap: 16 },
     primaryBtn: {
-        backgroundColor: '#C9A84C',
         borderRadius: 16, height: 60,
         alignItems: 'center', justifyContent: 'center',
     },
-    primaryBtnText: { color: '#FDF8F0', fontSize: 16, fontWeight: 'bold' },
+    primaryBtnText: { fontSize: 16, fontWeight: 'bold' },
     secondaryBtn: {
         backgroundColor: 'transparent',
         borderRadius: 16, height: 60,
         alignItems: 'center', justifyContent: 'center',
-        borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)',
+        borderWidth: 1,
     },
-    secondaryBtnText: { color: '#1A1A1A', fontSize: 16, fontWeight: '600' },
-    header: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' },
-    headerTitle: { fontSize: 26, fontWeight: '300', color: '#1A1A1A', letterSpacing: 0.5 },
+    secondaryBtnText: { fontSize: 16, fontWeight: '600' },
+    header: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 20, borderBottomWidth: 1 },
+    headerTitle: { fontSize: 26, fontWeight: '300', letterSpacing: 0.5 },
     content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 60 },
-    idCard: { borderRadius: 20, borderWidth: 1, borderColor: 'rgba(201, 168, 76, 0.3)', marginBottom: 30 },
-    idHeader: { flexDirection: 'row', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' },
-    avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(140, 75, 64, 0.05)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
-    emailText: { color: '#1A1A1A', fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
-    statusText: { color: '#C9A84C', fontSize: 13, fontWeight: '500', textTransform: 'uppercase', letterSpacing: 1 },
+    idCard: { borderRadius: 20, borderWidth: 1, marginBottom: 30 },
+    idHeader: { flexDirection: 'row', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
+    avatar: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+    emailText: { fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
+    statusText: { fontSize: 13, fontWeight: '500', textTransform: 'uppercase', letterSpacing: 1 },
     idStats: { flexDirection: 'row' },
     idStatBox: { flex: 1, paddingVertical: 16, alignItems: 'center' },
-    statVal: { color: '#1A1A1A', fontSize: 20, fontWeight: 'bold', marginBottom: 4 },
-    statLbl: { color: '#5E5C58', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
-    sectionTitle: { color: '#5E5C58', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, paddingHorizontal: 4 },
-    menuGroup: { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', marginBottom: 30 },
-    menuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: '#FFFFFF' },
+    statVal: { fontSize: 20, fontWeight: 'bold', marginBottom: 4 },
+    statLbl: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+    sectionTitle: { fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, paddingHorizontal: 4 },
+    menuGroup: { borderRadius: 16, borderWidth: 1, marginBottom: 30 },
+    menuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1 },
     menuItemLeft: { flexDirection: 'row', alignItems: 'center' },
-    menuIconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.05)', alignItems: 'center', justifyContent: 'center', marginRight: 16 },
-    menuItemText: { color: '#1A1A1A', fontSize: 16 },
-    premiumBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#C9A84C', borderRadius: 16, padding: 20, marginBottom: 30 },
-    premiumBannerTitle: { color: '#FDF8F0', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
-    premiumBannerDesc: { color: 'rgba(12, 15, 14, 0.8)', fontSize: 13 },
+    menuIconBox: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginRight: 16 },
+    menuItemText: { fontSize: 16 },
+    premiumBanner: { flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 20, marginBottom: 30 },
+    premiumBannerTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+    premiumBannerDesc: { fontSize: 13 },
     logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 16, backgroundColor: 'rgba(229, 62, 62, 0.1)', borderWidth: 1, borderColor: 'rgba(229, 62, 62, 0.2)' },
     logoutBtnText: { color: '#E53E3E', fontSize: 16, fontWeight: '600' },
-    menuItemSubText: { color: '#5E5C58', fontSize: 12, marginTop: 2 },
-    badgeContainer: { backgroundColor: 'rgba(201, 168, 76, 0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(201, 168, 76, 0.3)' },
-    badgeText: { color: '#C9A84C', fontSize: 12, fontWeight: 'bold' }
+    menuItemSubText: { fontSize: 12, marginTop: 2 },
+    badgeContainer: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1 },
+    badgeText: { fontSize: 12, fontWeight: 'bold' },
+});
+
+const themePickerStyles = StyleSheet.create({
+    card: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+    },
+    cardLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+        flex: 1,
+    },
+    iconBox: {
+        width: 38,
+        height: 38,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    label: {
+        fontSize: 15,
+        fontWeight: '700',
+        marginBottom: 2,
+    },
+    desc: {
+        fontSize: 12,
+        fontWeight: '400',
+    },
+    cardRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    swatches: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    swatch: {
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        borderWidth: 1.5,
+        borderColor: 'rgba(255,255,255,0.5)',
+    },
+    check: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        borderWidth: 1.5,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
 });

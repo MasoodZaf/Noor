@@ -5,3 +5,7 @@ node_modules/
 database/node_modules/
 mobile/node_modules/
 noor_offline.db
+mobile/*.apk
+mobile/*.ipa
+mobile/ios/
+mobile/android/

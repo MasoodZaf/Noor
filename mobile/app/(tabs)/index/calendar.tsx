@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment-hijri';
+import { useTheme } from '../../../context/ThemeContext';
 
 const ALADHAN = 'https://api.aladhan.com/v1';
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -52,7 +53,7 @@ function parseRaw(raw: any[], todayStr: string): DayData[] {
 }
 
 function cacheKey(m: number, y: number) {
-    return `@hijri_cal_${m}_${y}`;
+    return `@noor/hijri_cal_${m}_${y}`;
 }
 
 function gregorianSpanFromRaw(raw: any[]): string {
@@ -68,6 +69,7 @@ function gregorianSpanFromRaw(raw: any[]): string {
 export default function CalendarScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { theme } = useTheme();
 
     const [hijriMonth, setHijriMonth] = useState(now.iMonth() + 1); // 1-12
     const [hijriYear, setHijriYear] = useState(now.iYear());
@@ -162,19 +164,19 @@ export default function CalendarScreen() {
                     key={day.hijriDay}
                     style={[
                         styles.dayCell,
-                        day.isToday && styles.dayCellToday,
-                        hasHoliday && !day.isToday && styles.dayCellHoliday,
+                        day.isToday && [styles.dayCellToday, { borderColor: theme.gold + '80' }],
+                        hasHoliday && !day.isToday && { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' },
                     ]}
                     activeOpacity={0.7}
                 >
                     <Text style={[
                         styles.dayText,
-                        day.isToday && styles.dayTextToday,
-                        hasHoliday && !day.isToday && styles.dayTextHoliday,
+                        { color: theme.textPrimary },
+                        day.isToday && { color: theme.gold, fontWeight: 'bold' },
                     ]}>
                         {day.hijriDay}
                     </Text>
-                    {hasHoliday && <View style={styles.holidayDot} />}
+                    {hasHoliday && <View style={[styles.holidayDot, { backgroundColor: theme.gold }]} />}
                 </TouchableOpacity>
             );
         }
@@ -182,13 +184,13 @@ export default function CalendarScreen() {
     };
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { borderBottomColor: theme.border }]}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Feather name="chevron-left" size={28} color="#1A1A1A" />
+                    <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Hijri Calendar</Text>
+                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Hijri Calendar</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -197,41 +199,41 @@ export default function CalendarScreen() {
                 {/* Month Selector */}
                 <View style={styles.monthSelector}>
                     <TouchableOpacity onPress={goToPrev} style={styles.navBtn} disabled={loading}>
-                        <Feather name="chevron-left" size={24} color={loading ? '#3A3A3A' : '#5E5C58'} />
+                        <Feather name="chevron-left" size={24} color={theme.textSecondary} />
                     </TouchableOpacity>
 
                     <View style={styles.monthTextContainer}>
-                        <Text style={styles.islamicMonth}>{monthLabel || '…'}</Text>
+                        <Text style={[styles.islamicMonth, { color: theme.gold }]}>{monthLabel || '…'}</Text>
                         {gregorianSpan ? (
-                            <Text style={styles.gregorianMonth}>{gregorianSpan}</Text>
+                            <Text style={[styles.gregorianMonth, { color: theme.textSecondary }]}>{gregorianSpan}</Text>
                         ) : null}
                         <View style={styles.sourceRow}>
                             <View style={[
                                 styles.sourceDot,
-                                { backgroundColor: source === 'api' ? '#2ECC71' : source === 'cache' ? '#C9A84C' : '#E74C3C' }
+                                { backgroundColor: source === 'api' ? theme.accent : source === 'cache' ? theme.gold : '#E74C3C' }
                             ]} />
-                            <Text style={styles.sourceLabel}>
+                            <Text style={[styles.sourceLabel, { color: theme.textSecondary }]}>
                                 {source === 'api' ? 'Live · AlAdhan' : source === 'cache' ? 'Cached · AlAdhan' : 'Offline'}
                             </Text>
                         </View>
                     </View>
 
                     <TouchableOpacity onPress={goToNext} style={styles.navBtn} disabled={loading}>
-                        <Feather name="chevron-right" size={24} color={loading ? '#3A3A3A' : '#5E5C58'} />
+                        <Feather name="chevron-right" size={24} color={theme.textSecondary} />
                     </TouchableOpacity>
                 </View>
 
                 {/* Calendar Grid */}
-                <View style={styles.calendarContainer}>
+                <View style={[styles.calendarContainer, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
                     <View style={styles.daysOfWeek}>
                         {DAY_NAMES.map(day => (
-                            <Text key={day} style={styles.dayOfWeekText}>{day}</Text>
+                            <Text key={day} style={[styles.dayOfWeekText, { color: theme.textSecondary }]}>{day}</Text>
                         ))}
                     </View>
                     {loading ? (
                         <View style={styles.loadingContainer}>
-                            <ActivityIndicator color="#C9A84C" size="small" />
-                            <Text style={styles.loadingText}>Fetching lunar data…</Text>
+                            <ActivityIndicator color={theme.gold} size="small" />
+                            <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Fetching lunar data…</Text>
                         </View>
                     ) : (
                         <View style={styles.grid}>{renderGrid()}</View>
@@ -241,23 +243,23 @@ export default function CalendarScreen() {
                 {/* Important Dates — from API holidays */}
                 {!loading && holidayDays.length > 0 && (
                     <>
-                        <Text style={styles.sectionTitle}>Important Dates</Text>
+                        <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Important Dates</Text>
                         <View style={styles.eventsList}>
                             {holidayDays.map((day, idx) => (
-                                <View key={idx} style={styles.eventCard}>
-                                    <View style={styles.eventDate}>
-                                        <Text style={styles.eventDay}>{day.hijriDay}</Text>
-                                        <Text style={styles.eventMonth}>{hijriMonthName}</Text>
+                                <View key={idx} style={[styles.eventCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                                    <View style={[styles.eventDate, { backgroundColor: theme.gold + '1A' }]}>
+                                        <Text style={[styles.eventDay, { color: theme.gold }]}>{day.hijriDay}</Text>
+                                        <Text style={[styles.eventMonth, { color: theme.textPrimary }]}>{hijriMonthName}</Text>
                                     </View>
                                     <View style={styles.eventInfo}>
-                                        <Text style={styles.eventTitle} numberOfLines={2}>
+                                        <Text style={[styles.eventTitle, { color: theme.textPrimary }]} numberOfLines={2}>
                                             {day.holidays[0]}
                                         </Text>
                                         {day.gregorianFormatted ? (
-                                            <Text style={styles.eventSubTitle}>{day.gregorianFormatted}</Text>
+                                            <Text style={[styles.eventSubTitle, { color: theme.textSecondary }]}>{day.gregorianFormatted}</Text>
                                         ) : null}
                                     </View>
-                                    <Feather name="bell" size={20} color="#C9A84C" />
+                                    <Feather name="bell" size={20} color={theme.gold} />
                                 </View>
                             ))}
                         </View>
@@ -266,8 +268,8 @@ export default function CalendarScreen() {
 
                 {!loading && holidayDays.length === 0 && (
                     <View style={styles.noHolidaysBlock}>
-                        <Feather name="moon" size={28} color="#3A3A3A" />
-                        <Text style={styles.noHolidaysText}>No Islamic holidays this month</Text>
+                        <Feather name="moon" size={28} color={theme.textSecondary} />
+                        <Text style={[styles.noHolidaysText, { color: theme.textSecondary }]}>No Islamic holidays this month</Text>
                     </View>
                 )}
 
@@ -279,7 +281,6 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FDF8F0',
     },
     header: {
         flexDirection: 'row',
@@ -287,6 +288,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: 20,
         height: 60,
+        borderBottomWidth: 1,
     },
     backButton: {
         width: 40,
@@ -296,7 +298,6 @@ const styles = StyleSheet.create({
         marginLeft: -10,
     },
     headerTitle: {
-        color: '#1A1A1A',
         fontSize: 18,
         fontWeight: '500',
         letterSpacing: 0.5,
@@ -323,7 +324,6 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     islamicMonth: {
-        color: '#C9A84C',
         fontSize: 22,
         fontWeight: '600',
         marginBottom: 4,
@@ -331,7 +331,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     gregorianMonth: {
-        color: '#5E5C58',
         fontSize: 14,
         fontWeight: '400',
         marginBottom: 6,
@@ -347,16 +346,13 @@ const styles = StyleSheet.create({
         borderRadius: 3,
     },
     sourceLabel: {
-        color: '#5E5C58',
         fontSize: 11,
     },
     calendarContainer: {
-        backgroundColor: '#FFFFFF',
         marginHorizontal: 20,
         borderRadius: 24,
         padding: 20,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
         marginBottom: 40,
     },
     daysOfWeek: {
@@ -365,7 +361,6 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     dayOfWeekText: {
-        color: '#5E5C58',
         fontSize: 13,
         fontWeight: '600',
         width: `${100 / 7}%`,
@@ -382,7 +377,6 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     loadingText: {
-        color: '#5E5C58',
         fontSize: 13,
     },
     dayCell: {
@@ -396,32 +390,18 @@ const styles = StyleSheet.create({
     dayCellToday: {
         backgroundColor: '#1F4E3D',
         borderWidth: 1,
-        borderColor: 'rgba(201, 168, 76, 0.5)',
-    },
-    dayCellHoliday: {
-        backgroundColor: 'rgba(0,0,0,0.05)',
-    },
-    dayText: {
-        color: '#1A1A1A',
-        fontSize: 16,
-        fontWeight: '500',
-    },
-    dayTextToday: {
-        color: '#C9A84C',
-        fontWeight: 'bold',
-    },
-    dayTextHoliday: {
-        color: '#1A1A1A',
     },
     holidayDot: {
         width: 4,
         height: 4,
         borderRadius: 2,
-        backgroundColor: '#C9A84C',
         marginTop: 3,
     },
+    dayText: {
+        fontSize: 16,
+        fontWeight: '500',
+    },
     sectionTitle: {
-        color: '#1A1A1A',
         fontSize: 18,
         fontWeight: '500',
         paddingHorizontal: 24,
@@ -434,14 +414,11 @@ const styles = StyleSheet.create({
     eventCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
         borderRadius: 16,
         padding: 16,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
     },
     eventDate: {
-        backgroundColor: 'rgba(201, 168, 76, 0.1)',
         borderRadius: 12,
         paddingVertical: 10,
         paddingHorizontal: 12,
@@ -450,12 +427,10 @@ const styles = StyleSheet.create({
         minWidth: 70,
     },
     eventDay: {
-        color: '#C9A84C',
         fontSize: 22,
         fontWeight: '700',
     },
     eventMonth: {
-        color: '#1A1A1A',
         fontSize: 11,
         marginTop: 2,
         textTransform: 'uppercase',
@@ -464,13 +439,11 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     eventTitle: {
-        color: '#1A1A1A',
         fontSize: 15,
         fontWeight: '500',
         marginBottom: 4,
     },
     eventSubTitle: {
-        color: '#5E5C58',
         fontSize: 13,
     },
     noHolidaysBlock: {
@@ -479,7 +452,6 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     noHolidaysText: {
-        color: '#3A3A3A',
         fontSize: 14,
     },
 });

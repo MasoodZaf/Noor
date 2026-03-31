@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, TextInput,
-    FlatList, ActivityIndicator, Linking, Platform, Dimensions, BackHandler,
+    FlatList, ActivityIndicator, Linking, Platform, Dimensions, BackHandler, Alert,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT, Region } from 'react-native-maps';
 import { WebView } from 'react-native-webview';
@@ -9,11 +9,25 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
+import { useTheme } from '../../../context/ThemeContext';
 
 const { width, height } = Dimensions.get('window');
 
-// ─── Overpass API (OpenStreetMap) — free, no key ──────────────────────────────
-const OVERPASS = 'https://overpass-api.de/api/interpreter';
+// ─── Overpass mirrors — tried in order on failure/timeout ─────────────────────
+const OVERPASS_MIRRORS = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+];
+
+// ISO 3166-1 alpha-2 codes for Muslim-majority countries
+// In these countries most restaurants are halal by default → show all
+const MUSLIM_MAJORITY_COUNTRIES = new Set([
+    'AE','AF','AL','AZ','BA','BD','BH','BJ','BN','CI','DJ','DZ','EG','ER',
+    'GM','GN','GW','ID','IQ','IR','JO','KG','KM','KW','KZ','LB','LY','MA',
+    'MD','ML','MR','MV','MY','NE','NG','OM','PK','PS','QA','SA','SD','SN',
+    'SO','SS','SY','TD','TG','TJ','TM','TN','TR','TZ','UZ','XK','YE',
+]);
 
 // Haversine distance in km between two coordinates
 const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -39,26 +53,64 @@ interface Place {
 }
 
 // ─── Fetch mosques + halal restaurants from Overpass ─────────────────────────
-const fetchNearbyPlaces = async (lat: number, lon: number): Promise<Place[]> => {
-    const radius = 5000; // 5 km
-    const query = `
-[out:json][timeout:30];
+// In Muslim-majority countries: show all restaurants (halal by default)
+// In non-Muslim countries:      only show diet:halal=yes|only tagged places
+const buildOverpassQuery = (lat: number, lon: number, isMuslimCountry: boolean): string => {
+    const radius = 5000;
+    const foodFilter = isMuslimCountry
+        ? `node["amenity"="restaurant"](around:${radius},${lat},${lon});
+  node["amenity"="cafe"](around:${radius},${lat},${lon});
+  node["amenity"="fast_food"](around:${radius},${lat},${lon});`
+        : `node["amenity"="restaurant"]["diet:halal"~"^(yes|only)$"](around:${radius},${lat},${lon});
+  node["amenity"="cafe"]["diet:halal"~"^(yes|only)$"](around:${radius},${lat},${lon});
+  node["amenity"="fast_food"]["diet:halal"~"^(yes|only)$"](around:${radius},${lat},${lon});`;
+
+    return `[out:json][timeout:25];
 (
   node["amenity"="place_of_worship"]["religion"="muslim"](around:${radius},${lat},${lon});
   way["amenity"="place_of_worship"]["religion"="muslim"](around:${radius},${lat},${lon});
-  node["amenity"="restaurant"](around:${radius},${lat},${lon});
-  node["amenity"="cafe"]["diet:halal"="yes"](around:${radius},${lat},${lon});
+  ${foodFilter}
   node["amenity"="community_centre"]["religion"="muslim"](around:${radius},${lat},${lon});
 );
-out center 80;`;
+out center 60 qt;`;
+};
 
-    const res = await fetch(OVERPASS, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `data=${encodeURIComponent(query)}`,
-    });
-    if (!res.ok) throw new Error(`Overpass ${res.status}`);
-    const json = await res.json();
+const fetchFromOverpass = async (query: string): Promise<any> => {
+    let lastError: any;
+    for (const mirror of OVERPASS_MIRRORS) {
+        try {
+            const ctl = new AbortController();
+            const timer = setTimeout(() => ctl.abort(), 22000);
+            const res = await fetch(mirror, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'User-Agent': 'FalahApp/1.0 (Islamic places finder; contact@falah.app)',
+                    'Accept': 'application/json',
+                },
+                body: `data=${encodeURIComponent(query)}`,
+                signal: ctl.signal,
+            });
+            clearTimeout(timer);
+            // 403 = blocked/rate-limited on this mirror, 429 = rate limit, 5xx = server error — all retryable
+            if (res.status === 403 || res.status === 429 || res.status >= 500) {
+                throw new Error(`Overpass ${res.status}`);
+            }
+            if (!res.ok) throw new Error(`Overpass ${res.status}`);
+            return await res.json();
+        } catch (e: any) {
+            lastError = e;
+            // Always try next mirror on network error, abort, 403, 429, or 5xx
+        }
+    }
+    throw lastError;
+};
+
+const fetchNearbyPlaces = async (
+    lat: number, lon: number, isMuslimCountry: boolean
+): Promise<Place[]> => {
+    const query = buildOverpassQuery(lat, lon, isMuslimCountry);
+    const json = await fetchFromOverpass(query);
 
     return (json.elements as any[])
         .filter(el => el.tags?.name)
@@ -72,6 +124,7 @@ out center 80;`;
             if (amenity === 'place_of_worship' || el.tags.religion === 'muslim') type = 'Mosque';
             else if (amenity === 'community_centre') type = 'Islamic Center';
             else if (amenity === 'cafe') type = 'Cafe';
+            else if (amenity === 'fast_food') type = 'Restaurant';
 
             return {
                 id: String(el.id),
@@ -140,13 +193,18 @@ const buildLeafletHtml = (places: Place[], userLat: number, userLon: number): st
     radius: 9, color: '#fff', weight: 3, fillColor: '#4A90D9', fillOpacity: 1
   }).addTo(map).bindPopup('<b>You are here</b>');
 
+  // HTML-escape helper — prevents XSS from OSM place names
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
   // Place markers
   var places = ${JSON.stringify(markers)};
   places.forEach(function(p) {
     var m = L.circleMarker([p.lat, p.lon], {
       radius: 11, color: '#fff', weight: 2, fillColor: p.color, fillOpacity: 0.9
     }).addTo(map);
-    m.bindPopup('<b>' + p.name + '<\\/b><br\\/><small>' + p.type + ' &middot; ' + p.distance + '<\\/small>');
+    m.bindPopup('<b>' + esc(p.name) + '<\\/b><br\\/><small>' + esc(p.type) + ' &middot; ' + esc(p.distance) + '<\\/small>');
     m.on('click', function() {
       window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ id: p.id }));
     });
@@ -177,6 +235,8 @@ export default function HalalPlacesScreen() {
         return () => sub.remove();
     }, [goBack]));
 
+    const { theme } = useTheme();
+
     const [location, setLocation] = useState<{ lat: number; lon: number } | null>(null);
     const [region, setRegion] = useState<Region | null>(null);
     const [places, setPlaces] = useState<Place[]>([]);
@@ -185,6 +245,7 @@ export default function HalalPlacesScreen() {
     const [filter, setFilter] = useState<FilterType>('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [isMuslimCountry, setIsMuslimCountry] = useState(false);
 
     // Leaflet HTML — regenerated only when places list or user location changes (Android only)
     const leafletHtml = useMemo(() => {
@@ -194,10 +255,12 @@ export default function HalalPlacesScreen() {
 
     // Fetch location + places on mount
     useEffect(() => {
+        let mounted = true;
         (async () => {
             setLoading(true);
             try {
                 const { status } = await Location.requestForegroundPermissionsAsync();
+                if (!mounted) return;
                 if (status !== 'granted') {
                     setError('Location permission denied. Cannot show nearby places.');
                     setLoading(false);
@@ -206,6 +269,7 @@ export default function HalalPlacesScreen() {
                 // Try high-accuracy first, fall back to last known position if unavailable
                 let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
                     .catch(() => Location.getLastKnownPositionAsync());
+                if (!mounted) return;
                 if (!loc) throw new Error('Location unavailable');
                 const { latitude, longitude } = loc.coords;
                 setLocation({ lat: latitude, lon: longitude });
@@ -215,15 +279,30 @@ export default function HalalPlacesScreen() {
                     latitudeDelta: 0.05,
                     longitudeDelta: 0.05,
                 });
-                const nearby = await fetchNearbyPlaces(latitude, longitude);
+
+                // Reverse geocode to determine if user is in a Muslim-majority country
+                let muslimCountry = false;
+                try {
+                    const [geo] = await Location.reverseGeocodeAsync({ latitude, longitude });
+                    const countryCode = geo?.isoCountryCode ?? '';
+                    muslimCountry = MUSLIM_MAJORITY_COUNTRIES.has(countryCode);
+                    setIsMuslimCountry(muslimCountry);
+                } catch {
+                    // Default to strict halal-only if geocoding fails
+                }
+
+                const nearby = await fetchNearbyPlaces(latitude, longitude, muslimCountry);
+                if (!mounted) return;
                 setPlaces(nearby);
             } catch (e: any) {
+                if (!mounted) return;
                 setError('Could not load nearby places. Check your connection.');
                 console.error(e);
             } finally {
-                setLoading(false);
+                if (mounted) setLoading(false);
             }
         })();
+        return () => { mounted = false; };
     }, []);
 
     const filteredPlaces = places.filter(p => {
@@ -299,13 +378,13 @@ export default function HalalPlacesScreen() {
     };
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={goBack} style={styles.backButton}>
-                    <Feather name="arrow-left" size={24} color="#1A1A1A" />
+                    <Feather name="arrow-left" size={24} color={theme.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Nearby Places</Text>
+                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Nearby Places</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -325,8 +404,8 @@ export default function HalalPlacesScreen() {
                         />
                     ) : (
                         <View style={styles.mapLoading}>
-                            <ActivityIndicator size="large" color="#1F4E3D" />
-                            <Text style={styles.mapLoadingText}>Loading map...</Text>
+                            <ActivityIndicator size="large" color={theme.accent} />
+                            <Text style={[styles.mapLoadingText, { color: theme.textSecondary }]}>Loading map...</Text>
                         </View>
                     )
                 ) : (
@@ -353,15 +432,15 @@ export default function HalalPlacesScreen() {
                         </MapView>
                     ) : (
                         <View style={styles.mapLoading}>
-                            <ActivityIndicator size="large" color="#1F4E3D" />
-                            <Text style={styles.mapLoadingText}>Loading map...</Text>
+                            <ActivityIndicator size="large" color={theme.accent} />
+                            <Text style={[styles.mapLoadingText, { color: theme.textSecondary }]}>Loading map...</Text>
                         </View>
                     )
                 )}
 
                 {/* Recenter button */}
                 <TouchableOpacity style={styles.recenterBtn} onPress={recenter}>
-                    <Feather name="crosshair" size={18} color="#1F4E3D" />
+                    <Feather name="crosshair" size={18} color={theme.accent} />
                 </TouchableOpacity>
 
                 {/* Result count badge */}
@@ -372,21 +451,35 @@ export default function HalalPlacesScreen() {
                 )}
             </View>
 
+            {/* Halal mode badge */}
+            {!loading && !error && (
+                <View style={styles.halalBadgeRow}>
+                    <View style={[styles.halalBadge, { backgroundColor: isMuslimCountry ? theme.bgCard : '#1F4E3D18', borderColor: isMuslimCountry ? theme.border : '#1F4E3D44' }]}>
+                        <Text style={{ fontSize: 13 }}>{isMuslimCountry ? '🌙' : '✅'}</Text>
+                        <Text style={[styles.halalBadgeText, { color: theme.textSecondary }]}>
+                            {isMuslimCountry
+                                ? 'All restaurants shown — halal by local custom'
+                                : 'Halal-certified places only'}
+                        </Text>
+                    </View>
+                </View>
+            )}
+
             {/* Search + Filter */}
             <View style={styles.controls}>
-                <View style={styles.searchInputWrapper}>
-                    <Feather name="search" size={17} color="#8A8A8A" style={{ marginRight: 8 }} />
+                <View style={[styles.searchInputWrapper, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                    <Feather name="search" size={17} color={theme.textSecondary} style={{ marginRight: 8 }} />
                     <TextInput
-                        style={styles.searchInput}
+                        style={[styles.searchInput, { color: theme.textPrimary }]}
                         placeholder="Search mosques, restaurants..."
-                        placeholderTextColor="#9A9A9A"
+                        placeholderTextColor={theme.textTertiary}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                         autoCorrect={false}
                     />
                     {searchQuery.length > 0 && (
                         <TouchableOpacity onPress={() => setSearchQuery('')}>
-                            <Feather name="x" size={16} color="#9A9A9A" />
+                            <Feather name="x" size={16} color={theme.textTertiary} />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -399,10 +492,10 @@ export default function HalalPlacesScreen() {
                     contentContainerStyle={styles.filterRow}
                     renderItem={({ item }) => (
                         <TouchableOpacity
-                            style={[styles.filterPill, filter === item && styles.filterPillActive]}
+                            style={[styles.filterPill, { backgroundColor: theme.bgInput }, filter === item && styles.filterPillActive]}
                             onPress={() => setFilter(item)}
                         >
-                            <Text style={[styles.filterText, filter === item && styles.filterTextActive]}>
+                            <Text style={[styles.filterText, { color: theme.textSecondary }, filter === item && styles.filterTextActive]}>
                                 {item}
                             </Text>
                         </TouchableOpacity>
@@ -413,18 +506,18 @@ export default function HalalPlacesScreen() {
             {/* Places List */}
             {loading ? (
                 <View style={styles.centerState}>
-                    <ActivityIndicator size="large" color="#1F4E3D" />
-                    <Text style={styles.stateText}>Finding nearby mosques & restaurants...</Text>
+                    <ActivityIndicator size="large" color={theme.accent} />
+                    <Text style={[styles.stateText, { color: theme.textSecondary }]}>Finding nearby mosques & restaurants...</Text>
                 </View>
             ) : error ? (
                 <View style={styles.centerState}>
-                    <Feather name="alert-circle" size={36} color="#CCC" />
-                    <Text style={styles.stateText}>{error}</Text>
+                    <Feather name="alert-circle" size={36} color={theme.textTertiary} />
+                    <Text style={[styles.stateText, { color: theme.textSecondary }]}>{error}</Text>
                 </View>
             ) : filteredPlaces.length === 0 ? (
                 <View style={styles.centerState}>
-                    <Feather name="map-pin" size={36} color="#CCC" />
-                    <Text style={styles.stateText}>No places found nearby</Text>
+                    <Feather name="map-pin" size={36} color={theme.textTertiary} />
+                    <Text style={[styles.stateText, { color: theme.textSecondary }]}>No places found nearby</Text>
                 </View>
             ) : (
                 <FlatList
@@ -434,9 +527,29 @@ export default function HalalPlacesScreen() {
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.listContent}
                     ListHeaderComponent={
-                        <Text style={styles.listTitle}>
-                            {filteredPlaces.length} Nearby {filter !== 'All' ? filter + 's' : 'Places'}
-                        </Text>
+                        <>
+                            <Text style={[styles.listTitle, { color: theme.textPrimary }]}>
+                                {filteredPlaces.length} Nearby {filter !== 'All' ? filter + 's' : 'Places'}
+                            </Text>
+                            <TouchableOpacity
+                                style={[styles.communityBanner, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
+                                onPress={() => Alert.alert(
+                                    'Suggest a Halal Place',
+                                    'Know a halal restaurant or Islamic center not shown here? Help the community by adding it to OpenStreetMap (openstreetmap.org) — the map data we use.\n\nTag with: amenity=restaurant + diet:halal=yes',
+                                    [
+                                        { text: 'Open OpenStreetMap', onPress: () => Linking.openURL('https://www.openstreetmap.org/edit') },
+                                        { text: 'Cancel', style: 'cancel' },
+                                    ]
+                                )}
+                            >
+                                <Text style={{ fontSize: 20 }}>🤝</Text>
+                                <View style={{ flex: 1, marginLeft: 10 }}>
+                                    <Text style={[styles.communityTitle, { color: theme.textPrimary }]}>Know a halal place nearby?</Text>
+                                    <Text style={[styles.communitySubtitle, { color: theme.textSecondary }]}>Help the community — tap to suggest it</Text>
+                                </View>
+                                <Feather name="chevron-right" size={16} color={theme.textTertiary} />
+                            </TouchableOpacity>
+                        </>
                     }
                     onScrollToIndexFailed={() => { }}
                     renderItem={({ item: place }) => {
@@ -445,7 +558,7 @@ export default function HalalPlacesScreen() {
                         const typeIcon = TYPE_ICON[place.type as Place['type']] ?? '📍';
                         return (
                             <TouchableOpacity
-                                style={[styles.placeCard, isSelected && styles.placeCardSelected]}
+                                style={[styles.placeCard, { backgroundColor: theme.bgCard }, isSelected && styles.placeCardSelected]}
                                 onPress={() => onPlacePress(place)}
                                 activeOpacity={0.8}
                             >
@@ -455,17 +568,17 @@ export default function HalalPlacesScreen() {
                                 </View>
 
                                 <View style={styles.placeInfo}>
-                                    <Text style={styles.placeName} numberOfLines={1}>{place.name}</Text>
+                                    <Text style={[styles.placeName, { color: theme.textPrimary }]} numberOfLines={1}>{place.name}</Text>
                                     <View style={styles.placeMeta}>
                                         <Text style={[styles.placeTypeTag, { color: markerColor }]}>
                                             {place.type}
                                         </Text>
-                                        <View style={styles.dot} />
-                                        <Feather name="map-pin" size={11} color="#9A9A9A" />
-                                        <Text style={styles.placeDistance}> {formatDistance(place.distance)}</Text>
+                                        <View style={[styles.dot, { backgroundColor: theme.border }]} />
+                                        <Feather name="map-pin" size={11} color={theme.textTertiary} />
+                                        <Text style={[styles.placeDistance, { color: theme.textSecondary }]}> {formatDistance(place.distance)}</Text>
                                     </View>
                                     {place.tags['opening_hours'] && (
-                                        <Text style={styles.openingHours} numberOfLines={1}>
+                                        <Text style={[styles.openingHours, { color: theme.textTertiary }]} numberOfLines={1}>
                                             {place.tags['opening_hours']}
                                         </Text>
                                     )}
@@ -487,13 +600,19 @@ export default function HalalPlacesScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F8F8F5' },
+    communityBanner: {
+        flexDirection: 'row', alignItems: 'center', borderRadius: 14,
+        padding: 14, marginBottom: 12, borderWidth: 1,
+    },
+    communityTitle: { fontSize: 14, fontWeight: '600' },
+    communitySubtitle: { fontSize: 12, marginTop: 2 },
+    container: { flex: 1 },
     header: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: 20, height: 56,
     },
     backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-    headerTitle: { fontSize: 17, fontWeight: '600', color: '#1A1A1A' },
+    headerTitle: { fontSize: 17, fontWeight: '600' },
 
     // Map
     mapContainer: {
@@ -505,7 +624,7 @@ const styles = StyleSheet.create({
         marginBottom: 14,
     },
     mapLoading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-    mapLoadingText: { color: '#5E5C58', fontSize: 13 },
+    mapLoadingText: { fontSize: 13 },
     recenterBtn: {
         position: 'absolute', bottom: 12, right: 12,
         width: 38, height: 38, borderRadius: 19,
@@ -522,35 +641,43 @@ const styles = StyleSheet.create({
     },
     countBadgeText: { fontSize: 12, fontWeight: '700', color: '#1F4E3D' },
 
+    halalBadgeRow: { paddingHorizontal: 16, marginBottom: 8 },
+    halalBadge: {
+        flexDirection: 'row', alignItems: 'center', gap: 6,
+        paddingHorizontal: 12, paddingVertical: 7,
+        borderRadius: 20, borderWidth: 1, alignSelf: 'flex-start',
+    },
+    halalBadgeText: { fontSize: 12, fontWeight: '500' },
+
     // Controls
     controls: { paddingHorizontal: 16, marginBottom: 8 },
     searchInputWrapper: {
         flexDirection: 'row', alignItems: 'center',
-        backgroundColor: '#FFFFFF', borderRadius: 14,
+        borderRadius: 14,
         paddingHorizontal: 14, height: 46,
-        borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)',
+        borderWidth: 1,
         marginBottom: 10,
     },
-    searchInput: { flex: 1, fontSize: 14, color: '#1A1A1A' },
+    searchInput: { flex: 1, fontSize: 14 },
     filterRow: { gap: 8, paddingBottom: 4 },
     filterPill: {
         paddingHorizontal: 14, paddingVertical: 7,
-        borderRadius: 20, backgroundColor: '#EFEFEF',
+        borderRadius: 20,
     },
     filterPillActive: { backgroundColor: '#1F4E3D' },
-    filterText: { fontSize: 13, fontWeight: '600', color: '#5A5A5A' },
+    filterText: { fontSize: 13, fontWeight: '600' },
     filterTextActive: { color: '#FFFFFF' },
 
     // States
     centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingBottom: 60 },
-    stateText: { color: '#8A8A8A', fontSize: 14, textAlign: 'center', paddingHorizontal: 40 },
+    stateText: { fontSize: 14, textAlign: 'center', paddingHorizontal: 40 },
 
     // List
     listContent: { paddingHorizontal: 16, paddingBottom: 40 },
-    listTitle: { fontSize: 15, fontWeight: '700', color: '#1A1A1A', marginBottom: 12 },
+    listTitle: { fontSize: 15, fontWeight: '700', marginBottom: 12 },
     placeCard: {
         flexDirection: 'row', alignItems: 'center',
-        backgroundColor: '#FFFFFF', borderRadius: 16,
+        borderRadius: 16,
         padding: 14, marginBottom: 10,
         borderWidth: 1.5, borderColor: 'transparent',
         shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
@@ -563,12 +690,12 @@ const styles = StyleSheet.create({
     },
     placeEmoji: { fontSize: 22 },
     placeInfo: { flex: 1 },
-    placeName: { fontSize: 15, fontWeight: '700', color: '#1A1A1A', marginBottom: 4 },
+    placeName: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
     placeMeta: { flexDirection: 'row', alignItems: 'center' },
     placeTypeTag: { fontSize: 12, fontWeight: '600' },
-    dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: '#CCCCCC', marginHorizontal: 6 },
-    placeDistance: { fontSize: 12, color: '#9A9A9A', fontWeight: '500' },
-    openingHours: { fontSize: 11, color: '#9A9A9A', marginTop: 3 },
+    dot: { width: 3, height: 3, borderRadius: 2, marginHorizontal: 6 },
+    placeDistance: { fontSize: 12, fontWeight: '500' },
+    openingHours: { fontSize: 11, marginTop: 3 },
     directionsBtn: {
         width: 40, height: 40, borderRadius: 20,
         alignItems: 'center', justifyContent: 'center', marginLeft: 10,

@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 const { width } = Dimensions.get('window');
 
 import { useDatabase } from '../../context/DatabaseContext';
+import { useTheme } from '../../context/ThemeContext';
 
 // Legacy Mock Data left intact for backward compatibility if needed, but overridden when db is active
 const DUA_DATABASE: Record<string, { title: string, icon: string, desc: string, items: any[] }> = {
@@ -98,9 +99,12 @@ export default function DuaDetailScreen() {
 
     const categoryId = typeof id === 'string' ? id : 'morning';
     const { db } = useDatabase();
+    const { theme } = useTheme();
 
     const [isLoading, setIsLoading] = useState(true);
     const [dbData, setDbData] = useState<any>(null);
+    const [notFound, setNotFound] = useState(false);
+    const [dbError, setDbError] = useState(false);
 
     React.useEffect(() => {
         if (!db) return;
@@ -114,7 +118,7 @@ export default function DuaDetailScreen() {
                 if (catRow) {
                     // Fetch nested Duas
                     const duaRows = await db?.getAllAsync(`
-                        SELECT id, title as desc, arabic_text as arabic, transliteration, translation_en as translation, source as reference 
+                        SELECT id, title as desc, arabic_text as arabic, transliteration, translation_en as translation, source as reference
                         FROM duas WHERE category_id = ? ORDER BY sort_order ASC
                     `, [categoryId]);
 
@@ -124,9 +128,12 @@ export default function DuaDetailScreen() {
                         desc: 'Prophetic supplications to fortify your soul and protect your day.',
                         items: duaRows || []
                     });
+                } else if (!DUA_DATABASE[categoryId]) {
+                    setNotFound(true);
                 }
             } catch (error) {
-                console.error("DB Load Error:", error);
+                console.error('[Noor/Duas] DB load error:', error);
+                setDbError(true);
             } finally {
                 setIsLoading(false);
             }
@@ -134,6 +141,31 @@ export default function DuaDetailScreen() {
 
         loadCollection();
     }, [db, categoryId]);
+
+    if (dbError) {
+        return (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.bg, paddingTop: insets.top, paddingHorizontal: 32 }}>
+                <Feather name="database" size={48} color={theme.textTertiary} />
+                <Text style={{ color: theme.textPrimary, fontSize: 18, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>Could not load duas</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 14, marginTop: 8, textAlign: 'center', lineHeight: 20 }}>There was a problem reading from the database. Please try again.</Text>
+                <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16, backgroundColor: theme.accentLight }}>
+                    <Text style={{ color: theme.gold, fontWeight: '700' }}>Go Back</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
+    if (notFound) {
+        return (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.bg, paddingTop: insets.top }}>
+                <Feather name="alert-circle" size={48} color={theme.textTertiary} />
+                <Text style={{ color: theme.textPrimary, fontSize: 18, fontWeight: '700', marginTop: 16 }}>Category not found</Text>
+                <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16, backgroundColor: theme.accentLight }}>
+                    <Text style={{ color: theme.gold, fontWeight: '700' }}>Go Back</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
 
     const data = dbData || DUA_DATABASE[categoryId] || DUA_DATABASE['morning'];
 
@@ -158,7 +190,7 @@ export default function DuaDetailScreen() {
     });
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: theme.bg }]}>
             {/* Ambient Background Graphic */}
             <Animated.View style={[styles.ambientHeader, { transform: [{ scale: headerScale }] }]}>
                 <LinearGradient
@@ -169,11 +201,11 @@ export default function DuaDetailScreen() {
 
             {/* Custom Fixed Header */}
             <View style={[styles.fixedNav, { paddingTop: insets.top }]}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Feather name="chevron-left" size={28} color="#1A1A1A" />
+                <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { borderColor: theme.border }]}>
+                    <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionBtn}>
-                    <Feather name="bookmark" size={22} color="#1A1A1A" />
+                <TouchableOpacity style={[styles.actionBtn, { borderColor: theme.border }]}>
+                    <Feather name="bookmark" size={22} color={theme.textPrimary} />
                 </TouchableOpacity>
             </View>
 
@@ -189,13 +221,13 @@ export default function DuaDetailScreen() {
             >
                 {/* Hero Title Area */}
                 <View style={styles.heroSection}>
-                    <View style={styles.heroIconWrapper}>
-                        <Feather name={data.icon as any} size={32} color="#C9A84C" />
+                    <View style={[styles.heroIconWrapper, { backgroundColor: theme.accentLight, borderColor: theme.border }]}>
+                        <Feather name={data.icon as any} size={32} color={theme.gold} />
                     </View>
-                    <Text style={styles.heroTitle}>{data.title}</Text>
-                    <Text style={styles.heroDesc}>{data.desc}</Text>
-                    <View style={styles.pillBadge}>
-                        <Text style={styles.pillText}>{data.items.length} Duas</Text>
+                    <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>{data.title}</Text>
+                    <Text style={[styles.heroDesc, { color: theme.textSecondary }]}>{data.desc}</Text>
+                    <View style={[styles.pillBadge, { borderColor: theme.border }]}>
+                        <Text style={[styles.pillText, { color: theme.gold }]}>{data.items.length} Duas</Text>
                     </View>
                 </View>
 
@@ -213,44 +245,44 @@ export default function DuaDetailScreen() {
                                 <LinearGradient
                                     colors={
                                         isExpanded
-                                            ? ['rgba(201,168,76,0.08)', 'rgba(31,78,61,0.08)']
+                                            ? [theme.gold + '14', theme.accent + '14']
                                             : ['rgba(255,255,255,0.03)', 'rgba(255,255,255,0.01)']
                                     }
-                                    style={[styles.duaCard, isExpanded && styles.duaCardActive]}
+                                    style={[styles.duaCard, isExpanded && styles.duaCardActive, { borderColor: isExpanded ? theme.borderStrong : theme.border }]}
                                 >
                                     <View style={styles.duaHeaderRow}>
-                                        <View style={styles.duaNumBadge}>
-                                            <Text style={styles.duaNumText}>{index + 1}</Text>
+                                        <View style={[styles.duaNumBadge, { backgroundColor: theme.bgInput }]}>
+                                            <Text style={[styles.duaNumText, { color: theme.textSecondary }]}>{index + 1}</Text>
                                         </View>
-                                        <Feather name={isExpanded ? "chevron-up" : "chevron-down"} size={20} color="#5E5C58" />
+                                        <Feather name={isExpanded ? "chevron-up" : "chevron-down"} size={20} color={theme.textSecondary} />
                                     </View>
 
-                                    <Text style={styles.arabicHeroText}>{item.arabic}</Text>
+                                    <Text style={[styles.arabicHeroText, { color: theme.gold }]}>{item.arabic}</Text>
 
                                     {/* Expanded Details Section */}
                                     {isExpanded && (
                                         <View style={styles.expandedDetails}>
-                                            <View style={styles.divider} />
+                                            <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-                                            <Text style={styles.sectionLabel}>TRANSLITERATION</Text>
-                                            <Text style={styles.translitText}>{item.transliteration}</Text>
+                                            <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>TRANSLITERATION</Text>
+                                            <Text style={[styles.translitText, { color: theme.textPrimary }]}>{item.transliteration}</Text>
 
-                                            <Text style={styles.sectionLabel}>TRANSLATION</Text>
-                                            <Text style={styles.translationText}>{item.translation}</Text>
+                                            <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>TRANSLATION</Text>
+                                            <Text style={[styles.translationText, { color: theme.textSecondary }]}>{item.translation}</Text>
 
-                                            <View style={styles.benefitBox}>
-                                                <Feather name="award" size={16} color="#C9A84C" />
-                                                <Text style={styles.benefitText}>{item.benefit}</Text>
+                                            <View style={[styles.benefitBox, { backgroundColor: theme.accentLight, borderColor: theme.border }]}>
+                                                <Feather name="award" size={16} color={theme.gold} />
+                                                <Text style={[styles.benefitText, { color: theme.gold }]}>{item.benefit}</Text>
                                             </View>
 
-                                            <View style={styles.actionsRow}>
-                                                <Text style={styles.refText}>{item.reference}</Text>
+                                            <View style={[styles.actionsRow, { borderTopColor: theme.border }]}>
+                                                <Text style={[styles.refText, { color: theme.textSecondary }]}>{item.reference}</Text>
                                                 <View style={{ flexDirection: 'row', gap: 16 }}>
                                                     <TouchableOpacity style={styles.iconOp}>
-                                                        <Feather name="copy" size={20} color="#5E5C58" />
+                                                        <Feather name="copy" size={20} color={theme.textSecondary} />
                                                     </TouchableOpacity>
                                                     <TouchableOpacity style={styles.iconOp}>
-                                                        <Feather name="bookmark" size={20} color="#5E5C58" />
+                                                        <Feather name="bookmark" size={20} color={theme.textSecondary} />
                                                     </TouchableOpacity>
                                                 </View>
                                             </View>
@@ -269,199 +301,63 @@ export default function DuaDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#FDF8F0',
-    },
-    ambientHeader: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 350,
-        overflow: 'hidden',
-    },
-
+    container: { flex: 1 },
+    ambientHeader: { position: 'absolute', top: 0, left: 0, right: 0, height: 350, overflow: 'hidden' },
     fixedNav: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 10,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingBottom: 10,
+        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
+        flexDirection: 'row', justifyContent: 'space-between',
+        paddingHorizontal: 20, paddingBottom: 10,
     },
     backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(140, 75, 64, 0.05)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginLeft: -10,
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
+        width: 44, height: 44, borderRadius: 22,
+        alignItems: 'center', justifyContent: 'center',
+        marginLeft: -10, borderWidth: 1,
     },
     actionBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(140, 75, 64, 0.05)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: -10,
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
+        width: 44, height: 44, borderRadius: 22,
+        alignItems: 'center', justifyContent: 'center',
+        marginRight: -10, borderWidth: 1,
     },
-    scrollContent: {
-        paddingHorizontal: 24,
-    },
-    heroSection: {
-        alignItems: 'flex-start',
-        marginBottom: 40,
-    },
+    scrollContent: { paddingHorizontal: 24 },
+    heroSection: { alignItems: 'flex-start', marginBottom: 40 },
     heroIconWrapper: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: 'rgba(201, 168, 76, 0.1)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(201, 168, 76, 0.2)',
+        width: 64, height: 64, borderRadius: 32,
+        alignItems: 'center', justifyContent: 'center',
+        marginBottom: 20, borderWidth: 1,
     },
-    heroTitle: {
-        color: '#1A1A1A',
-        fontSize: 34,
-        fontWeight: 'bold',
-        letterSpacing: 0.5,
-        marginBottom: 12,
-    },
-    heroDesc: {
-        color: '#5E5C58',
-        fontSize: 16,
-        lineHeight: 24,
-        marginBottom: 20,
-    },
-    pillBadge: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        backgroundColor: 'rgba(31, 78, 61, 0.2)',
-        borderWidth: 1,
-        borderColor: 'rgba(201, 168, 76, 0.2)',
-    },
-    pillText: {
-        color: '#C9A84C',
-        fontSize: 13,
-        fontWeight: '600',
-        letterSpacing: 1,
-    },
-    listContainer: {
-        gap: 20,
-    },
+    heroTitle: { fontSize: 34, fontWeight: 'bold', letterSpacing: 0.5, marginBottom: 12 },
+    heroDesc: { fontSize: 16, lineHeight: 24, marginBottom: 20 },
+    pillBadge: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+    pillText: { fontSize: 13, fontWeight: '600', letterSpacing: 1 },
+    listContainer: { gap: 20 },
     duaCard: {
-        borderRadius: 24,
-        padding: 24,
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.2,
-        shadowRadius: 15,
+        borderRadius: 24, padding: 24, borderWidth: 1,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.2, shadowRadius: 15,
     },
-    duaCardActive: {
-        borderColor: 'rgba(201,168,76,0.3)',
-    },
-    duaHeaderRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    duaNumBadge: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: 'rgba(0,0,0,0.05)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    duaNumText: {
-        color: '#5E5C58',
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
+    duaCardActive: {},
+    duaHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+    duaNumBadge: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    duaNumText: { fontSize: 14, fontWeight: 'bold' },
     arabicHeroText: {
-        color: '#C9A84C',
-        fontSize: 32,
-        lineHeight: 52,
-        textAlign: 'right',
+        fontSize: 32, lineHeight: 52, textAlign: 'right',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
         marginBottom: 10,
     },
-    expandedDetails: {
-        marginTop: 10,
-    },
-    divider: {
-        height: 1,
-        backgroundColor: 'rgba(0,0,0,0.05)',
-        marginVertical: 20,
-    },
-    sectionLabel: {
-        color: '#5E5C58',
-        fontSize: 11,
-        fontWeight: 'bold',
-        letterSpacing: 1.5,
-        marginBottom: 8,
-    },
-    translitText: {
-        color: '#1A1A1A',
-        fontSize: 16,
-        lineHeight: 24,
-        fontStyle: 'italic',
-        marginBottom: 24,
-    },
-    translationText: {
-        color: '#5E5C58',
-        fontSize: 16,
-        lineHeight: 26,
-        marginBottom: 24,
-    },
+    expandedDetails: { marginTop: 10 },
+    divider: { height: 1, marginVertical: 20 },
+    sectionLabel: { fontSize: 11, fontWeight: 'bold', letterSpacing: 1.5, marginBottom: 8 },
+    translitText: { fontSize: 16, lineHeight: 24, fontStyle: 'italic', marginBottom: 24 },
+    translationText: { fontSize: 16, lineHeight: 26, marginBottom: 24 },
     benefitBox: {
-        flexDirection: 'row',
-        backgroundColor: 'rgba(201, 168, 76, 0.05)',
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(201, 168, 76, 0.15)',
-        gap: 12,
-        alignItems: 'center',
-        marginBottom: 24,
+        flexDirection: 'row', padding: 16, borderRadius: 12,
+        borderWidth: 1, gap: 12, alignItems: 'center', marginBottom: 24,
     },
-    benefitText: {
-        flex: 1,
-        color: '#C9A84C',
-        fontSize: 14,
-        lineHeight: 20,
-    },
+    benefitText: { flex: 1, fontSize: 14, lineHeight: 20 },
     actionsRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.05)',
-        paddingTop: 16,
+        flexDirection: 'row', justifyContent: 'space-between',
+        alignItems: 'center', borderTopWidth: 1, paddingTop: 16,
     },
-    refText: {
-        color: '#5E5C58',
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    iconOp: {
-        padding: 4,
-    }
+    refText: { fontSize: 13, fontWeight: '500' },
+    iconOp: { padding: 4 },
 });
