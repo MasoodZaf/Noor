@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, ActivityIndicator, Alert, Pressable, Switch } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, ActivityIndicator, Alert, Pressable, Switch, Modal, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,11 +27,7 @@ export default function ProfileScreen() {
         'turkish': 'Türkçe'
     };
 
-    const cycleLanguage = () => {
-        const currentIndex = LANGUAGES.indexOf(language as any);
-        const nextIndex = (currentIndex + 1) % LANGUAGES.length;
-        setLanguage(LANGUAGES[nextIndex]);
-    };
+    const [showLanguagePicker, setShowLanguagePicker] = useState(false);
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -168,6 +164,26 @@ export default function ProfileScreen() {
         </View>
     );
 
+    const LanguagePickerModal = () => (
+        <Modal visible={showLanguagePicker} transparent animationType="fade" onRequestClose={() => setShowLanguagePicker(false)}>
+            <TouchableOpacity style={langPickerStyles.overlay} activeOpacity={1} onPress={() => setShowLanguagePicker(false)}>
+                <View style={[langPickerStyles.sheet, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                    <Text style={[langPickerStyles.sheetTitle, { color: theme.textPrimary }]}>Translation Language</Text>
+                    {LANGUAGES.map(lang => (
+                        <TouchableOpacity
+                            key={lang}
+                            style={[langPickerStyles.option, { borderBottomColor: theme.border }]}
+                            onPress={() => { setLanguage(lang); setShowLanguagePicker(false); }}
+                        >
+                            <Text style={[langPickerStyles.optionText, { color: theme.textPrimary }]}>{LANGUAGE_DISPLAY[lang]}</Text>
+                            {language === lang && <Feather name="check" size={18} color={theme.gold} />}
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            </TouchableOpacity>
+        </Modal>
+    );
+
     if (loading) {
         return (
             <View style={[styles.container, { backgroundColor: theme.bg, alignItems: 'center', justifyContent: 'center' }]}>
@@ -180,6 +196,7 @@ export default function ProfileScreen() {
         // Unauthenticated View
         return (
             <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
+                <LanguagePickerModal />
                 <ScrollView contentContainerStyle={styles.authContainer} keyboardShouldPersistTaps="handled">
                     <View style={styles.authHeader}>
                         <View style={[styles.authIconContainer, { backgroundColor: theme.gold + '1A', borderColor: theme.gold + '33' }]}>
@@ -194,7 +211,7 @@ export default function ProfileScreen() {
                     <View style={[styles.menuGroup, { backgroundColor: theme.bgCard, borderColor: theme.border, marginBottom: 20 }]}>
                         <TouchableOpacity
                             style={[styles.menuItem, { borderBottomColor: theme.border }]}
-                            onPress={cycleLanguage}
+                            onPress={() => setShowLanguagePicker(true)}
                         >
                             <View style={styles.menuItemLeft}>
                                 <View style={[styles.menuIconBox, { backgroundColor: theme.gold + '1A' }]}>
@@ -202,7 +219,7 @@ export default function ProfileScreen() {
                                 </View>
                                 <View>
                                     <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>Translation Language</Text>
-                                    <Text style={[styles.menuItemSubText, { color: theme.textSecondary }]}>Tap to switch format</Text>
+                                    <Text style={[styles.menuItemSubText, { color: theme.textSecondary }]}>Tap to select language</Text>
                                 </View>
                             </View>
                             <View style={[styles.badgeContainer, { borderColor: theme.gold + '4D', backgroundColor: theme.gold + '1A' }]}>
@@ -276,7 +293,7 @@ export default function ProfileScreen() {
                     <View style={{ marginTop: 40 }}>
                         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>About</Text>
                         <View style={[styles.menuGroup, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-                            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={() => Alert.alert("About Falah", "Version 1.0.0\n\nDesigned to elevate your daily spiritual connection with a premium, seamless interface.\n\nBy MZ and MBZ")}>
+                            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={() => Alert.alert("About Falah", "Version 1.0.0\n\nA premium Islamic companion app for daily spiritual connection — Quran, Prayer Times, Qibla, Hadith, Duas, and more.\n\nBy MZ and MBZ")}>
                                 <View style={styles.menuItemLeft}>
                                     <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="info" size={18} color={theme.textPrimary} /></View>
                                     <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>About Falah</Text>
@@ -300,6 +317,7 @@ export default function ProfileScreen() {
     // Authenticated View
     return (
         <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
+            <LanguagePickerModal />
             <View style={[styles.header, { borderBottomColor: theme.border }]}>
                 <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Settings</Text>
             </View>
@@ -404,7 +422,7 @@ export default function ProfileScreen() {
                 {/* About & Legal Section */}
                 <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>About</Text>
                 <View style={[styles.menuGroup, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-                    <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={() => Alert.alert("About Falah", "Version 1.0.0\n\nDesigned to elevate your daily spiritual connection with a premium, seamless interface.\n\nBy MZ and MBZ")}>
+                    <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={() => Alert.alert("About Falah", "Version 1.0.0\n\nA premium Islamic companion app for daily spiritual connection — Quran, Prayer Times, Qibla, Hadith, Duas, and more.\n\nBy MZ and MBZ")}>
                         <View style={styles.menuItemLeft}>
                             <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="info" size={18} color={theme.textPrimary} /></View>
                             <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>About Falah</Text>
@@ -564,4 +582,22 @@ const themePickerStyles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+});
+
+const langPickerStyles = StyleSheet.create({
+    overlay: {
+        flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center', paddingHorizontal: 32,
+    },
+    sheet: {
+        borderRadius: 20, borderWidth: 1, overflow: 'hidden',
+    },
+    sheetTitle: {
+        fontSize: 15, fontWeight: '700', paddingHorizontal: 20, paddingTop: 18, paddingBottom: 12,
+    },
+    option: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1,
+    },
+    optionText: { fontSize: 16 },
 });

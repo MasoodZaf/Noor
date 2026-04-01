@@ -15,10 +15,10 @@ import { useTheme } from '../context/ThemeContext';
 const { width, height } = Dimensions.get('window');
 
 const PRESETS = [
-    { id: 'subhanallah',  label: 'Subhanallah',  target: 33,  arabic: 'سُبْحَانَ ٱللَّٰهِ' },
+    { id: 'subhanallah',   label: 'Subhanallah',   target: 33, arabic: 'سُبْحَانَ ٱللَّٰهِ' },
     { id: 'alhamdulillah', label: 'Alhamdulillah', target: 33, arabic: 'ٱلْحَمْدُ لِلَّٰهِ' },
-    { id: 'allahuakbar',  label: 'Allahu Akbar', target: 34,  arabic: 'اللَّهُ أَكْبَرُ' },
-    { id: 'custom',       label: 'Custom',        target: 100, arabic: 'أَسْتَغْفِرُ اللَّهَ' },
+    { id: 'allahuakbar',   label: 'Allahu Akbar',  target: 34, arabic: 'اللَّهُ أَكْبَرُ' },
+    { id: 'astaghfirullah', label: 'Astaghfirullah', target: 100, arabic: 'أَسْتَغْفِرُ اللَّهَ' },
 ];
 
 // ── Arc geometry ───────────────────────────────────────────────────────────────
@@ -236,7 +236,6 @@ export default function TasbihScreen() {
                     {/* Round label */}
                     <View style={styles.roundRow}>
                         <Text style={[styles.roundText, { color: theme.gold }]}>Round {roundNum + 1}</Text>
-                        <Feather name="edit-2" size={13} color={theme.gold} style={{ marginLeft: 5 }} />
                     </View>
 
                     {/* ── Arc + pearl beads ── */}

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import moment from 'moment-hijri';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
     TextInput, ActivityIndicator, Platform, KeyboardAvoidingView,
@@ -127,6 +128,8 @@ function collectionLabel(slug: string): string {
 export default function DiscoverScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    // Hijri month 9 (0-indexed = 8) is Ramadan
+    const isRamadan = useMemo(() => moment().iMonth() === 8, []);
     const { db } = useDatabase();
     const { language } = useLanguage();
     const { theme } = useTheme();
@@ -473,8 +476,8 @@ export default function DiscoverScreen() {
                                 </View>
                             </View>
                             <View style={styles.cardBody}>
-                                <Text style={[styles.gridTitle, { color: theme.textPrimary }]}>Ramadan</Text>
-                                <Text style={[styles.gridSubtitle, { color: theme.textSecondary }]}>Sehri, Iftar & fast tracker</Text>
+                                <Text style={[styles.gridTitle, { color: theme.textPrimary }]}>{isRamadan ? 'Ramadan' : 'Fasting'}</Text>
+                                <Text style={[styles.gridSubtitle, { color: theme.textSecondary }]}>{isRamadan ? 'Sehri, Iftar & fast tracker' : 'Track your fasts & prayer times'}</Text>
                             </View>
                         </TouchableOpacity>
 
