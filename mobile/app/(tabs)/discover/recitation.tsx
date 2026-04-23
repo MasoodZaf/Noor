@@ -69,6 +69,13 @@ export default function RecitationScreen() {
     const [showSurahPicker, setShowSurahPicker] = useState(false);
 
     const [recState, setRecState] = useState<RecordingState>('idle');
+    const recStateRef = useRef<RecordingState>('idle');
+
+    // Keep ref in sync so timeouts can read current state without stale closure
+    const setRecStateSafe = (s: RecordingState) => {
+        recStateRef.current = s;
+        setRecState(s);
+    };
     const [result, setResult] = useState<QRCResult | null>(null);
     const [hasPermission, setHasPermission] = useState<boolean | null>(null);
     const [wsConnected, setWsConnected] = useState(false);
@@ -105,15 +112,11 @@ export default function RecitationScreen() {
             try {
                 const { status } = await Audio.requestPermissionsAsync();
                 setHasPermission(status === 'granted');
-                if (Platform.OS === 'ios') {
+                // iOS only: allow recording (mute switch override handled globally by AudioContext)
+            if (Platform.OS === 'ios') {
                     await Audio.setAudioModeAsync({
                         allowsRecordingIOS: true,
                         playsInSilentModeIOS: true,
-                    });
-                } else {
-                    await Audio.setAudioModeAsync({
-                        allowsRecordingIOS: false,
-                        shouldDuckAndroid: true,
                     });
                 }
             } catch (e) {
@@ -184,7 +187,7 @@ export default function RecitationScreen() {
                             mistakes: msg.mistakes ?? [],
                             feedback: msg.feedback ?? 'Analysis complete.',
                         });
-                        setRecState('done');
+                        setRecStateSafe('done');
                     }
                 } catch (_) {}
             };
@@ -215,7 +218,7 @@ export default function RecitationScreen() {
             });
             recordingRef.current = rec;
 
-            setRecState('recording');
+            setRecStateSafe('recording');
             startWaveAnimation();
 
             // Duration counter
@@ -226,7 +229,7 @@ export default function RecitationScreen() {
         } catch (e) {
             // Mic unavailable (e.g. simulator) — fall back to demo mode silently
             console.warn('Recording unavailable, running demo:', e);
-            setRecState('recording');
+            setRecStateSafe('recording');
             startWaveAnimation();
             timerRef.current = setInterval(() => setDuration(d => d + 1), 1000);
         }
@@ -237,13 +240,13 @@ export default function RecitationScreen() {
         stopWaveAnimation();
         if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
 
-        setRecState('processing');
+        setRecStateSafe('processing');
 
         // No real recording (e.g. simulator) — go straight to demo result
         if (!recordingRef.current) {
             await new Promise(r => setTimeout(r, 1200));
             setResult(getMockResult());
-            setRecState('done');
+            setRecStateSafe('done');
             return;
         }
 
@@ -271,23 +274,23 @@ export default function RecitationScreen() {
                 };
                 reader.readAsArrayBuffer(blob);
                 // Result arrives via ws.onmessage — state set to 'done' there
-                // Timeout fallback if WS doesn't respond
+                // Timeout fallback if WS doesn't respond — use ref to avoid stale closure
                 setTimeout(() => {
-                    if (recState === 'processing') {
+                    if (recStateRef.current === 'processing') {
                         setResult(getMockResult());
-                        setRecState('done');
+                        setRecStateSafe('done');
                     }
                 }, 8000);
             } else {
                 // No API key → show demo result
                 await new Promise(r => setTimeout(r, 1200)); // brief "processing" delay
                 setResult(getMockResult());
-                setRecState('done');
+                setRecStateSafe('done');
             }
         } catch (e) {
-            console.error('Recording stop failed:', e);
+            console.warn('Recording stop failed:', e);
             setResult(getMockResult());
-            setRecState('done');
+            setRecStateSafe('done');
         }
     };
 
@@ -459,9 +462,9 @@ export default function RecitationScreen() {
                         )}
 
                         {result.mistakes.length === 0 && (
-                            <View style={styles.perfectCard}>
-                                <Feather name="check-circle" size={28} color="#2ECC71" />
-                                <Text style={styles.perfectText}>No tajweed mistakes detected. MashaAllah!</Text>
+                            <View style={[styles.perfectCard, { backgroundColor: theme.accentLight, borderColor: theme.accent + '33' }]}>
+                                <Feather name="check-circle" size={28} color={theme.accent} />
+                                <Text style={[styles.perfectText, { color: theme.accent }]}>No tajweed mistakes detected. MashaAllah!</Text>
                             </View>
                         )}
 
@@ -545,10 +548,10 @@ const styles = StyleSheet.create({
     mistakeCorrection: { fontSize: 14, lineHeight: 20 },
     perfectCard: {
         flexDirection: 'row', alignItems: 'center', gap: 14,
-        backgroundColor: 'rgba(46,204,113,0.07)', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(46,204,113,0.2)',
+        borderRadius: 16, borderWidth: 1,
         padding: 16, marginBottom: 16,
     },
-    perfectText: { color: '#2ECC71', fontSize: 15, flex: 1 },
+    perfectText: { fontSize: 15, flex: 1 },
     upsellCard: { borderRadius: 20, borderWidth: 1, padding: 20, alignItems: 'center', marginTop: 8, marginBottom: 16 },
     upsellTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
     upsellText: { fontSize: 14, lineHeight: 21, textAlign: 'center', marginBottom: 12 },

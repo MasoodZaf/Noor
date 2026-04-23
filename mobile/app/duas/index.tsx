@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, ImageBackground, Dimensions, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, ImageBackground, Platform, Image, useWindowDimensions } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useDatabase } from '../../context/DatabaseContext';
-import { useTheme } from '../../context/ThemeContext';
+import { useTheme, fonts } from '../../context/ThemeContext';
 
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 48 - 12) / 2; // 2 columns with 12px gap, 24px padding on sides
+// CARD_WIDTH computed inside component via useWindowDimensions (see DuasScreen)
 
 const CATEGORY_FALLBACK_COLORS: Record<string, string> = {
     'Morning & Evening': '#F4A460',
@@ -31,6 +30,8 @@ export default function DuasScreen() {
     const insets = useSafeAreaInsets();
     const { db } = useDatabase();
     const { theme } = useTheme();
+    const { width } = useWindowDimensions();
+    const CARD_WIDTH = (width - 48 - 12) / 2; // 2 columns with 12px gap, 24px padding on sides
     const [categories, setCategories] = useState<any[]>([]);
     const [popularDuas, setPopularDuas] = useState<any[]>([]);
     const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -57,7 +58,7 @@ export default function DuasScreen() {
                 setCategories(mappedCats);
 
                 const duaResults = await db?.getAllAsync(`
-                    SELECT d.id, d.title, d.arabic_text, d.transliteration, d.translation_en, c.name_english as category
+                    SELECT d.id, d.category_id, d.title, d.arabic_text, d.transliteration, d.translation_en, c.name_english as category
                     FROM duas d
                     JOIN dua_categories c ON d.category_id = c.id
                     ORDER BY d.sort_order ASC
@@ -85,7 +86,7 @@ export default function DuasScreen() {
             setSearching(true);
             try {
                 const results = await db?.getAllAsync(`
-                    SELECT d.id, d.title, d.arabic_text, d.transliteration, d.translation_en, c.name_english as category
+                    SELECT d.id, d.category_id, d.title, d.arabic_text, d.transliteration, d.translation_en, c.name_english as category
                     FROM duas d
                     JOIN dua_categories c ON d.category_id = c.id
                     WHERE d.title LIKE ? OR d.translation_en LIKE ? OR d.transliteration LIKE ?
@@ -117,7 +118,6 @@ export default function DuasScreen() {
                 </View>
                 <TouchableOpacity style={[styles.notificationBtn, { backgroundColor: theme.bgInput }]}>
                     <Feather name="bell" size={20} color={theme.textPrimary} />
-                    <View style={[styles.notificationDot, { backgroundColor: theme.textPrimary }]} />
                 </TouchableOpacity>
             </View>
 
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
     },
     headerLeft: { flex: 1 },
     greeting: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
-    headerTitle: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
+    headerTitle: { fontSize: 28, fontFamily: fonts.serifBold, letterSpacing: -0.3 },
     notificationBtn: {
         width: 44,
         height: 44,

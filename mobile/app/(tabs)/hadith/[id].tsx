@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Platform, Share, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -35,7 +36,8 @@ const LANG_EDITIONS: Record<string, Record<string, string>> = {
     },
     tirmidhi: {
         english: 'eng-tirmidhi', urdu: 'urd-tirmidhi',
-        indonesian: 'ind-tirmidhi', french: 'eng-tirmidhi',
+        indonesian: 'ind-tirmidhi',
+        // No French Tirmidhi edition on Fawaz CDN — falls back to English in loadFromApi
         bengali: 'ben-tirmidhi', turkish: 'tur-tirmidhi',
     },
     abudawud: {
@@ -110,6 +112,8 @@ const COLLECTIONS_META: Record<string, { title: string; count: number; color: st
     abudawud: { title: 'Sunan Abu Dawud',   count: 5272, color: '#2C3E50' },
 };
 
+const BOOKMARKS_KEY = '@hadith_bookmarks';
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function HadithCollectionScreen() {
     const { id }    = useLocalSearchParams();
@@ -130,6 +134,47 @@ export default function HadithCollectionScreen() {
     const [usingApi,     setUsingApi]     = useState(false);
     const [displayOffset, setDisplayOffset] = useState(0);
     const [langSwitchFailed, setLangSwitchFailed] = useState(false);
+    const [bookmarks, setBookmarks] = useState<HadithItem[]>([]);
+
+    // Load bookmarks on mount
+    useEffect(() => {
+        AsyncStorage.getItem(BOOKMARKS_KEY).then(stored => {
+            if (!stored) return;
+            try {
+                const parsed = JSON.parse(stored);
+                if (Array.isArray(parsed)) setBookmarks(parsed);
+            } catch {}
+        }).catch(() => {});
+    }, []);
+
+    const isBookmarked = (item: HadithItem) =>
+        bookmarks.some(b => b.book_slug === item.book_slug && b.hadith_number === item.hadith_number);
+
+    const toggleBookmark = async (item: HadithItem) => {
+        const already = isBookmarked(item);
+        const updated = already
+            ? bookmarks.filter(b => !(b.book_slug === item.book_slug && b.hadith_number === item.hadith_number))
+            : [...bookmarks, item];
+        setBookmarks(updated);
+        await AsyncStorage.setItem(BOOKMARKS_KEY, JSON.stringify(updated)).catch(() => {});
+    };
+
+    const shareHadith = async (item: HadithItem) => {
+        try {
+            const lines = [
+                item.text_arabic,
+                '',
+                item.text_translation,
+                '',
+                `— ${meta.title} ${item.hadith_number}`,
+            ];
+            await Share.share({ message: lines.join('\n').trim() });
+        } catch (_) {}
+    };
+
+    const showFilterInfo = () => {
+        Alert.alert('Filter', 'Advanced filtering is coming soon.', [{ text: 'OK' }]);
+    };
 
     // Full in-memory collection — avoids refetch on pagination / language switch
     const allHadithsRef  = useRef<HadithItem[]>([]);
@@ -141,8 +186,10 @@ export default function HadithCollectionScreen() {
     // ── Fetch full collection from Fawaz API ───────────────────────────────────
     const loadFromApi = async (lang: string, arabicAlreadyCached: boolean) => {
         const araEdition  = ARA_EDITIONS[collectionId];
-        const langEdition = LANG_EDITIONS[collectionId]?.[lang]
-                         ?? LANG_EDITIONS[collectionId]?.english;
+        const directEdition = LANG_EDITIONS[collectionId]?.[lang];
+        const langEdition = directEdition ?? LANG_EDITIONS[collectionId]?.english;
+        // If language has no dedicated edition, show the fallback notice
+        if (!directEdition && lang !== 'english') setLangSwitchFailed(true);
 
         const fetches: Promise<Response>[] = arabicAlreadyCached
             ? [fetch(`${FAWAZ_HADITH}/editions/${langEdition}.min.json`)]
@@ -349,11 +396,14 @@ export default function HadithCollectionScreen() {
                     </Text>
 
                     <View style={[styles.actionRow, { borderTopColor: theme.border }]}>
-                        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.bgInput }]}>
+                        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.bgInput }]} onPress={() => shareHadith(item)}>
                             <Feather name="share-2" size={18} color={theme.textSecondary} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.bgInput }]}>
-                            <Feather name="bookmark" size={18} color={theme.textSecondary} />
+                        <TouchableOpacity
+                            style={[styles.actionBtn, { backgroundColor: isBookmarked(item) ? theme.accentLight : theme.bgInput }]}
+                            onPress={() => toggleBookmark(item)}
+                        >
+                            <Feather name="bookmark" size={18} color={isBookmarked(item) ? theme.accent : theme.textSecondary} />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -385,7 +435,7 @@ export default function HadithCollectionScreen() {
                             : `${meta.count.toLocaleString()} Hadiths · Offline`}
                     </Text>
                 </View>
-                <TouchableOpacity style={styles.filterButton}>
+                <TouchableOpacity style={styles.filterButton} onPress={showFilterInfo}>
                     <Feather name="filter" size={22} color={theme.textPrimary} />
                 </TouchableOpacity>
             </View>

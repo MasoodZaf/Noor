@@ -11,6 +11,19 @@ import { NotoNaskhArabic_400Regular } from '@expo-google-fonts/noto-naskh-arabic
 import { NotoNastaliqUrdu_400Regular } from '@expo-google-fonts/noto-nastaliq-urdu';
 import { sanitizeArabicText } from '../../../../utils/arabic';
 import { useTheme } from '../../../../context/ThemeContext';
+import { useNetworkMode } from '../../../../context/NetworkModeContext';
+
+// Fetch with an AbortController-based timeout (ms). RN's default socket timeout
+// can be 60s+, which makes the juz reader feel frozen in offline mode.
+const fetchWithTimeout = async (url: string, timeoutMs = 10000): Promise<Response> => {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), timeoutMs);
+    try {
+        return await fetch(url, { signal: ctl.signal });
+    } finally {
+        clearTimeout(t);
+    }
+};
 
 // ─── APIs ─────────────────────────────────────────────────────────────────────
 const QURAN_API = 'https://api.quran.com/api/v4';
@@ -29,48 +42,19 @@ const ALQURAN_EDITIONS: Record<string, string> = {
     urdu: 'ur.jalandhry',
 };
 
-// Fetch all translation ayahs for a juz.
-// Returns a map of verse_key → translation text for reliable lookup
-// (avoids index-alignment bugs between Quran.com and Fawaz verse ordering).
-const fetchTranslationMap = async (juzId: number, language: string): Promise<Record<string, string>> => {
-    const alquranEdition = ALQURAN_EDITIONS[language];
-    if (alquranEdition) {
-        const res = await fetch(`${AUDIO_API}/juz/${juzId}/${alquranEdition}`);
-        if (!res.ok) throw new Error(`AlQuran Cloud ${res.status}`);
-        const json = await res.json();
-        if (json.code !== 200) throw new Error('AlQuran Cloud error');
-        const map: Record<string, string> = {};
-        (json.data?.ayahs || []).forEach((a: any) => {
-            // AlQuran Cloud key format: surahNumber:ayahNumber
-            map[`${a.surah?.number ?? a.numberInSurah}:${a.numberInSurah}`] = a.text;
-        });
-        // AlQuran Cloud returns numberInSurah but not surah number in ayah object easily.
-        // Use index-based approach as fallback mapping is complex — return array instead.
-        return {};  // handled below via array path
-    }
-    const edition = FAWAZ_EDITIONS[language] || FAWAZ_EDITIONS.english;
-    const res = await fetch(`${FAWAZ_API}/editions/${edition}/juzs/${juzId}.json`);
-    if (!res.ok) throw new Error(`Fawaz ${res.status}`);
-    const json = await res.json();
-    const map: Record<string, string> = {};
-    (json.chapter || []).forEach((v: any) => {
-        if (v.chapter && v.verse) map[`${v.chapter}:${v.verse}`] = v.text;
-    });
-    return map;
-};
 
 // Simpler array-based fetcher (used as primary) — returns texts in juz verse order
 const fetchTranslationArray = async (juzId: number, language: string): Promise<string[]> => {
     const alquranEdition = ALQURAN_EDITIONS[language];
     if (alquranEdition) {
-        const res = await fetch(`${AUDIO_API}/juz/${juzId}/${alquranEdition}`);
+        const res = await fetchWithTimeout(`${AUDIO_API}/juz/${juzId}/${alquranEdition}`);
         if (!res.ok) throw new Error(`AlQuran Cloud ${res.status}`);
         const json = await res.json();
         if (json.code !== 200) throw new Error('AlQuran Cloud error');
         return (json.data?.ayahs || []).map((a: any) => a.text);
     }
     const edition = FAWAZ_EDITIONS[language] || FAWAZ_EDITIONS.english;
-    const res = await fetch(`${FAWAZ_API}/editions/${edition}/juzs/${juzId}.json`);
+    const res = await fetchWithTimeout(`${FAWAZ_API}/editions/${edition}/juzs/${juzId}.json`);
     if (!res.ok) throw new Error(`Fawaz ${res.status}`);
     const json = await res.json();
     return (json.chapter || []).map((v: any) => v.text);
@@ -139,7 +123,7 @@ const fetchAllJuzVerses = async (juzId: number): Promise<any[]> => {
     let page = 1;
     let allVerses: any[] = [];
     while (true) {
-        const res = await fetch(
+        const res = await fetchWithTimeout(
             `${QURAN_API}/verses/by_juz/${juzId}?words=false&fields=text_uthmani,text_indopak_nastaleeq&per_page=${PAGE_SIZE}&page=${page}`
         );
         if (!res.ok) throw new Error(`Quran.com ${res.status}`);
@@ -160,8 +144,54 @@ export default function JuzReaderScreen() {
     const { db } = useDatabase();
     const { language } = useLanguage();
     const { theme } = useTheme();
+    const { isOfflineMode } = useNetworkMode();
 
     const juzId = typeof id === 'string' ? parseInt(id, 10) : 1;
+
+    // Load a juz from the local SQLite vault (shared by offline mode and online fallback)
+    const loadJuzFromDb = async (
+        targetJuzId: number,
+        targetLanguage: string,
+    ): Promise<{
+        cache: { uthmani: string; indopak: string; surah_number: number; ayah_number: number; surah_name: string }[];
+        translations: string[];
+    } | null> => {
+        if (!db) return null;
+        const boundary = JUZ_BOUNDARIES.find(j => j.juz === targetJuzId);
+        if (!boundary) return null;
+
+        const surahNumbers = Array.from(
+            { length: boundary.end.surah - boundary.start.surah + 1 },
+            (_, i) => boundary.start.surah + i
+        );
+        const nameMap: Record<number, string> = {};
+        const placeholders = surahNumbers.map(() => '?').join(',');
+        const surahsData: any[] = await db.getAllAsync(
+            `SELECT number, name_english FROM surahs WHERE number IN (${placeholders})`,
+            surahNumbers
+        );
+        surahsData.forEach(s => { nameMap[s.number] = s.name_english; });
+
+        const allAyahs: any[] = await db.getAllAsync(
+            'SELECT * FROM ayahs WHERE surah_number >= ? AND surah_number <= ? ORDER BY surah_number ASC, ayah_number ASC',
+            [boundary.start.surah, boundary.end.surah]
+        );
+        const filtered = allAyahs.filter(a => {
+            if (a.surah_number === boundary.start.surah && a.ayah_number < boundary.start.ayah) return false;
+            if (a.surah_number === boundary.end.surah && a.ayah_number > boundary.end.ayah) return false;
+            return true;
+        });
+
+        const cache = filtered.map(r => ({
+            surah_number: r.surah_number,
+            ayah_number: r.ayah_number,
+            surah_name: nameMap[r.surah_number] || `Surah ${r.surah_number}`,
+            uthmani: sanitizeArabicText(r.text_arabic || ''),
+            indopak: sanitizeArabicText(r.text_arabic_indopak || r.text_arabic || ''),
+        }));
+        const translations = filtered.map(r => getTranslationFromRow(r, targetLanguage));
+        return { cache, translations };
+    };
 
     const [fontsLoaded] = useFonts({
         ScheherazadeNew_400Regular,
@@ -253,13 +283,43 @@ export default function JuzReaderScreen() {
         prevLanguageRef.current = language;
         setItems([]);
 
+        let cancelled = false;
+
+        const applyDbResult = (dbResult: { cache: any[]; translations: string[] } | null) => {
+            if (!dbResult) return false;
+            arabicCacheRef.current = dbResult.cache;
+            setTotalAyahs(dbResult.cache.length);
+            if (dbResult.cache.length > 0) {
+                setFirstSurahName(dbResult.cache[0].surah_name);
+                setLastSurahName(dbResult.cache[dbResult.cache.length - 1].surah_name);
+            }
+            setItems(buildItems(dbResult.cache, dbResult.translations));
+            return true;
+        };
+
         const loadJuz = async () => {
             setLoading(true);
+
+            // Forced offline mode: skip network entirely, use local vault
+            if (isOfflineMode) {
+                try {
+                    const dbResult = await loadJuzFromDb(juzId, language);
+                    if (cancelled) return;
+                    applyDbResult(dbResult);
+                } catch (dbErr) {
+                    console.error('[Noor/Juz] Offline SQLite load failed:', dbErr);
+                } finally {
+                    if (!cancelled) setLoading(false);
+                }
+                return;
+            }
+
             try {
                 const [versesResult, translationResult] = await Promise.allSettled([
                     fetchAllJuzVerses(juzId),
                     fetchTranslationArray(juzId, language),
                 ]);
+                if (cancelled) return;
 
                 let verses: any[] = [];
                 if (versesResult.status === 'fulfilled') {
@@ -304,59 +364,20 @@ export default function JuzReaderScreen() {
 
             } catch {
                 // API failed — fall back to SQLite
-                if (db) {
-                    try {
-                        const boundary = JUZ_BOUNDARIES.find(j => j.juz === juzId);
-                        if (!boundary) return;
-
-                        const surahNumbers = Array.from(
-                            { length: boundary.end.surah - boundary.start.surah + 1 },
-                            (_, i) => boundary.start.surah + i
-                        );
-                        const nameMap: Record<number, string> = {};
-                        const placeholders = surahNumbers.map(() => '?').join(',');
-                        const surahsData: any[] = await db.getAllAsync(
-                            `SELECT number, name_english FROM surahs WHERE number IN (${placeholders})`,
-                            surahNumbers
-                        );
-                        surahsData.forEach(s => { nameMap[s.number] = s.name_english; });
-
-                        const allAyahs: any[] = await db.getAllAsync(
-                            'SELECT * FROM ayahs WHERE surah_number >= ? AND surah_number <= ? ORDER BY surah_number ASC, ayah_number ASC',
-                            [boundary.start.surah, boundary.end.surah]
-                        );
-                        const filtered = allAyahs.filter(a => {
-                            if (a.surah_number === boundary.start.surah && a.ayah_number < boundary.start.ayah) return false;
-                            if (a.surah_number === boundary.end.surah && a.ayah_number > boundary.end.ayah) return false;
-                            return true;
-                        });
-
-                        const cache = filtered.map(r => ({
-                            surah_number: r.surah_number,
-                            ayah_number: r.ayah_number,
-                            surah_name: nameMap[r.surah_number] || `Surah ${r.surah_number}`,
-                            uthmani: sanitizeArabicText(r.text_arabic || ''),
-                            indopak: sanitizeArabicText(r.text_arabic_indopak || r.text_arabic || ''),
-                        }));
-                        arabicCacheRef.current = cache;
-
-                        const translations = filtered.map(r => getTranslationFromRow(r, language));
-                        setTotalAyahs(cache.length);
-                        if (cache.length > 0) {
-                            setFirstSurahName(cache[0].surah_name);
-                            setLastSurahName(cache[cache.length - 1].surah_name);
-                        }
-                        setItems(buildItems(cache, translations));
-                    } catch (dbErr) {
-                        console.error('[Noor/Juz] SQLite fallback failed:', dbErr);
-                    }
+                try {
+                    const dbResult = await loadJuzFromDb(juzId, language);
+                    if (cancelled) return;
+                    applyDbResult(dbResult);
+                } catch (dbErr) {
+                    console.error('[Noor/Juz] SQLite fallback failed:', dbErr);
                 }
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
         loadJuz();
-    }, [juzId]);
+        return () => { cancelled = true; };
+    }, [juzId, isOfflineMode]);
 
     // ── Language change — only refresh translations ────────────────────────────
     useEffect(() => {
@@ -368,27 +389,29 @@ export default function JuzReaderScreen() {
         let cancelled = false;
         const updateTranslation = async () => {
             setTranslationLoading(true);
+
+            // Forced offline mode: skip the network and use SQLite translations
+            if (isOfflineMode) {
+                try {
+                    const dbResult = await loadJuzFromDb(juzId, language);
+                    if (!cancelled && dbResult) setItems(buildItems(cache, dbResult.translations));
+                } catch (dbErr) {
+                    console.warn('[Noor/Juz] Offline translation load failed:', dbErr);
+                } finally {
+                    if (!cancelled) setTranslationLoading(false);
+                }
+                return;
+            }
+
             try {
                 const translations = await fetchTranslationArray(juzId, language);
                 if (!cancelled) setItems(buildItems(cache, translations));
             } catch {
-                if (db) {
-                    try {
-                        const boundary = JUZ_BOUNDARIES.find(j => j.juz === juzId);
-                        if (!boundary) return;
-                        const allAyahs: any[] = await db.getAllAsync(
-                            'SELECT * FROM ayahs WHERE surah_number >= ? AND surah_number <= ? ORDER BY surah_number ASC, ayah_number ASC',
-                            [boundary.start.surah, boundary.end.surah]
-                        );
-                        const filtered = allAyahs.filter(a => {
-                            if (a.surah_number === boundary.start.surah && a.ayah_number < boundary.start.ayah) return false;
-                            if (a.surah_number === boundary.end.surah && a.ayah_number > boundary.end.ayah) return false;
-                            return true;
-                        });
-                        if (!cancelled) setItems(buildItems(cache, filtered.map(r => getTranslationFromRow(r, language))));
-                    } catch (dbErr) {
-                        console.warn('[Noor/Juz] SQLite translation fallback failed:', dbErr);
-                    }
+                try {
+                    const dbResult = await loadJuzFromDb(juzId, language);
+                    if (!cancelled && dbResult) setItems(buildItems(cache, dbResult.translations));
+                } catch (dbErr) {
+                    console.warn('[Noor/Juz] SQLite translation fallback failed:', dbErr);
                 }
             } finally {
                 if (!cancelled) setTranslationLoading(false);
@@ -396,7 +419,7 @@ export default function JuzReaderScreen() {
         };
         updateTranslation();
         return () => { cancelled = true; };
-    }, [language]);
+    }, [language, isOfflineMode]);
 
     // ── Render ─────────────────────────────────────────────────────────────────
     if (loading || !fontsLoaded) {

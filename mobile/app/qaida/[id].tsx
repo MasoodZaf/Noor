@@ -201,7 +201,7 @@ export default function QaidaLessonScreen() {
             );
             router.back();
         } catch (err) {
-            console.error(err);
+            console.error('[Noor/Qaida] Progress save failed:', err);
         }
     };
 

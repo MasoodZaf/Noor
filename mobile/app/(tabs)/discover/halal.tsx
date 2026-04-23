@@ -297,7 +297,7 @@ export default function HalalPlacesScreen() {
             } catch (e: any) {
                 if (!mounted) return;
                 setError('Could not load nearby places. Check your connection.');
-                console.error(e);
+                console.warn('[Noor/Halal] Places fetch failed:', e);
             } finally {
                 if (mounted) setLoading(false);
             }
@@ -439,14 +439,14 @@ export default function HalalPlacesScreen() {
                 )}
 
                 {/* Recenter button */}
-                <TouchableOpacity style={styles.recenterBtn} onPress={recenter}>
+                <TouchableOpacity style={[styles.recenterBtn, { backgroundColor: theme.bg }]} onPress={recenter}>
                     <Feather name="crosshair" size={18} color={theme.accent} />
                 </TouchableOpacity>
 
                 {/* Result count badge */}
                 {!loading && places.length > 0 && (
                     <View style={styles.countBadge}>
-                        <Text style={styles.countBadgeText}>{filteredPlaces.length} places</Text>
+                        <Text style={[styles.countBadgeText, { color: theme.accent }]}>{filteredPlaces.length} places</Text>
                     </View>
                 )}
             </View>
@@ -454,7 +454,7 @@ export default function HalalPlacesScreen() {
             {/* Halal mode badge */}
             {!loading && !error && (
                 <View style={styles.halalBadgeRow}>
-                    <View style={[styles.halalBadge, { backgroundColor: isMuslimCountry ? theme.bgCard : '#1F4E3D18', borderColor: isMuslimCountry ? theme.border : '#1F4E3D44' }]}>
+                    <View style={[styles.halalBadge, { backgroundColor: isMuslimCountry ? theme.bgCard : theme.accentLight, borderColor: isMuslimCountry ? theme.border : theme.accent + '44' }]}>
                         <Text style={{ fontSize: 13 }}>{isMuslimCountry ? '🌙' : '✅'}</Text>
                         <Text style={[styles.halalBadgeText, { color: theme.textSecondary }]}>
                             {isMuslimCountry
@@ -492,10 +492,10 @@ export default function HalalPlacesScreen() {
                     contentContainerStyle={styles.filterRow}
                     renderItem={({ item }) => (
                         <TouchableOpacity
-                            style={[styles.filterPill, { backgroundColor: theme.bgInput }, filter === item && styles.filterPillActive]}
+                            style={[styles.filterPill, { backgroundColor: theme.bgInput }, filter === item && { backgroundColor: theme.accent }]}
                             onPress={() => setFilter(item)}
                         >
-                            <Text style={[styles.filterText, { color: theme.textSecondary }, filter === item && styles.filterTextActive]}>
+                            <Text style={[styles.filterText, { color: theme.textSecondary }, filter === item && { color: theme.textInverse }]}>
                                 {item}
                             </Text>
                         </TouchableOpacity>
@@ -558,7 +558,7 @@ export default function HalalPlacesScreen() {
                         const typeIcon = TYPE_ICON[place.type as Place['type']] ?? '📍';
                         return (
                             <TouchableOpacity
-                                style={[styles.placeCard, { backgroundColor: theme.bgCard }, isSelected && styles.placeCardSelected]}
+                                style={[styles.placeCard, { backgroundColor: theme.bgCard }, isSelected && { borderColor: theme.accent }]}
                                 onPress={() => onPlacePress(place)}
                                 activeOpacity={0.8}
                             >
@@ -628,7 +628,6 @@ const styles = StyleSheet.create({
     recenterBtn: {
         position: 'absolute', bottom: 12, right: 12,
         width: 38, height: 38, borderRadius: 19,
-        backgroundColor: '#FFFFFF',
         alignItems: 'center', justifyContent: 'center',
         shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.15, shadowRadius: 4,
@@ -639,7 +638,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10, paddingVertical: 5,
         borderRadius: 20,
     },
-    countBadgeText: { fontSize: 12, fontWeight: '700', color: '#1F4E3D' },
+    countBadgeText: { fontSize: 12, fontWeight: '700' },
 
     halalBadgeRow: { paddingHorizontal: 16, marginBottom: 8 },
     halalBadge: {
@@ -664,9 +663,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14, paddingVertical: 7,
         borderRadius: 20,
     },
-    filterPillActive: { backgroundColor: '#1F4E3D' },
     filterText: { fontSize: 13, fontWeight: '600' },
-    filterTextActive: { color: '#FFFFFF' },
 
     // States
     centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingBottom: 60 },
@@ -683,7 +680,6 @@ const styles = StyleSheet.create({
         shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05, shadowRadius: 4,
     },
-    placeCardSelected: { borderColor: '#1F4E3D' },
     placeIconBadge: {
         width: 44, height: 44, borderRadius: 14,
         alignItems: 'center', justifyContent: 'center', marginRight: 12,

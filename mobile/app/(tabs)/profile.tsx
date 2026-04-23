@@ -3,19 +3,59 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platfo
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import Slider from '@react-native-community/slider';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../utils/supabase';
 import { useLanguage } from '../../context/LanguageContext';
-import { useTheme } from '../../context/ThemeContext';
+import { useTheme, fonts, ACCENT_PALETTES, type AccentHue } from '../../context/ThemeContext';
 import type { ThemeMode } from '../../context/ThemeContext';
 import { useNetworkMode } from '../../context/NetworkModeContext';
+import { useReciter, RECITERS } from '../../context/ReciterContext';
 
 export default function ProfileScreen() {
     const insets = useSafeAreaInsets();
+    const router = useRouter();
     const { language, setLanguage } = useLanguage();
-    const { theme, themeMode, setThemeMode } = useTheme();
+    const {
+        theme, themeMode, setThemeMode,
+        accentHue, setAccentHue,
+        arabicScale, setArabicScale,
+    } = useTheme();
     const { isOfflineMode, setOfflineMode } = useNetworkMode();
+    const { reciter, setReciter } = useReciter();
     const [session, setSession] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+
+    // ── Madhab (Asr) — stored in the same @prayer_settings key the Home
+    //    prayer modal uses, so this picker stays in sync with the calculation. ─
+    const [madhab, setMadhabState] = useState<0 | 1>(0); // 0=Standard, 1=Hanafi
+    useEffect(() => {
+        AsyncStorage.getItem('@prayer_settings').then(raw => {
+            if (!raw) return;
+            try {
+                const s = JSON.parse(raw);
+                if (s.school === 0 || s.school === 1) setMadhabState(s.school);
+            } catch {}
+        }).catch(() => {});
+    }, []);
+    const setMadhab = (next: 0 | 1) => {
+        setMadhabState(next);
+        // Merge with existing settings so method is preserved
+        AsyncStorage.getItem('@prayer_settings').then(raw => {
+            let obj: { method: number; school: number } = { method: -1, school: next };
+            if (raw) {
+                try { obj = { ...JSON.parse(raw), school: next }; } catch {}
+            }
+            AsyncStorage.setItem('@prayer_settings', JSON.stringify(obj)).catch(() => {});
+        }).catch(() => {});
+    };
+
+    // Back chevron: pop the stack if possible, otherwise fall back to Home tab
+    const goBack = () => {
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)' as any);
+    };
 
     const LANGUAGES = ['english', 'urdu', 'indonesian', 'french', 'bengali', 'turkish'] as const;
     const LANGUAGE_DISPLAY = {
@@ -64,10 +104,8 @@ export default function ProfileScreen() {
             Alert.alert("Invalid Email", "Please enter a valid email address.");
             return;
         }
-        if (password.length < 6) {
-            Alert.alert("Password Too Short", "Password must be at least 6 characters.");
-            return;
-        }
+        // No length check on sign-in — accept whatever the user has set; let the
+        // server reject if wrong. Length minimum applies only on sign-up below.
         setAuthLoading(true);
         const { error } = await supabase.auth.signInWithPassword({
             email: email.trim(),
@@ -104,17 +142,32 @@ export default function ProfileScreen() {
     };
 
     type PickerOption = { mode: ThemeMode; label: string; desc: string; swatches: string[]; icon: React.ComponentProps<typeof Feather>['name'] };
+    // Swatches mirror the design handoff palette — parchment / forest / indigo.
     const PICKER_OPTIONS: PickerOption[] = [
-        { mode: 'auto',     label: 'Auto',            desc: 'Changes with time of day', swatches: ['#FDF8EF', '#0D1A13', '#0C0F18'], icon: 'clock' },
-        { mode: 'warm',     label: 'Warm Parchment',  desc: 'Light · cream tones',      swatches: ['#FDF8EF', '#1A9B55', '#B8912A'], icon: 'sun' },
-        { mode: 'forest',   label: 'Forest Dark',     desc: 'Dark · green & warm',      swatches: ['#0D1A13', '#2ECC94', '#C9A84C'], icon: 'moon' },
-        { mode: 'midnight', label: 'Midnight Blue',   desc: 'Dark · navy & cool',       swatches: ['#0C0F18', '#3DC87A', '#C9A84C'], icon: 'star' },
+        { mode: 'auto',     label: 'Auto',           desc: 'Changes with time of day',  swatches: ['#F4EEE0', '#0C100E', '#070A18'], icon: 'clock' },
+        { mode: 'warm',     label: 'Parchment',      desc: 'Aged paper · warm editorial', swatches: ['#F4EEE0', '#B05A48', '#C9A84C'], icon: 'sun' },
+        { mode: 'forest',   label: 'Forest',         desc: 'Deep forest · immersive',   swatches: ['#0C100E', '#2E7D52', '#D4AC5C'], icon: 'moon' },
+        { mode: 'midnight', label: 'Ramaḍān Night',  desc: 'Indigo cosmos · for evenings', swatches: ['#070A18', '#4C7891', '#D4AC5C'], icon: 'star' },
+    ];
+
+    // ── Accent hue options — each shows its base colour as a swatch pill ──
+    const ACCENT_OPTIONS: { hue: AccentHue; label: string }[] = [
+        { hue: 'gold',   label: 'Gold' },
+        { hue: 'forest', label: 'Forest' },
+        { hue: 'clay',   label: 'Clay' },
+        { hue: 'sky',    label: 'Sky' },
     ];
 
     const ThemePickerSection = () => (
         <View style={{ marginBottom: 30 }}>
-            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Appearance</Text>
-            <View style={{ gap: 10 }}>
+            {/* Tweaks — single unified settings section inspired by the Falah design's
+                floating panel. Five controls: Theme, Accent, Arabic Scale, Madhab, Reciter.
+                Every change writes to AsyncStorage immediately. */}
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Tweaks</Text>
+
+            {/* ── Theme ── */}
+            <Text style={[tweaksStyles.groupLabel, { color: theme.textTertiary }]}>THEME</Text>
+            <View style={{ gap: 10, marginBottom: 22 }}>
                 {PICKER_OPTIONS.map(opt => {
                     const active = themeMode === opt.mode;
                     return (
@@ -130,7 +183,6 @@ export default function ProfileScreen() {
                                 },
                             ]}
                         >
-                            {/* Left: icon + text */}
                             <View style={themePickerStyles.cardLeft}>
                                 <View style={[themePickerStyles.iconBox, {
                                     backgroundColor: active ? theme.accentLight : (theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'),
@@ -142,8 +194,6 @@ export default function ProfileScreen() {
                                     <Text style={[themePickerStyles.desc, { color: theme.textSecondary }]}>{opt.desc}</Text>
                                 </View>
                             </View>
-
-                            {/* Right: color swatches + checkmark */}
                             <View style={themePickerStyles.cardRight}>
                                 <View style={themePickerStyles.swatches}>
                                     {opt.swatches.map((c, i) => (
@@ -157,6 +207,117 @@ export default function ProfileScreen() {
                                     {active && <Feather name="check" size={12} color={theme.textInverse} />}
                                 </View>
                             </View>
+                        </Pressable>
+                    );
+                })}
+            </View>
+
+            {/* ── Accent ── */}
+            <Text style={[tweaksStyles.groupLabel, { color: theme.textTertiary }]}>ACCENT</Text>
+            <View style={tweaksStyles.pillRow}>
+                {ACCENT_OPTIONS.map(opt => {
+                    const on = accentHue === opt.hue;
+                    const pal = ACCENT_PALETTES[opt.hue];
+                    return (
+                        <Pressable
+                            key={opt.hue}
+                            onPress={() => setAccentHue(opt.hue)}
+                            style={[
+                                tweaksStyles.pill,
+                                {
+                                    backgroundColor: on ? pal.base : theme.bgCard,
+                                    borderColor: on ? pal.base : theme.border,
+                                },
+                            ]}
+                        >
+                            {/* Colour dot — a small filled circle showing the hue */}
+                            <View style={[tweaksStyles.swatchDot, { backgroundColor: pal.base, borderColor: on ? 'rgba(255,255,255,0.4)' : pal.deep }]} />
+                            <Text style={[tweaksStyles.pillText, { color: on ? '#fff' : theme.textPrimary }]}>
+                                {opt.label}
+                            </Text>
+                        </Pressable>
+                    );
+                })}
+            </View>
+
+            {/* ── Arabic Scale ── */}
+            <View style={{ marginTop: 22 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={[tweaksStyles.groupLabel, { color: theme.textTertiary }]}>ARABIC SCALE</Text>
+                    <Text style={{ fontFamily: fonts.mono, fontSize: 13, color: theme.textPrimary }}>
+                        {arabicScale.toFixed(2)}×
+                    </Text>
+                </View>
+                <Slider
+                    style={{ width: '100%', height: 36, marginTop: 4 }}
+                    minimumValue={0.8}
+                    maximumValue={1.6}
+                    step={0.05}
+                    value={arabicScale}
+                    onValueChange={setArabicScale}
+                    minimumTrackTintColor={theme.accent}
+                    maximumTrackTintColor={theme.border}
+                    thumbTintColor={Platform.OS === 'android' ? theme.accent : undefined}
+                />
+                {/* Live preview — lets the user see the scale applied to Arabic text */}
+                <Text style={{
+                    fontFamily: fonts.arabic,
+                    fontSize: 22 * arabicScale,
+                    color: theme.textPrimary,
+                    textAlign: 'right',
+                    marginTop: 4,
+                    lineHeight: 30 * arabicScale,
+                }}>
+                    بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
+                </Text>
+            </View>
+
+            {/* ── Madhab (Asr) ── */}
+            <Text style={[tweaksStyles.groupLabel, { color: theme.textTertiary, marginTop: 22 }]}>MADHAB (ASR)</Text>
+            <View style={tweaksStyles.pillRow}>
+                {([
+                    { v: 0 as const, label: 'Standard', desc: 'Shafi\'i · Maliki · Hanbali' },
+                    { v: 1 as const, label: 'Hanafi',   desc: 'Later Asr' },
+                ]).map(opt => {
+                    const on = madhab === opt.v;
+                    return (
+                        <Pressable
+                            key={opt.v}
+                            onPress={() => setMadhab(opt.v)}
+                            style={[
+                                tweaksStyles.pill,
+                                {
+                                    backgroundColor: on ? theme.accent : theme.bgCard,
+                                    borderColor: on ? theme.accent : theme.border,
+                                    paddingHorizontal: 18,
+                                },
+                            ]}
+                        >
+                            <Text style={[tweaksStyles.pillText, { color: on ? '#fff' : theme.textPrimary }]}>{opt.label}</Text>
+                        </Pressable>
+                    );
+                })}
+            </View>
+
+            {/* ── Reciter ── */}
+            <Text style={[tweaksStyles.groupLabel, { color: theme.textTertiary, marginTop: 22 }]}>RECITER</Text>
+            <View style={tweaksStyles.pillRow}>
+                {RECITERS.map(r => {
+                    const on = reciter.id === r.id;
+                    return (
+                        <Pressable
+                            key={r.id}
+                            onPress={() => setReciter(r)}
+                            style={[
+                                tweaksStyles.pill,
+                                {
+                                    backgroundColor: on ? theme.accent : theme.bgCard,
+                                    borderColor: on ? theme.accent : theme.border,
+                                    paddingHorizontal: 14,
+                                },
+                            ]}
+                        >
+                            <Text style={[tweaksStyles.pillText, { color: on ? '#fff' : theme.textPrimary }]}>{r.label}</Text>
                         </Pressable>
                     );
                 })}
@@ -197,6 +358,11 @@ export default function ProfileScreen() {
         return (
             <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
                 <LanguagePickerModal />
+                <View style={styles.topBar}>
+                    <TouchableOpacity onPress={goBack} hitSlop={10} style={styles.topBarBack}>
+                        <Feather name="chevron-left" size={28} color={theme.textPrimary} />
+                    </TouchableOpacity>
+                </View>
                 <ScrollView contentContainerStyle={styles.authContainer} keyboardShouldPersistTaps="handled">
                     <View style={styles.authHeader}>
                         <View style={[styles.authIconContainer, { backgroundColor: theme.gold + '1A', borderColor: theme.gold + '33' }]}>
@@ -318,7 +484,10 @@ export default function ProfileScreen() {
     return (
         <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
             <LanguagePickerModal />
-            <View style={[styles.header, { borderBottomColor: theme.border }]}>
+            <View style={[styles.header, { borderBottomColor: theme.border, flexDirection: 'row', alignItems: 'center' }]}>
+                <TouchableOpacity onPress={goBack} hitSlop={10} style={{ marginLeft: -6, marginRight: 6, paddingVertical: 4 }}>
+                    <Feather name="chevron-left" size={28} color={theme.textPrimary} />
+                </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Settings</Text>
             </View>
 
@@ -501,6 +670,8 @@ const styles = StyleSheet.create({
     secondaryBtnText: { fontSize: 16, fontWeight: '600' },
     header: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 20, borderBottomWidth: 1 },
     headerTitle: { fontSize: 26, fontWeight: '300', letterSpacing: 0.5 },
+    topBar: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 4 },
+    topBarBack: { alignSelf: 'flex-start', marginLeft: -6, paddingVertical: 4, paddingHorizontal: 4 },
     content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 60 },
     idCard: { borderRadius: 20, borderWidth: 1, marginBottom: 30 },
     idHeader: { flexDirection: 'row', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
@@ -581,6 +752,40 @@ const themePickerStyles = StyleSheet.create({
         borderWidth: 1.5,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+});
+
+// ── Tweaks UI — pill row style shared by Accent / Madhab / Reciter pickers ──
+const tweaksStyles = StyleSheet.create({
+    groupLabel: {
+        fontSize: 11,
+        letterSpacing: 1.2,
+        fontFamily: fonts.bodyBold,
+        marginBottom: 10,
+    },
+    pillRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    pill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 9,
+        borderRadius: 10,
+        borderWidth: 1,
+    },
+    pillText: {
+        fontSize: 13,
+        fontFamily: fonts.bodyMedium,
+    },
+    swatchDot: {
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        borderWidth: 1.5,
     },
 });
 

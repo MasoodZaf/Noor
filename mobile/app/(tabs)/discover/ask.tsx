@@ -7,6 +7,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../../context/ThemeContext';
+import { useNetworkMode } from '../../../context/NetworkModeContext';
 
 type Scope = 'quran' | 'hadith' | 'fiqh';
 
@@ -55,6 +56,7 @@ export default function AiDeenScreen() {
     );
 
     const { theme } = useTheme();
+    const { isOfflineMode } = useNetworkMode();
 
     const [scope, setScope] = useState<Scope>('quran');
     const [message, setMessage] = useState('');
@@ -76,7 +78,7 @@ export default function AiDeenScreen() {
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
                     <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>AiDeen</Text>
-                    <View style={styles.onlineStatus} />
+                    <View style={[styles.onlineStatus, { backgroundColor: isOfflineMode ? '#F39C12' : '#4CD964' }]} />
                 </View>
                 <View style={{ width: 40 }} />
             </View>
@@ -186,7 +188,7 @@ const styles = StyleSheet.create({
     backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
     headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     headerTitle: { fontSize: 18, fontWeight: '500', letterSpacing: 0.5 },
-    onlineStatus: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CD964' },
+    onlineStatus: { width: 8, height: 8, borderRadius: 4 },
 
     // Scope tabs
     scopeRow: {

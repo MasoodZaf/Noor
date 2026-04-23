@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useDatabase } from '../../../context/DatabaseContext';
 import { useRouter } from 'expo-router';
-import { useTheme } from '../../../context/ThemeContext';
+import { useTheme, fonts } from '../../../context/ThemeContext';
 import { sanitizeArabicText } from '../../../utils/arabic';
 
 // Common transliteration / Urdu-romanised alternate names known to South Asian users
@@ -60,6 +60,12 @@ export default function QuranIndexScreen() {
     const { db } = useDatabase();
     const { theme } = useTheme();
 
+    // Back chevron: pop the stack if possible, otherwise fall back to Home tab
+    const goBack = () => {
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)' as any);
+    };
+
     const [surahs, setSurahs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'surah' | 'juz' | 'tafseer'>('surah');
@@ -70,7 +76,7 @@ export default function QuranIndexScreen() {
         const loadAllSurahs = async () => {
             try {
                 const results = await db?.getAllAsync('SELECT * FROM surahs ORDER BY number ASC');
-                setSurahs(results as any[]);
+                setSurahs(Array.isArray(results) ? results : []);
             } catch (error) {
                 console.error('Error fetching all Surahs:', error);
             } finally {
@@ -110,7 +116,12 @@ export default function QuranIndexScreen() {
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: theme.border }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                    <Text style={[styles.headerTitle, { marginBottom: 0, color: theme.textPrimary }]}>Al-Quran</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <TouchableOpacity onPress={goBack} hitSlop={10} style={{ marginLeft: -6, marginRight: 4, paddingVertical: 4 }}>
+                            <Feather name="chevron-left" size={28} color={theme.textPrimary} />
+                        </TouchableOpacity>
+                        <Text style={[styles.headerTitle, { marginBottom: 0, color: theme.textPrimary }]}>Al-Quran</Text>
+                    </View>
                     <TouchableOpacity
                         onPress={() => router.push('/search?scope=quran' as any)}
                         style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.bgInput, alignItems: 'center', justifyContent: 'center' }}
@@ -118,18 +129,6 @@ export default function QuranIndexScreen() {
                         <Feather name="search" size={20} color={theme.textPrimary} />
                     </TouchableOpacity>
                 </View>
-
-                {/* Hifz Tracker Banner — temporarily disabled (coming soon) */}
-                {/* <TouchableOpacity style={[styles.hifzBanner, { backgroundColor: theme.bgCard, borderColor: theme.border }]} onPress={() => router.push('/quran/hifz')}>
-                    <View style={styles.hifzBannerLeft}>
-                        <Feather name="trending-up" size={22} color={theme.accent} />
-                        <View style={{ marginLeft: 14 }}>
-                            <Text style={[styles.hifzBannerTitle, { color: theme.textPrimary }]}>Hifz Progress</Text>
-                            <Text style={[styles.hifzBannerSub, { color: theme.textSecondary }]}>Track memorization using SRS</Text>
-                        </View>
-                    </View>
-                    <Feather name="chevron-right" size={18} color={theme.textSecondary} />
-                </TouchableOpacity> */}
 
                 {/* Search */}
                 <View style={[styles.searchBar, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
@@ -167,6 +166,12 @@ export default function QuranIndexScreen() {
                 keyboardShouldPersistTaps="handled"
             >
                 {activeTab === 'surah' ? (
+                    filteredSurahs.length === 0 && searchQuery.trim().length > 0 ? (
+                        <View style={{ alignItems: 'center', paddingVertical: 60, gap: 10 }}>
+                            <Feather name="search" size={36} color={theme.textTertiary} />
+                            <Text style={{ color: theme.textSecondary, fontSize: 15 }}>No surahs found for "{searchQuery}"</Text>
+                        </View>
+                    ) :
                     filteredSurahs.map(surah => (
                         <TouchableOpacity
                             key={surah.number}
@@ -246,31 +251,10 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
     },
     headerTitle: {
-        fontSize: 26,
-        fontWeight: 'bold',
+        fontSize: 30,
         marginBottom: 16,
-        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    },
-    hifzBanner: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        borderWidth: 1,
-        borderRadius: 14,
-        padding: 14,
-        marginBottom: 16,
-    },
-    hifzBannerLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    hifzBannerTitle: {
-        fontSize: 15,
-        fontWeight: '600',
-        marginBottom: 2,
-    },
-    hifzBannerSub: {
-        fontSize: 12,
+        fontFamily: fonts.serifBold,
+        letterSpacing: -0.3,
     },
     searchBar: {
         flexDirection: 'row',
@@ -300,7 +284,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
     },
-    tabTextActive: {},
     listContent: {
         paddingHorizontal: 16,
         paddingTop: 14,
@@ -318,8 +301,8 @@ const styles = StyleSheet.create({
     },
     surahNumber: {
         width: 44,
-        fontSize: 22,
-        fontWeight: 'bold',
+        fontSize: 20,
+        fontFamily: fonts.mono,
     },
     arabicName: {
         width: 110,
@@ -331,13 +314,15 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingLeft: 12,
     },
+    // Surah name in editorial serif italic per the Falah Qurʾān index design
     engName: {
-        fontSize: 17,
-        fontWeight: '700',
+        fontSize: 19,
+        fontFamily: fonts.serifBold,
         marginBottom: 3,
     },
     metaText: {
-        fontSize: 13,
+        fontSize: 12,
+        fontFamily: fonts.body,
     },
     // ── Juz grid ───────────────────────────────────────────────────────────────
     juzGrid: {

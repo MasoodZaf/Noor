@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, TouchableOpacity, Animated, Easing, Modal, Switch, Linking, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, TouchableOpacity, Animated, Easing, Modal, Switch, Linking, Image, Alert, TextInput } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -15,6 +15,8 @@ import { sanitizeArabicText } from '../../../utils/arabic';
 import { useTheme } from '../../../context/ThemeContext';
 import { useNetworkMode } from '../../../context/NetworkModeContext';
 import { useLanguage } from '../../../context/LanguageContext';
+import { useAudio } from '../../../context/AudioContext';
+import { fonts } from '../../../context/ThemeContext';
 
 // ─── AlAdhan API ──────────────────────────────────────────────────────────────
 const ALADHAN_API = 'https://api.aladhan.com/v1';
@@ -269,6 +271,63 @@ const buildFajrRiseContent = (lang: NotifLang) => {
     };
 };
 
+// Stable notification identifiers — used so the language-change listener can cancel/replace
+// prayer notifications without clobbering Ramadan ones (and vice versa).
+const PRAYER_NOTIF_IDS = {
+    fajr:         'falah-prayer-fajr',
+    dhuhr:        'falah-prayer-dhuhr',
+    asr:          'falah-prayer-asr',
+    maghrib:      'falah-prayer-maghrib',
+    isha:         'falah-prayer-isha',
+    fajrTomorrow: 'falah-prayer-fajr-tomorrow',
+} as const;
+
+/**
+ * Cancels all prayer-scoped notifications (by identifier) and reschedules
+ * them with the given language. Safe to call whenever the set of prayers,
+ * prefs, or language changes — does not touch Ramadan/other identifiers.
+ */
+async function schedulePrayerNotifications(
+    prayers: { id: string; date: Date }[],
+    prefs: Record<string, boolean>,
+    tomorrowFajr: Date | null,
+    lang: NotifLang,
+) {
+    // Cancel only prayer-scoped IDs, not everything
+    for (const id of Object.values(PRAYER_NOTIF_IDS)) {
+        await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+    }
+
+    const nowMs = Date.now();
+    const androidChannel = Platform.OS === 'android' ? { channelId: 'adhan' } : {};
+
+    for (const prayer of prayers) {
+        if (!prefs[prayer.id]) continue;
+        if (prayer.date.getTime() <= nowMs) continue;
+        const identifier = (PRAYER_NOTIF_IDS as Record<string, string>)[prayer.id];
+        if (!identifier) continue;
+        try {
+            const { title, body } = buildNotifContent(prayer.id, lang);
+            await Notifications.scheduleNotificationAsync({
+                identifier,
+                content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
+                trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: prayer.date },
+            });
+        } catch { }
+    }
+
+    if (prefs['fajr'] && tomorrowFajr && tomorrowFajr.getTime() > nowMs) {
+        try {
+            const { title, body } = buildFajrRiseContent(lang);
+            await Notifications.scheduleNotificationAsync({
+                identifier: PRAYER_NOTIF_IDS.fajrTomorrow,
+                content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
+                trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: tomorrowFajr },
+            });
+        } catch { }
+    }
+}
+
 // ─── Quick actions with fixed Islamic-themed gradients ────────────────────────
 const QUICK_ACTIONS = [
     { title: 'Salah',   icon: 'user',       route: '/salah',  gradient: ['#4A2C6E', '#7B4FA6'] as const },
@@ -279,13 +338,43 @@ const QUICK_ACTIONS = [
 
 // ─── Famous mosque watermark images (replace PNGs in assets/mosques/ with real photos) ──
 const MOSQUE_IMAGES = [
-    { key: 'haram',   label: 'Badshahi Mosque, Lahore',          source: require('../../../assets/mosques/masjid_al_haram.png') },
-    { key: 'nabawi',  label: 'Badshahi Mosque, Lahore',          source: require('../../../assets/mosques/masjid_nabawi.png')   },
-    { key: 'aqsa',    label: 'Al Jabbar Mosque, Bandung',        source: require('../../../assets/mosques/al_aqsa.png')          },
+    { key: 'haram',   label: 'Masjid al-Haram, Makkah',         source: require('../../../assets/mosques/masjid_al_haram.png') },
+    { key: 'nabawi',  label: 'Masjid an-Nabawi, Madinah',       source: require('../../../assets/mosques/masjid_nabawi.png')   },
+    { key: 'aqsa',    label: 'Masjid al-Aqsa, Jerusalem',       source: require('../../../assets/mosques/al_aqsa.png')          },
     { key: 'blue',    label: 'Blue Mosque, Istanbul',            source: require('../../../assets/mosques/blue_mosque.png')      },
-    { key: 'zayed',   label: 'Badshahi Mosque, Lahore',          source: require('../../../assets/mosques/sheikh_zayed.png')     },
+    { key: 'zayed',   label: 'Sheikh Zayed Grand Mosque, Abu Dhabi', source: require('../../../assets/mosques/sheikh_zayed.png') },
 ];
 const MOSQUE_CYCLE_MS = 8000; // rotate every 8 seconds
+
+// ─── Manual city presets (used when GPS is denied/unavailable) ───────────────
+// Curated list of major Islamic centres + global metros so a user who declines
+// location permission can still pick a sensible default. Lat/lng to 4 decimals
+// (≈ 11 m precision — plenty for prayer-time calculation).
+const CITY_PRESETS: { name: string; country: string; iso: string; lat: number; lng: number }[] = [
+    { name: 'Makkah',         country: 'Saudi Arabia',     iso: 'SA', lat: 21.4225,  lng: 39.8262  },
+    { name: 'Madinah',        country: 'Saudi Arabia',     iso: 'SA', lat: 24.4683,  lng: 39.6142  },
+    { name: 'Riyadh',         country: 'Saudi Arabia',     iso: 'SA', lat: 24.7136,  lng: 46.6753  },
+    { name: 'Jerusalem',      country: 'Palestine',        iso: 'PS', lat: 31.7683,  lng: 35.2137  },
+    { name: 'Cairo',          country: 'Egypt',            iso: 'EG', lat: 30.0444,  lng: 31.2357  },
+    { name: 'Istanbul',       country: 'Türkiye',          iso: 'TR', lat: 41.0082,  lng: 28.9784  },
+    { name: 'Karachi',        country: 'Pakistan',         iso: 'PK', lat: 24.8607,  lng: 67.0011  },
+    { name: 'Lahore',         country: 'Pakistan',         iso: 'PK', lat: 31.5497,  lng: 74.3436  },
+    { name: 'Islamabad',      country: 'Pakistan',         iso: 'PK', lat: 33.6844,  lng: 73.0479  },
+    { name: 'Dhaka',          country: 'Bangladesh',       iso: 'BD', lat: 23.8103,  lng: 90.4125  },
+    { name: 'Delhi',          country: 'India',            iso: 'IN', lat: 28.6139,  lng: 77.2090  },
+    { name: 'Jakarta',        country: 'Indonesia',        iso: 'ID', lat: -6.2088,  lng: 106.8456 },
+    { name: 'Kuala Lumpur',   country: 'Malaysia',         iso: 'MY', lat: 3.1390,   lng: 101.6869 },
+    { name: 'Dubai',          country: 'UAE',              iso: 'AE', lat: 25.2048,  lng: 55.2708  },
+    { name: 'Doha',           country: 'Qatar',            iso: 'QA', lat: 25.2854,  lng: 51.5310  },
+    { name: 'Tehran',         country: 'Iran',             iso: 'IR', lat: 35.6892,  lng: 51.3890  },
+    { name: 'Casablanca',     country: 'Morocco',          iso: 'MA', lat: 33.5731,  lng: -7.5898  },
+    { name: 'London',         country: 'United Kingdom',   iso: 'GB', lat: 51.5074,  lng: -0.1278  },
+    { name: 'New York',       country: 'United States',    iso: 'US', lat: 40.7128,  lng: -74.0060 },
+    { name: 'Toronto',        country: 'Canada',           iso: 'CA', lat: 43.6532,  lng: -79.3832 },
+    { name: 'Sydney',         country: 'Australia',        iso: 'AU', lat: -33.8688, lng: 151.2093 },
+];
+
+const MANUAL_LOCATION_KEY = '@noor/manual_location';
 
 // ─── Calculation methods exposed to users ────────────────────────────────────
 // id: -1 = Auto (country-based), others map to AlAdhan method IDs
@@ -361,6 +450,7 @@ export default function HomeScreen() {
     const { theme } = useTheme();
     const { isOfflineMode } = useNetworkMode();
     const { language } = useLanguage();
+    const { audioState } = useAudio();
 
     const [loading, setLoading] = useState(true);
     const [prayers, setPrayers] = useState<any[]>([]);
@@ -380,6 +470,11 @@ export default function HomeScreen() {
     // Prayer settings — { method: -1 means Auto, school: 0=Standard 1=Hanafi }
     const [prayerSettings, setPrayerSettings] = useState<{ method: number; school: number }>({ method: -1, school: 0 });
     const [showPrayerSettings, setShowPrayerSettings] = useState(false);
+    // City picker — opens when user taps the location pill or when GPS is denied
+    const [showCityPicker, setShowCityPicker] = useState(false);
+    // Track whether we're currently using a manually-picked city (vs GPS)
+    const [usingManualLocation, setUsingManualLocation] = useState(false);
+    const [citySearchQuery, setCitySearchQuery] = useState('');
     // Draft values used inside the modal before applying
     const [draftMethod, setDraftMethod] = useState(-1);
     const [draftSchool, setDraftSchool] = useState(0);
@@ -401,6 +496,26 @@ export default function HomeScreen() {
     // Store effective method/school so the timer can reload prayers when a prayer time passes
     const effectiveMethodRef = useRef<number>(DEFAULT_METHOD.method);
     const effectiveSchoolRef = useRef<number>(DEFAULT_METHOD.school);
+
+    // Mirror `language` into a ref so the []-deps loadPrayers callback and
+    // background enrichment fetches always read the current value, not a stale one.
+    const languageRef = useRef(language);
+    useEffect(() => { languageRef.current = language; }, [language]);
+
+    // Reschedule prayer notifications when the user changes app language so the
+    // Adhan alerts arrive in the newly selected language. Skip the initial mount —
+    // loadPrayers already schedules with the current language on first load.
+    const didMountRef = useRef(false);
+    useEffect(() => {
+        if (!didMountRef.current) { didMountRef.current = true; return; }
+        if (prayers.length === 0) return;
+        (async () => {
+            const { status } = await Notifications.getPermissionsAsync();
+            if (status !== 'granted') return;
+            const notifLang = (language as NotifLang) in NOTIF_UI ? (language as NotifLang) : 'english';
+            await schedulePrayerNotifications(prayers, notifPrefs, tomorrowFajrRef.current, notifLang);
+        })();
+    }, [language]);
 
     const pulseAnim = useRef(new Animated.Value(0)).current;
 
@@ -687,31 +802,11 @@ export default function HomeScreen() {
                 const saved = await AsyncStorage.getItem(NOTIF_PREFS_KEY);
                 if (saved) prefs = JSON.parse(saved);
             } catch { }
-            await Notifications.cancelAllScheduledNotificationsAsync();
-            const nowMs = new Date().getTime();
-            // channelId 'adhan' is created in _layout.tsx with MAX importance + vibration (Android only)
-            const androidChannel = Platform.OS === 'android' ? { channelId: 'adhan' } : {};
-            const notifLang = (language as NotifLang) in NOTIF_UI ? (language as NotifLang) : 'english';
-            for (const prayer of list) {
-                if (prefs[prayer.id] && prayer.date.getTime() > nowMs) {
-                    try {
-                        const { title, body } = buildNotifContent(prayer.id, notifLang);
-                        await Notifications.scheduleNotificationAsync({
-                            content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
-                            trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: prayer.date },
-                        });
-                    } catch { }
-                }
-            }
-            if (prefs['fajr'] && tomorrowFajr && tomorrowFajr.getTime() > nowMs) {
-                try {
-                    const { title, body } = buildFajrRiseContent(notifLang);
-                    await Notifications.scheduleNotificationAsync({
-                        content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
-                        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: tomorrowFajr },
-                    });
-                } catch { }
-            }
+            // Read language via ref — loadPrayers' useCallback has [] deps so `language`
+            // closure-captured here would otherwise go stale on language switch.
+            const notifLang = (languageRef.current as NotifLang) in NOTIF_UI
+                ? (languageRef.current as NotifLang) : 'english';
+            await schedulePrayerNotifications(list, prefs, tomorrowFajr, notifLang);
         }
 
         // ── Countdown timer ───────────────────────────────────────────────────
@@ -798,12 +893,13 @@ export default function HomeScreen() {
                 const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000);
                 // Map deterministic day → global ayah index (1-based, wraps over 6236 ayahs)
                 const globalAyahIdx = (dayOfYear % 6236) + 1;
-                // SQLite ayahs table uses (surah_id, ayah_number) — derive from global index
-                // ayahs are ordered globally as inserted (surah 1 ayah 1 = row 1, etc.)
+                // Schema: ayahs(surah_number, ayah_number), surahs(number PK)
+                // Order by (surah_number, ayah_number) to produce a stable 1..6236 sequence
                 const row = await db.getFirstAsync(
-                    `SELECT a.ayah_number, a.text_arabic, a.text_english, s.name_english, s.id as surah_id
-                     FROM ayahs a JOIN surahs s ON s.id = a.surah_id
-                     ORDER BY a.id LIMIT 1 OFFSET ?`,
+                    `SELECT a.surah_number, a.ayah_number, a.text_arabic, a.text_english, s.name_english
+                     FROM ayahs a JOIN surahs s ON s.number = a.surah_number
+                     ORDER BY a.surah_number ASC, a.ayah_number ASC
+                     LIMIT 1 OFFSET ?`,
                     [globalAyahIdx - 1]
                 ) as any;
                 if (!mounted) return;
@@ -812,7 +908,7 @@ export default function HomeScreen() {
                         arabic: sanitizeArabicText(row.text_arabic || ''),
                         translation: row.text_english,
                         surahName: row.name_english,
-                        surahNumber: row.surah_id,
+                        surahNumber: row.surah_number,
                         numberInSurah: row.ayah_number,
                     };
                     setDayAya(aya);
@@ -839,31 +935,62 @@ export default function HomeScreen() {
 
         // Location + prayer loading
         (async () => {
-            const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
-            if (!mounted) return;
-            if (locationStatus !== 'granted') {
-                setLocationName('Location Denied');
-                setLoading(false);
-                return;
-            }
-
-            let location;
+            // Check for a manually-picked city first — if the user previously chose
+            // one (e.g. after declining GPS), respect that instead of asking again.
+            let manualCity: { name: string; country: string; iso: string; lat: number; lng: number } | null = null;
             try {
-                location = await Location.getCurrentPositionAsync({});
-            } catch {
-                location = { coords: { latitude: 21.4225, longitude: 39.8262 } };
-            }
+                const saved = await AsyncStorage.getItem(MANUAL_LOCATION_KEY);
+                if (saved) manualCity = JSON.parse(saved);
+            } catch {}
 
-            if (!mounted) return;
-            const { latitude, longitude } = location.coords;
+            let latitude: number;
+            let longitude: number;
+            let isoCode: string = '';
 
-            let isoCode = '';
-            try {
-                const geo = await reverseGeocode(latitude, longitude);
-                if (mounted) setLocationName(geo.locality || 'Locating...');
-                isoCode = geo.countryCode;
-            } catch {
-                if (mounted) setLocationName(latitude === 21.4225 ? 'Makkah' : 'Locating...');
+            if (manualCity) {
+                latitude = manualCity.lat;
+                longitude = manualCity.lng;
+                isoCode = manualCity.iso;
+                if (mounted) {
+                    setLocationName(manualCity.name);
+                    setUsingManualLocation(true);
+                }
+            } else {
+                const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
+                if (!mounted) return;
+
+                if (locationStatus !== 'granted') {
+                    // Non-blocking: fall back to Makkah and let user pick a city manually.
+                    // Previously this rendered a full-screen "Location Required" page that
+                    // blocked the entire app — users couldn't reach the Quran/Tasbih/etc.
+                    if (mounted) {
+                        setLocationName('Makkah');
+                        setUsingManualLocation(true);
+                        // Auto-open the picker once so user knows they can change it
+                        setTimeout(() => { if (mounted) setShowCityPicker(true); }, 600);
+                    }
+                    latitude = 21.4225;
+                    longitude = 39.8262;
+                    isoCode = 'SA';
+                } else {
+                    let location;
+                    try {
+                        location = await Location.getCurrentPositionAsync({});
+                    } catch {
+                        location = { coords: { latitude: 21.4225, longitude: 39.8262 } };
+                    }
+                    if (!mounted) return;
+                    latitude = location.coords.latitude;
+                    longitude = location.coords.longitude;
+
+                    try {
+                        const geo = await reverseGeocode(latitude, longitude);
+                        if (mounted) setLocationName(geo.locality || 'Locating...');
+                        isoCode = geo.countryCode;
+                    } catch {
+                        if (mounted) setLocationName(latitude === 21.4225 ? 'Makkah' : 'Locating...');
+                    }
+                }
             }
 
             // Store location for later (settings change re-fetch)
@@ -910,6 +1037,9 @@ export default function HomeScreen() {
         loadPrayers(lat, lng, effectiveMethod, effectiveSchool);
     };
 
+    const currentNotifLang = (): NotifLang =>
+        (language as NotifLang) in NOTIF_UI ? (language as NotifLang) : 'english';
+
     const toggleNotif = async (id: string) => {
         const newPrefs = { ...notifPrefs, [id]: !notifPrefs[id] };
         setNotifPrefs(newPrefs);
@@ -918,30 +1048,7 @@ export default function HomeScreen() {
         const { status } = await Notifications.getPermissionsAsync();
         if (status !== 'granted') { setNotifPermDenied(true); return; }
         setNotifPermDenied(false);
-        await Notifications.cancelAllScheduledNotificationsAsync();
-        const nowMs = Date.now();
-        const androidChannel = Platform.OS === 'android' ? { channelId: 'adhan' } : {};
-        const notifLang = (language as NotifLang) in NOTIF_UI ? (language as NotifLang) : 'english';
-        for (const prayer of prayers) {
-            if (newPrefs[prayer.id] && prayer.date.getTime() > nowMs) {
-                try {
-                    const { title, body } = buildNotifContent(prayer.id, notifLang);
-                    await Notifications.scheduleNotificationAsync({
-                        content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
-                        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: prayer.date },
-                    });
-                } catch { }
-            }
-        }
-        if (newPrefs['fajr'] && tomorrowFajrRef.current && tomorrowFajrRef.current.getTime() > nowMs) {
-            try {
-                const { title, body } = buildFajrRiseContent(notifLang);
-                await Notifications.scheduleNotificationAsync({
-                    content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
-                    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: tomorrowFajrRef.current },
-                });
-            } catch { }
-        }
+        await schedulePrayerNotifications(prayers, newPrefs, tomorrowFajrRef.current, currentNotifLang());
     };
 
     // Master toggle — turns ALL prayers on or off in one tap
@@ -956,31 +1063,53 @@ export default function HomeScreen() {
         const { status } = await Notifications.getPermissionsAsync();
         if (status !== 'granted') { setNotifPermDenied(true); return; }
         setNotifPermDenied(false);
-        await Notifications.cancelAllScheduledNotificationsAsync();
-        if (!newValue) return; // all turned off — no need to schedule
+        await schedulePrayerNotifications(prayers, newPrefs, tomorrowFajrRef.current, currentNotifLang());
+    };
 
-        const nowMs = Date.now();
-        const androidChannel = Platform.OS === 'android' ? { channelId: 'adhan' } : {};
-        const notifLang = (language as NotifLang) in NOTIF_UI ? (language as NotifLang) : 'english';
-        for (const prayer of prayers) {
-            if (prayer.date.getTime() > nowMs) {
-                try {
-                    const { title, body } = buildNotifContent(prayer.id, notifLang);
-                    await Notifications.scheduleNotificationAsync({
-                        content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
-                        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: prayer.date },
-                    });
-                } catch { }
-            }
+    // Apply a city from the picker — persists to AsyncStorage and reloads prayers
+    // so the user gets accurate times for the selected location immediately.
+    const pickCity = async (city: typeof CITY_PRESETS[number]) => {
+        setLocationName(city.name);
+        setUsingManualLocation(true);
+        coordsRef.current = { lat: city.lat, lng: city.lng };
+        autoMethodRef.current = COUNTRY_METHODS[city.iso] ?? DEFAULT_METHOD;
+        try { await AsyncStorage.setItem(MANUAL_LOCATION_KEY, JSON.stringify(city)); } catch {}
+        setShowCityPicker(false);
+        setCitySearchQuery('');
+        const effectiveMethod = prayerSettings.method === -1 ? autoMethodRef.current.method : prayerSettings.method;
+        const effectiveSchool = prayerSettings.method === -1 ? autoMethodRef.current.school : prayerSettings.school;
+        await loadPrayers(city.lat, city.lng, effectiveMethod, effectiveSchool);
+    };
+
+    // Switch back to using GPS (clears the manual override)
+    const useDeviceLocation = async () => {
+        try { await AsyncStorage.removeItem(MANUAL_LOCATION_KEY); } catch {}
+        setUsingManualLocation(false);
+        setShowCityPicker(false);
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission required', 'Enable location access in Settings to use your current location.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ]);
+            return;
         }
-        if (tomorrowFajrRef.current && tomorrowFajrRef.current.getTime() > nowMs) {
+        try {
+            const loc = await Location.getCurrentPositionAsync({});
+            const { latitude, longitude } = loc.coords;
             try {
-                const { title, body } = buildFajrRiseContent(notifLang);
-                await Notifications.scheduleNotificationAsync({
-                    content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
-                    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: tomorrowFajrRef.current },
-                });
-            } catch { }
+                const geo = await reverseGeocode(latitude, longitude);
+                setLocationName(geo.locality || 'Locating...');
+                autoMethodRef.current = COUNTRY_METHODS[geo.countryCode] ?? DEFAULT_METHOD;
+            } catch {
+                setLocationName('Locating...');
+            }
+            coordsRef.current = { lat: latitude, lng: longitude };
+            const effectiveMethod = prayerSettings.method === -1 ? autoMethodRef.current.method : prayerSettings.method;
+            const effectiveSchool = prayerSettings.method === -1 ? autoMethodRef.current.school : prayerSettings.school;
+            await loadPrayers(latitude, longitude, effectiveMethod, effectiveSchool);
+        } catch {
+            Alert.alert('Location unavailable', 'Could not read your current location. Please pick a city manually.');
         }
     };
 
@@ -1007,26 +1136,9 @@ export default function HomeScreen() {
         );
     }
 
-    if (locationName === 'Location Denied') {
-        return (
-            <View style={[styles.container, { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, backgroundColor: theme.bg }]}>
-                <Feather name="map-pin" size={48} color={theme.textTertiary} style={{ marginBottom: 20 }} />
-                <Text style={{ fontSize: 18, fontWeight: '600', color: theme.textPrimary, textAlign: 'center', marginBottom: 10 }}>
-                    Location Access Required
-                </Text>
-                <Text style={{ fontSize: 14, color: theme.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 28 }}>
-                    Falah needs your location to calculate accurate prayer times. Please enable location permission in Settings.
-                </Text>
-                <TouchableOpacity
-                    onPress={() => Linking.openSettings()}
-                    style={{ backgroundColor: theme.gold, paddingVertical: 13, paddingHorizontal: 32, borderRadius: 24 }}
-                    activeOpacity={0.8}
-                >
-                    <Text style={{ color: theme.textInverse, fontWeight: '600', fontSize: 15 }}>Open Settings</Text>
-                </TouchableOpacity>
-            </View>
-        );
-    }
+    // Note: the previous "Location Access Required" full-screen block was removed (#4).
+    // Denied permission now silently falls back to a default city (Makkah) and the user
+    // can change it via the location pill / city picker without ever leaving the app.
 
     const currentMethodName = prayerSettings.method === -1
         ? `Auto · ${CALC_METHODS.find(m => m.id === autoMethodRef.current.method)?.name ?? 'MWL'}`
@@ -1058,6 +1170,31 @@ export default function HomeScreen() {
 
             <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
+                {/* Now-playing pill (#18) — visible only when Quran audio is active.
+                    Tap to jump back to the surah reader. The mini player at the bottom
+                    of the tab bar showed this info but was easy to miss. */}
+                {audioState.isVisible && audioState.sourceCategory === 'quran' && audioState.sourceId != null && (
+                    <TouchableOpacity
+                        style={[styles.nowPlayingPill, { backgroundColor: theme.bgCard, borderColor: theme.gold }]}
+                        onPress={() => router.push(`/(tabs)/quran/${audioState.sourceId}` as any)}
+                        activeOpacity={0.85}
+                    >
+                        <Feather
+                            name={audioState.isPlaying ? 'volume-2' : 'pause'}
+                            size={14}
+                            color={theme.gold}
+                            style={{ marginRight: 8 }}
+                        />
+                        <Text style={[styles.nowPlayingLabel, { color: theme.textTertiary }]} numberOfLines={1}>
+                            NOW PLAYING
+                        </Text>
+                        <Text style={[styles.nowPlayingTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                            {audioState.title || 'Quran'}
+                        </Text>
+                        <Feather name="chevron-right" size={16} color={theme.textSecondary} />
+                    </TouchableOpacity>
+                )}
+
                 {/* Prayer Hero */}
                 <View style={styles.heroSection}>
                     <LinearGradient colors={envGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroCard}>
@@ -1088,27 +1225,42 @@ export default function HomeScreen() {
                             <View style={[styles.heroNextBox, { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
                                 <View style={styles.heroNextLeft}>
                                     <Feather name="clock" size={16} color={themeTextColor} />
-                                    <Text style={[styles.heroNextText, { color: themeTextColor }]}>Next: {nextPrayerName} in {countdown}</Text>
-                                </View>
-                                <TouchableOpacity
-                                    style={[styles.heroRemindBtn, {
-                                        backgroundColor: allRemindersOn ? '#2ECC94' : '#142d1a',
-                                    }]}
-                                    onPress={() => {
-                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                                        toggleAllNotif();
-                                    }}
-                                >
-                                    <Feather
-                                        name={allRemindersOn ? 'bell' : 'bell-off'}
-                                        size={13}
-                                        color="#FFFFFF"
-                                        style={{ marginRight: 5 }}
-                                    />
-                                    <Text style={[styles.heroRemindBtnText, { color: '#FFFFFF' }]}>
-                                        {allRemindersOn ? 'ALL ON' : 'REMIND ALL'}
+                                    <Text style={[styles.heroNextText, { color: themeTextColor }]}>
+                                        Next: {nextPrayerName} in <Text style={{ fontFamily: fonts.mono }}>{countdown}</Text>
                                     </Text>
-                                </TouchableOpacity>
+                                </View>
+                                {/* Per-next-prayer alert indicator (#6). The previous "REMIND ALL"
+                                    master toggle was confusing — it said REMIND ALL even when the
+                                    next prayer's own alert was on. Now reflects the next prayer
+                                    specifically; tap toggles that prayer's alert only. Master
+                                    enable/disable still available via the bell icon in the header. */}
+                                {(() => {
+                                    const nextPrayerId = (nextPrayerName || '').toLowerCase();
+                                    const nextAlertOn = !!notifPrefs[nextPrayerId];
+                                    return (
+                                        <TouchableOpacity
+                                            style={[styles.heroRemindBtn, {
+                                                backgroundColor: nextAlertOn ? '#2ECC94' : '#142d1a',
+                                            }]}
+                                            onPress={() => {
+                                                if (!nextPrayerId) return;
+                                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                                toggleNotif(nextPrayerId);
+                                            }}
+                                            disabled={!nextPrayerId}
+                                        >
+                                            <Feather
+                                                name={nextAlertOn ? 'bell' : 'bell-off'}
+                                                size={13}
+                                                color="#FFFFFF"
+                                                style={{ marginRight: 5 }}
+                                            />
+                                            <Text style={[styles.heroRemindBtnText, { color: '#FFFFFF' }]}>
+                                                {nextAlertOn ? 'ALERT ON' : 'ALERT OFF'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })()}
                             </View>
                             {/* Mosque label */}
                             <Animated.Text style={[styles.mosqueLabel, { opacity: mosqueAnim }]}>
@@ -1138,16 +1290,13 @@ export default function HomeScreen() {
                 <View style={styles.prayersListContainer}>
                     <View style={styles.prayersListHeader}>
                         <Text style={[styles.prayerListTitle, { color: theme.textPrimary }]}>Prayer Times</Text>
-                        {/* Location tag + settings gear */}
-                        <View style={styles.prayerHeaderRight}>
-                            <View style={styles.locationTag}>
-                                <Feather name="map-pin" size={12} color={envGradient[0]} style={{ marginRight: 4 }} />
-                                <Text style={[styles.locationTagName, { color: envGradient[0] }]}>{locationName}</Text>
-                            </View>
-                            <TouchableOpacity style={[styles.settingsGear, { backgroundColor: theme.bgSecondary }]} onPress={openPrayerSettings}>
-                                <Feather name="settings" size={16} color={theme.textSecondary} />
-                            </TouchableOpacity>
-                        </View>
+                        {/* Location tag — tap to change city. Replaces the previous full-screen
+                            "permission required" wall when GPS is denied (#4). */}
+                        <TouchableOpacity style={styles.locationTag} onPress={() => setShowCityPicker(true)} hitSlop={8}>
+                            <Feather name="map-pin" size={12} color={envGradient[0]} style={{ marginRight: 4 }} />
+                            <Text style={[styles.locationTagName, { color: envGradient[0] }]}>{locationName}</Text>
+                            <Feather name="edit-2" size={11} color={envGradient[0]} style={{ marginLeft: 6 }} />
+                        </TouchableOpacity>
                     </View>
 
                     {/* Active calculation method pill */}
@@ -1212,7 +1361,10 @@ export default function HomeScreen() {
                     <View style={styles.verseSection}>
                         <Text style={[styles.prayerListTitle, { color: theme.textPrimary }]}>Verse of the Day</Text>
                         <View style={[styles.verseCard, { backgroundColor: theme.bgCard, borderColor: theme.border, borderWidth: 1 }]}>
-                            <Text style={[styles.verseArabicText, { color: theme.textPrimary }]}>{dayAya.arabic}</Text>
+                            <Text style={[
+                                styles.verseArabicText,
+                                { color: theme.textPrimary, fontSize: 26 * theme.arabicScale, lineHeight: 46 * theme.arabicScale },
+                            ]}>{dayAya.arabic}</Text>
                             <Text style={[styles.verseText, { color: theme.textSecondary }]}>"{dayAya.translation}"</Text>
                             <View style={[styles.verseFooter, { borderTopColor: theme.border }]}>
                                 <Text style={[styles.verseRef, { color: theme.accent }]}>
@@ -1295,20 +1447,20 @@ export default function HomeScreen() {
                 visible={showPrayerSettings}
                 transparent
                 animationType="slide"
-                onRequestClose={() => setShowPrayerSettings(false)}
+                onRequestClose={applyPrayerSettings}
             >
                 <View style={styles.sheetOverlay}>
                     <View style={[styles.sheet, { paddingBottom: insets.bottom + 24, backgroundColor: theme.bgCard }]}>
                         {/* Handle */}
                         <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
 
-                        {/* Header */}
+                        {/* Header — closing the sheet (X / Android back) auto-saves the draft (#8) */}
                         <View style={styles.sheetHeaderRow}>
                             <View>
                                 <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>Prayer Time Settings</Text>
-                                <Text style={[styles.sheetSubtitle, { color: theme.textSecondary }]}>Changes apply immediately</Text>
+                                <Text style={[styles.sheetSubtitle, { color: theme.textSecondary }]}>Tap × to save and close</Text>
                             </View>
-                            <TouchableOpacity onPress={() => setShowPrayerSettings(false)} style={[styles.sheetCloseBtn, { backgroundColor: theme.bgSecondary }]}>
+                            <TouchableOpacity onPress={applyPrayerSettings} style={[styles.sheetCloseBtn, { backgroundColor: theme.bgSecondary }]}>
                                 <Feather name="x" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
@@ -1369,16 +1521,98 @@ export default function HomeScreen() {
                                         onPress={() => setDraftSchool(1)}
                                     >
                                         <Text style={[styles.asrOptionTitle, { color: theme.textSecondary }, draftSchool === 1 && [styles.asrOptionTitleActive, { color: theme.textPrimary }]]}>Hanafi</Text>
-                                        <Text style={[styles.asrOptionSub, { color: theme.textTertiary }]}>Later Asr time</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
                         )}
 
-                        {/* Apply button */}
-                        <TouchableOpacity style={[styles.applyBtn, { backgroundColor: theme.accent }]} onPress={applyPrayerSettings}>
-                            <Text style={[styles.applyBtnText, { color: theme.textInverse }]}>Apply Settings</Text>
+                        {/* "Apply Settings" button removed — × close + Android back already save (#8) */}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── City Picker Bottom Sheet (#4) ────────────────────────────── */}
+            <Modal
+                visible={showCityPicker}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setShowCityPicker(false)}
+            >
+                <View style={styles.sheetOverlay}>
+                    <View style={[styles.sheet, { paddingBottom: insets.bottom + 24, backgroundColor: theme.bgCard, maxHeight: '85%' }]}>
+                        <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
+                        <View style={styles.sheetHeaderRow}>
+                            <View>
+                                <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>Choose City</Text>
+                                <Text style={[styles.sheetSubtitle, { color: theme.textSecondary }]}>
+                                    {usingManualLocation ? 'Currently using a manual location' : 'Currently using your device location'}
+                                </Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setShowCityPicker(false)} style={[styles.sheetCloseBtn, { backgroundColor: theme.bgSecondary }]}>
+                                <Feather name="x" size={20} color={theme.textPrimary} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Search */}
+                        <View style={[styles.citySearchBox, { backgroundColor: theme.bgSecondary, borderColor: theme.border }]}>
+                            <Feather name="search" size={16} color={theme.textSecondary} />
+                            <TextInput
+                                style={[styles.citySearchInput, { color: theme.textPrimary }]}
+                                placeholder="Search city…"
+                                placeholderTextColor={theme.textTertiary}
+                                value={citySearchQuery}
+                                onChangeText={setCitySearchQuery}
+                            />
+                            {citySearchQuery.length > 0 && (
+                                <TouchableOpacity onPress={() => setCitySearchQuery('')} hitSlop={8}>
+                                    <Feather name="x-circle" size={16} color={theme.textTertiary} />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
+                        {/* Use device location */}
+                        <TouchableOpacity
+                            style={[styles.cityRow, { backgroundColor: theme.accentLight, borderColor: theme.gold }]}
+                            onPress={useDeviceLocation}
+                        >
+                            <Feather name="navigation" size={18} color={theme.gold} style={{ marginRight: 12 }} />
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.cityName, { color: theme.textPrimary, fontWeight: '700' }]}>Use My Current Location</Text>
+                                <Text style={[styles.cityCountry, { color: theme.textSecondary }]}>Requires location permission</Text>
+                            </View>
+                            {!usingManualLocation && <Feather name="check" size={18} color={theme.gold} />}
                         </TouchableOpacity>
+
+                        {/* City list */}
+                        <ScrollView style={{ maxHeight: 380 }} nestedScrollEnabled>
+                            {CITY_PRESETS
+                                .filter(c => {
+                                    if (!citySearchQuery.trim()) return true;
+                                    const q = citySearchQuery.trim().toLowerCase();
+                                    return c.name.toLowerCase().includes(q) || c.country.toLowerCase().includes(q);
+                                })
+                                .map(c => {
+                                    const isSelected = usingManualLocation && locationName === c.name;
+                                    return (
+                                        <TouchableOpacity
+                                            key={`${c.name}-${c.iso}`}
+                                            style={[
+                                                styles.cityRow,
+                                                { backgroundColor: theme.bgSecondary },
+                                                isSelected && { backgroundColor: theme.accentLight, borderColor: theme.gold },
+                                            ]}
+                                            onPress={() => pickCity(c)}
+                                            activeOpacity={0.75}
+                                        >
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={[styles.cityName, { color: theme.textPrimary }]}>{c.name}</Text>
+                                                <Text style={[styles.cityCountry, { color: theme.textSecondary }]}>{c.country}</Text>
+                                            </View>
+                                            {isSelected && <Feather name="check" size={18} color={theme.gold} />}
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                        </ScrollView>
                     </View>
                 </View>
             </Modal>
@@ -1394,11 +1628,33 @@ const styles = StyleSheet.create({
     },
     headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     profileAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-    headerTitle: { fontSize: 20, fontWeight: 'bold', letterSpacing: -0.5 },
-    headerSubtitle: { fontSize: 13, fontWeight: '500' },
+    // Brand mark — serif italic ("Falah.") matches the design mastplate
+    headerTitle: { fontSize: 26, fontFamily: fonts.serifBold, letterSpacing: -0.5 },
+    headerSubtitle: { fontSize: 13, fontFamily: fonts.bodyMedium },
     headerRight: { flexDirection: 'row', alignItems: 'center' },
     iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', position: 'relative' },
     notificationDot: { position: 'absolute', top: 10, right: 12, width: 8, height: 8, borderRadius: 4, backgroundColor: '#E53E3E', borderWidth: 1 },
+    nowPlayingPill: {
+        marginHorizontal: 16, marginBottom: 12,
+        paddingHorizontal: 14, paddingVertical: 10,
+        borderRadius: 14, borderWidth: 1,
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+    },
+    nowPlayingLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginRight: 4 },
+    nowPlayingTitle: { fontSize: 13, fontWeight: '600', flex: 1 },
+    citySearchBox: {
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        paddingHorizontal: 12, paddingVertical: 10,
+        borderRadius: 12, borderWidth: 1, marginBottom: 12,
+    },
+    citySearchInput: { flex: 1, fontSize: 14, padding: 0 },
+    cityRow: {
+        flexDirection: 'row', alignItems: 'center',
+        padding: 14, borderRadius: 12, marginBottom: 8,
+        borderWidth: 1, borderColor: 'transparent',
+    },
+    cityName: { fontSize: 15, fontWeight: '600' },
+    cityCountry: { fontSize: 12, marginTop: 2 },
     notifRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, borderBottomWidth: 1 },
     notifIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     notifPrayerName: { fontSize: 15, fontWeight: '700' },
@@ -1415,8 +1671,10 @@ const styles = StyleSheet.create({
     heroContent: { position: 'relative', zIndex: 2 },
     heroTag: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
     heroTagText: { fontSize: 13, fontWeight: '600', letterSpacing: 1 },
-    heroPrayerName: { fontSize: 42, fontWeight: 'bold', letterSpacing: -1, marginBottom: 4 },
-    heroPrayerTime: { fontSize: 18, fontWeight: '500', marginBottom: 32 },
+    // Prayer hero — serif italic per the Falah design ("Maghrib" / "Fajr" etc.)
+    heroPrayerName: { fontSize: 48, fontFamily: fonts.serif, letterSpacing: -0.5, marginBottom: 4 },
+    // Prayer time in mono for that tactile digital-clock feel
+    heroPrayerTime: { fontSize: 18, fontFamily: fonts.mono, marginBottom: 32 },
     heroNextBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 8, paddingLeft: 16, borderRadius: 30 },
     heroNextLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, marginRight: 8 },
     heroNextText: { fontSize: 14, fontWeight: '700', flexShrink: 1 },
@@ -1436,10 +1694,8 @@ const styles = StyleSheet.create({
     prayersListContainer: { marginTop: 32, paddingHorizontal: 16 },
     prayersListHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
     prayerListTitle: { fontSize: 18, fontWeight: 'bold' },
-    prayerHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     locationTag: { flexDirection: 'row', alignItems: 'center' },
     locationTagName: { fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5 },
-    settingsGear: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
     methodPill: {
         flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
         paddingHorizontal: 10, paddingVertical: 5,

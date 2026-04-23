@@ -473,15 +473,16 @@ export default function SalahScreen() {
                     />
                 ))}
 
-                {/* Closing note */}
+                {/* Closing note — labels standardised to consistently use Sunnah / Witr (#5).
+                    Previously mixed "sunnah", "(nafl)", and bare "before/after" which read inconsistently. */}
                 <View style={[styles.closingNote, { backgroundColor: theme.bgCard }]}>
                     <Text style={[styles.closingTitle, { color: theme.textPrimary }]}>Numbers of Rak\'ahs</Text>
                     {[
-                        { name: 'Fajr',   fard: 2, sunnah: '2 sunnah before' },
-                        { name: 'Dhuhr',  fard: 4, sunnah: '4 before + 2 after' },
-                        { name: 'Asr',    fard: 4, sunnah: '4 before (nafl)' },
-                        { name: 'Maghrib',fard: 3, sunnah: '2 after' },
-                        { name: 'Isha',   fard: 4, sunnah: '2 after + 3 witr' },
+                        { name: 'Fajr',    fard: 2, sunnah: '2 Sunnah before' },
+                        { name: 'Dhuhr',   fard: 4, sunnah: '4 Sunnah before + 2 Sunnah after' },
+                        { name: 'Asr',     fard: 4, sunnah: '4 Sunnah before' },
+                        { name: 'Maghrib', fard: 3, sunnah: '2 Sunnah after' },
+                        { name: 'Isha',    fard: 4, sunnah: '2 Sunnah after + 3 Witr' },
                     ].map(p => (
                         <View key={p.name} style={[styles.prayerRow, { borderBottomColor: theme.border }]}>
                             <Text style={[styles.prayerName, { color: theme.textPrimary }]}>{p.name}</Text>

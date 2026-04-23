@@ -48,7 +48,7 @@ const FAWAZ_HADITH = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1';
 const LANG_EDITIONS: Record<string, Record<string, string>> = {
     bukhari:  { english: 'eng-bukhari',  urdu: 'urd-bukhari',  indonesian: 'ind-bukhari',  french: 'fra-bukhari',  bengali: 'ben-bukhari',  turkish: 'tur-bukhari'  },
     muslim:   { english: 'eng-muslim',   urdu: 'urd-muslim',   indonesian: 'ind-muslim',   french: 'fra-muslim',   bengali: 'ben-muslim',   turkish: 'tur-muslim'   },
-    tirmidhi: { english: 'eng-tirmidhi', urdu: 'urd-tirmidhi', indonesian: 'ind-tirmidhi', french: 'eng-tirmidhi', bengali: 'ben-tirmidhi', turkish: 'tur-tirmidhi' },
+    tirmidhi: { english: 'eng-tirmidhi', urdu: 'urd-tirmidhi', indonesian: 'ind-tirmidhi', bengali: 'ben-tirmidhi', turkish: 'tur-tirmidhi' }, // No French Tirmidhi on CDN — falls back to English
     abudawud: { english: 'eng-abudawud', urdu: 'urd-abudawud', indonesian: 'ind-abudawud', french: 'fra-abudawud', bengali: 'ben-abudawud', turkish: 'tur-abudawud' },
     nasai:    { english: 'eng-nasai',    urdu: 'urd-nasai',    indonesian: 'ind-nasai',    french: 'fra-nasai',    bengali: 'ben-nasai',    turkish: 'tur-nasai'    },
     ibnmajah: { english: 'eng-ibnmajah', urdu: 'urd-ibnmajah', indonesian: 'ind-ibnmajah', french: 'fra-ibnmajah', bengali: 'ben-ibnmajah', turkish: 'tur-ibnmajah' },
@@ -66,11 +66,11 @@ async function fetchHadithTranslations(
             const edition = LANG_EDITIONS[slug]?.[lang] ?? LANG_EDITIONS[slug]?.['english'];
             if (!edition) return { key: `${slug}:${number}`, text: '' };
             const ctl = new AbortController();
-            setTimeout(() => ctl.abort(), 5000);
+            const t = setTimeout(() => ctl.abort(), 5000);
             const res = await fetch(
                 `${FAWAZ_HADITH}/editions/${edition}/${number}.json`,
                 { signal: ctl.signal }
-            );
+            ).finally(() => clearTimeout(t));
             if (!res.ok) return { key: `${slug}:${number}`, text: '' };
             const json = await res.json();
             const text: string = Array.isArray(json?.hadiths)
@@ -220,24 +220,22 @@ export default function SearchScreen() {
         if (db && !isOfflineMode) {
             try {
                 const ctl2 = new AbortController();
-                setTimeout(() => ctl2.abort(), 6000);
+                const t2 = setTimeout(() => ctl2.abort(), 6000);
                 const res = await fetch(
                     `${QURANI_BASE}/search/${encodeURIComponent(q)}?language=${apiLang}&limit=15&exactSearch=false`,
                     { signal: ctl2.signal }
-                );
+                ).finally(() => clearTimeout(t2));
                 const json = await res.json();
                 if (json.code === 200 && json.data?.ayahs?.length) {
-                    const ayahs: any[] = json.data.ayahs;
+                    const rawAyahs: any[] = json.data.ayahs;
                     // Validate that surah/ayah numbers are integers within Quran bounds
                     // before splicing them into the SQL VALUES clause (prevents injection).
-                    const validatedRefs = ayahs
-                        .filter((a: any) =>
-                            Number.isInteger(a.surah?.number) && a.surah.number >= 1 && a.surah.number <= 114 &&
-                            Number.isInteger(a.numberInSurah) && a.numberInSurah >= 1
-                        )
-                        .map((a: any) => `(${a.surah.number},${a.numberInSurah})`);
-                    if (validatedRefs.length === 0) { setResults([]); return; }
-                    const refs = validatedRefs.join(',');
+                    const validAyahs = rawAyahs.filter((a: any) =>
+                        Number.isInteger(a.surah?.number) && a.surah.number >= 1 && a.surah.number <= 114 &&
+                        Number.isInteger(a.numberInSurah) && a.numberInSurah >= 1
+                    );
+                    if (validAyahs.length === 0) { setResults([]); return; }
+                    const refs = validAyahs.map((a: any) => `(${a.surah.number},${a.numberInSurah})`).join(',');
                     const transRows = await db.getAllAsync<any>(
                         `SELECT surah_number, ayah_number, ${col} AS translation
                          FROM ayahs
@@ -247,12 +245,12 @@ export default function SearchScreen() {
                     for (const r of transRows) {
                         transMap[`${r.surah_number}:${r.ayah_number}`] = r.translation ?? '';
                     }
-                    setResults(ayahs.map((a: any): QuranResult => ({
+                    setResults(validAyahs.map((a: any): QuranResult => ({
                         type: 'quran',
-                        ref: `${a.surah?.number ?? ''}:${a.numberInSurah ?? ''}`,
+                        ref: `${a.surah.number}:${a.numberInSurah}`,
                         surahName: a.surah?.englishName ?? '',
                         arabic: a.text ?? '',
-                        english: transMap[`${a.surah?.number}:${a.numberInSurah}`]
+                        english: transMap[`${a.surah.number}:${a.numberInSurah}`]
                             || a.translation
                             || '',
                     })));
@@ -404,10 +402,10 @@ export default function SearchScreen() {
         </View>
     );
 
-    const renderItem = useCallback(({ item }: { item: Result }) => {
+    const renderItem = ({ item }: { item: Result }) => {
         if (item.type === 'quran') return renderQuranCard({ item });
         return renderHadithCard({ item: item as HadithResult });
-    }, []);
+    };
 
     const isEmpty = !loading && query.trim().length >= 2 && results.length === 0;
 

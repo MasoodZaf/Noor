@@ -7,7 +7,6 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useDatabase } from '../../context/DatabaseContext';
 import { getLocalUserId } from '../../utils/userId';
 import { useTheme } from '../../context/ThemeContext';
-import { supabase } from '../../utils/supabase';
 
 const { width } = Dimensions.get('window');
 
@@ -20,19 +19,12 @@ export default function QaidaScreen() {
     const [progress, setProgress] = useState(0);
     const [lessons, setLessons] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [userName, setUserName] = useState('');
 
-    useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) {
-                const name = session.user.user_metadata?.full_name
-                    || session.user.user_metadata?.name
-                    || session.user.email?.split('@')[0]
-                    || '';
-                setUserName(name);
-            }
-        });
-    }, []);
+    // Back chevron: pop the stack if possible, otherwise fall back to Home tab
+    const goBack = () => {
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)' as any);
+    };
 
     const loadData = useCallback(async () => {
         if (!db || !isReady) return;
@@ -86,45 +78,15 @@ export default function QaidaScreen() {
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={styles.header}>
-                <View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <TouchableOpacity onPress={goBack} hitSlop={10} style={{ marginLeft: -6, marginRight: 6, paddingVertical: 4 }}>
+                        <Feather name="chevron-left" size={28} color={theme.textPrimary} />
+                    </TouchableOpacity>
                     <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Noorani Qaida</Text>
-                </View>
-                <View style={[styles.starBadge, { backgroundColor: theme.bgInput }]}>
-                    <Feather name="star" size={24} color={theme.gold} />
-                    <Text style={[styles.starText, { color: theme.textPrimary }]}>{progress * 15 + 5}</Text>
                 </View>
             </View>
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-
-                {/* Hero Journey Card */}
-                <View style={[styles.heroCard, { backgroundColor: theme.gold + '33', borderColor: theme.gold + '4D' }]}>
-                    <View style={styles.heroTop}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={[styles.heroSub, { color: theme.textSecondary }]}>
-                            {userName ? `Assalamu Alaikum, ${userName}!` : 'Assalamu Alaikum!'}
-                        </Text>
-                            <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>Keep learning!</Text>
-                        </View>
-                        <View style={styles.heroIconBox}>
-                            <Feather name="award" size={24} color={theme.gold} />
-                        </View>
-                    </View>
-
-                    {/* Progress Track */}
-                    <View style={styles.trackContainer}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, alignItems: 'flex-end' }}>
-                            <Text style={{ ...styles.trackText, marginTop: 0, color: theme.textPrimary }}>Total Progress</Text>
-                            <Text style={{ ...styles.heroTitle, fontSize: 18, color: theme.gold, marginBottom: 0 }}>
-                                {lessons.length > 0 ? Math.round((progress / lessons.length) * 100) : 0}%
-                            </Text>
-                        </View>
-                        <View style={styles.trackBg}>
-                            <View style={[styles.trackFill, { width: `${lessons.length > 0 ? (progress / lessons.length) * 100 : 0}%`, backgroundColor: theme.gold }]} />
-                        </View>
-                        <Text style={[styles.trackText, { marginTop: 8, fontSize: 12, opacity: 0.6, color: theme.textPrimary }]}>{progress} of {lessons.length} Lessons Completed</Text>
-                    </View>
-                </View>
 
                 {/* Quick Action */}
                 <TouchableOpacity
@@ -203,24 +165,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24, paddingTop: 10, paddingBottom: 20,
     },
     headerTitle: { fontSize: 24, fontWeight: 'bold', letterSpacing: 0.5 },
-    starBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
-    starText: { fontWeight: 'bold', fontSize: 16, marginLeft: 6 },
     content: { paddingHorizontal: 20, paddingTop: 10 },
-    heroCard: {
-        borderRadius: 16, padding: 20, marginBottom: 20,
-        borderWidth: 1,
-    },
-    heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-    heroIconBox: {
-        width: 44, height: 44, borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.6)', alignItems: 'center', justifyContent: 'center',
-    },
-    heroTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 2 },
-    heroSub: { fontSize: 14, fontWeight: '500', marginBottom: 4 },
-    trackContainer: { marginTop: 4 },
-    trackBg: { height: 12, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 6, overflow: 'hidden' },
-    trackFill: { height: '100%', borderRadius: 6 },
-    trackText: { fontSize: 14, fontWeight: '600', marginTop: 8 },
     quickActionCard: {
         width: '100%', borderRadius: 16, padding: 16,
         flexDirection: 'row', alignItems: 'center', marginBottom: 24,

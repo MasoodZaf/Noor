@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform, BackHandler, Alert, Keyboard } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { getLocales } from 'expo-localization';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 
@@ -18,7 +18,6 @@ export default function ZakatScreen() {
     const languageTag = currentLocale?.languageTag || 'en-US';
 
     const [currentStep, setCurrentStep] = useState(1);
-    const [nisabMet, setNisabMet] = useState<boolean | null>(null); // null = not confirmed yet
 
     // Step 1: Assets
     const [cash, setCash] = useState('');
@@ -47,13 +46,49 @@ export default function ZakatScreen() {
     const netWealth = totalAssets - totalLiabilities;
     const zakatPayable = netWealth > 0 ? netWealth * 0.025 : 0;
 
+    // M6: Android hardware back
+    useFocusEffect(useCallback(() => {
+        if (Platform.OS !== 'android') return;
+        const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+            handleBack();
+            return true;
+        });
+        return () => sub.remove();
+    }, [currentStep]));
+
     const handleNext = () => {
-        if (currentStep < 4) setCurrentStep(currentStep + 1);
+        if (currentStep < 4) {
+            setCurrentStep(currentStep + 1);
+        } else {
+            // C2: Finish — go back after completing the calculator
+            router.back();
+        }
     };
 
     const handleBack = () => {
         if (currentStep > 1) setCurrentStep(currentStep - 1);
         else router.back();
+    };
+
+    const showZakatInfo = () => {
+        Alert.alert(
+            'About Zakat',
+            'Zakat is one of the Five Pillars of Islam. It is an obligatory annual payment of 2.5% on wealth that has been held for one full lunar year (Hawl) above the Nisab threshold.\n\nNisab is approximately 85g of gold or 595g of silver in current market value.',
+            [{ text: 'OK' }]
+        );
+    };
+
+    const showFieldHelp = (field: string) => {
+        const info: Record<string, string> = {
+            gold: 'Include all gold and silver jewellery, coins, and bars. Use current market value.',
+            cash: 'Include all cash at home, in bank accounts, savings, and digital wallets.',
+            investments: 'Include stocks, mutual funds, crypto, and other market investments at current value.',
+            business: 'Include the current market value of inventory and goods held for resale — not fixed assets.',
+            property: 'Only include real estate held specifically for resale, not your primary home.',
+            debts: 'Include personal loans, money borrowed from others that is currently due.',
+            bills: 'Include rent arrears, outstanding utility bills, and other immediate liabilities due.',
+        };
+        Alert.alert('Help', info[field] || '', [{ text: 'OK' }]);
     };
 
     const stepTitles = ["Wealth Assessment", "Business & Property", "Liabilities & Debts", "Zakat Summary"];
@@ -68,9 +103,19 @@ export default function ZakatScreen() {
                     <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Zakat Calculator</Text>
-                <TouchableOpacity style={[styles.infoButton, { backgroundColor: theme.textPrimary }]}>
-                    <Text style={styles.infoButtonText}>i</Text>
-                </TouchableOpacity>
+                <View style={styles.headerActionsRow}>
+                    {/* Home shortcut — exit the multi-step flow at any point */}
+                    <TouchableOpacity
+                        style={styles.headerHomeBtn}
+                        onPress={() => router.replace('/(tabs)' as any)}
+                        hitSlop={10}
+                    >
+                        <Feather name="home" size={20} color={theme.textPrimary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.infoButton, { backgroundColor: theme.textPrimary }]} onPress={showZakatInfo}>
+                        <Text style={styles.infoButtonText}>i</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <View style={[styles.progressHeader, { backgroundColor: theme.bgCard, borderBottomColor: theme.border }]}>
@@ -87,6 +132,8 @@ export default function ZakatScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
                 keyboardShouldPersistTaps="handled"
+                keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                onScrollBeginDrag={Keyboard.dismiss}
             >
                 {currentStep === 1 && (
                     <>
@@ -100,9 +147,9 @@ export default function ZakatScreen() {
                                     </View>
                                     <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Gold & Silver</Text>
                                 </View>
-                                <View style={styles.helpIcon}>
+                                <TouchableOpacity style={styles.helpIcon} onPress={() => showFieldHelp('gold')}>
                                     <Text style={styles.helpIconText}>?</Text>
-                                </View>
+                                </TouchableOpacity>
                             </View>
                             <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>Current market value of your holdings</Text>
                             <View style={[styles.inputWrapper, { backgroundColor: theme.bgInput }]}>
@@ -126,9 +173,9 @@ export default function ZakatScreen() {
                                     </View>
                                     <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Cash on Hand & Bank</Text>
                                 </View>
-                                <View style={styles.helpIcon}>
+                                <TouchableOpacity style={styles.helpIcon} onPress={() => showFieldHelp('cash')}>
                                     <Text style={styles.helpIconText}>?</Text>
-                                </View>
+                                </TouchableOpacity>
                             </View>
                             <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>All savings in your accounts</Text>
                             <View style={[styles.inputWrapper, { backgroundColor: theme.bgInput }]}>
@@ -152,9 +199,9 @@ export default function ZakatScreen() {
                                     </View>
                                     <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Investments & Stocks</Text>
                                 </View>
-                                <View style={styles.helpIcon}>
+                                <TouchableOpacity style={styles.helpIcon} onPress={() => showFieldHelp('investments')}>
                                     <Text style={styles.helpIconText}>?</Text>
-                                </View>
+                                </TouchableOpacity>
                             </View>
                             <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>Stocks, crypto, and market investments</Text>
                             <View style={[styles.inputWrapper, { backgroundColor: theme.bgInput }]}>
@@ -184,9 +231,9 @@ export default function ZakatScreen() {
                                     </View>
                                     <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Business Inventory</Text>
                                 </View>
-                                <View style={styles.helpIcon}>
+                                <TouchableOpacity style={styles.helpIcon} onPress={() => showFieldHelp('business')}>
                                     <Text style={styles.helpIconText}>?</Text>
-                                </View>
+                                </TouchableOpacity>
                             </View>
                             <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>Goods available for sale in your business</Text>
                             <View style={[styles.inputWrapper, { backgroundColor: theme.bgInput }]}>
@@ -210,9 +257,9 @@ export default function ZakatScreen() {
                                     </View>
                                     <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Real Estate for Trade</Text>
                                 </View>
-                                <View style={styles.helpIcon}>
+                                <TouchableOpacity style={styles.helpIcon} onPress={() => showFieldHelp('property')}>
                                     <Text style={styles.helpIconText}>?</Text>
-                                </View>
+                                </TouchableOpacity>
                             </View>
                             <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>Current value of property held specifically for resale</Text>
                             <View style={[styles.inputWrapper, { backgroundColor: theme.bgInput }]}>
@@ -242,9 +289,9 @@ export default function ZakatScreen() {
                                     </View>
                                     <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Unpaid Debts</Text>
                                 </View>
-                                <View style={styles.helpIcon}>
+                                <TouchableOpacity style={styles.helpIcon} onPress={() => showFieldHelp('debts')}>
                                     <Text style={styles.helpIconText}>?</Text>
-                                </View>
+                                </TouchableOpacity>
                             </View>
                             <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>Personal loans and money owed to others</Text>
                             <View style={[styles.inputWrapper, { backgroundColor: theme.bgInput }]}>
@@ -268,9 +315,9 @@ export default function ZakatScreen() {
                                     </View>
                                     <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Outstanding Bills</Text>
                                 </View>
-                                <View style={styles.helpIcon}>
+                                <TouchableOpacity style={styles.helpIcon} onPress={() => showFieldHelp('bills')}>
                                     <Text style={styles.helpIconText}>?</Text>
-                                </View>
+                                </TouchableOpacity>
                             </View>
                             <Text style={[styles.cardDesc, { color: theme.textSecondary }]}>Immediate bills due or overdue rent</Text>
                             <View style={[styles.inputWrapper, { backgroundColor: theme.bgInput }]}>
@@ -310,45 +357,16 @@ export default function ZakatScreen() {
                             </View>
                         </View>
 
-                        {/* Nisab Confirmation — must verify before showing zakat due */}
-                        <View style={[styles.nisabCard, { backgroundColor: theme.bgCard }]}>
-                            <Text style={[styles.nisabTitle, { color: theme.textPrimary }]}>Have you reached Nisab?</Text>
-                            <Text style={[styles.nisabDesc, { color: theme.textSecondary }]}>
-                                Zakat is only obligatory if your net wealth has been above the Nisab threshold (≈ 85g gold / 595g silver) for one full lunar year.
+                        {/* Nisab note — informational only. The Yes/No question previously gated the
+                            calculation, but with £100k assets and "No" selected the user saw £0 owed,
+                            which was confusing. Calculation now runs unconditionally; user is reminded
+                            to verify the Nisab + one-lunar-year (Hawl) condition themselves. */}
+                        <View style={[styles.disclaimerCard, { backgroundColor: theme.bgInput, borderColor: theme.border, borderWidth: 1 }]}>
+                            <Feather name="info" size={20} color={theme.gold} style={{ marginTop: 2 }} />
+                            <Text style={[styles.disclaimerText, { color: theme.textSecondary }]}>
+                                Zakat is only obligatory if your wealth has stayed above the Nisab threshold (≈ 85g gold / 595g silver) for one full lunar year (Hawl). The estimate above assumes both conditions are met.
                             </Text>
-                            <View style={styles.nisabBtnRow}>
-                                <TouchableOpacity
-                                    style={[styles.nisabBtn, { backgroundColor: theme.bgInput, borderColor: theme.border }, nisabMet === true && { backgroundColor: theme.accent, borderColor: theme.accent }]}
-                                    onPress={() => setNisabMet(true)}
-                                >
-                                    <Text style={[styles.nisabBtnText, { color: theme.textPrimary }, nisabMet === true && { color: theme.textInverse }]}>Yes, I have</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.nisabBtn, { backgroundColor: theme.bgInput, borderColor: theme.border }, nisabMet === false && { backgroundColor: theme.textTertiary, borderColor: theme.textTertiary }]}
-                                    onPress={() => setNisabMet(false)}
-                                >
-                                    <Text style={[styles.nisabBtnText, { color: theme.textPrimary }, nisabMet === false && { color: theme.textInverse }]}>Below Nisab</Text>
-                                </TouchableOpacity>
-                            </View>
                         </View>
-
-                        {nisabMet === false && (
-                            <View style={[styles.disclaimerCard, { backgroundColor: theme.accentLight, borderColor: theme.border, borderWidth: 1 }]}>
-                                <Feather name="check-circle" size={20} color={theme.accent} style={{ marginTop: 2 }} />
-                                <Text style={[styles.disclaimerText, { color: theme.textPrimary }]}>
-                                    Zakat is not obligatory on you at this time. Continue building your wealth and revisit next lunar year.
-                                </Text>
-                            </View>
-                        )}
-
-                        {nisabMet === null && (
-                            <View style={[styles.disclaimerCard, { backgroundColor: theme.bgInput, borderColor: theme.border, borderWidth: 1 }]}>
-                                <Feather name="info" size={20} color={theme.gold} style={{ marginTop: 2 }} />
-                                <Text style={[styles.disclaimerText, { color: theme.textSecondary }]}>
-                                    Please confirm your Nisab status above before viewing your Zakat obligation.
-                                </Text>
-                            </View>
-                        )}
                     </>
                 )}
 
@@ -358,13 +376,11 @@ export default function ZakatScreen() {
                 <View style={[styles.stickyCard, { backgroundColor: theme.accent, shadowColor: theme.accent }]}>
                     <View>
                         <Text style={styles.stickyLabel}>ESTIMATED ZAKAT</Text>
+                        {/* Always live — recomputes from `zakatPayable` on every keystroke. Previously
+                            this was gated on a Nisab confirmation that only appeared on step 4, so the
+                            user saw £0 even after entering £100k of assets. */}
                         <Text style={styles.stickyAmount}>
-                            {currentStep === 4 && nisabMet === false
-                                ? 'Not Due'
-                                : currentStep === 4 && nisabMet === null
-                                    ? 'Confirm Nisab'
-                                    : `${currencySymbol}${(nisabMet === true ? zakatPayable : 0).toLocaleString(languageTag, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                            }
+                            {currencySymbol}{zakatPayable.toLocaleString(languageTag, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Text>
                     </View>
                     <TouchableOpacity style={[styles.nextBtn, { backgroundColor: theme.gold }]} onPress={handleNext}>
@@ -384,6 +400,8 @@ const styles = StyleSheet.create({
     },
     iconButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
     headerTitle: { fontSize: 18, fontWeight: 'bold', letterSpacing: -0.5 },
+    headerActionsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    headerHomeBtn: { padding: 4 },
     infoButton: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     infoButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold', fontStyle: 'italic' },
     progressHeader: { paddingHorizontal: 20, paddingBottom: 24, borderBottomWidth: 1 },
@@ -422,17 +440,6 @@ const styles = StyleSheet.create({
     summaryDivider: { height: 1, marginVertical: 12, marginBottom: 20 },
     summaryLabelBold: { fontSize: 18, fontWeight: '800' },
     summaryValueBold: { fontSize: 22, fontWeight: '800' },
-    nisabCard: {
-        borderRadius: 20, marginHorizontal: 20, marginBottom: 16, padding: 20,
-        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8,
-    },
-    nisabTitle: { fontSize: 16, fontWeight: '800', marginBottom: 8 },
-    nisabDesc: { fontSize: 13, lineHeight: 20, marginBottom: 16 },
-    nisabBtnRow: { flexDirection: 'row', gap: 12 },
-    nisabBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1 },
-    nisabBtnYes: {},
-    nisabBtnNo: {},
-    nisabBtnText: { fontSize: 14, fontWeight: '700' },
     disclaimerCard: { flexDirection: 'row', borderRadius: 16, marginHorizontal: 20, padding: 16, gap: 12 },
     disclaimerText: { flex: 1, fontSize: 13, lineHeight: 20, fontWeight: '500' },
     bottomBar: { paddingHorizontal: 16, paddingTop: 16 },

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, ScrollView,
-    Modal, FlatList, TextInput, Alert, Dimensions, Platform,
+    Modal, FlatList, TextInput, Alert, Platform,
 } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -10,19 +11,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import { useTheme } from '../../../../context/ThemeContext';
+import { checkOnline } from '../../../../utils/network';
 
-// Lightweight connectivity check — no native module required
-async function checkOnline(): Promise<boolean> {
-    try {
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 4000);
-        await fetch('https://1.1.1.1', { method: 'HEAD', signal: ctrl.signal });
-        clearTimeout(t);
-        return true;
-    } catch { return false; }
-}
-
-const { width } = Dimensions.get('window');
 const HIFZ_KEY = '@noor/hifz_entries';
 
 // ─── Surah list ─────────────────────────────────────────────────────────────
@@ -245,6 +235,7 @@ export default function HifzTrackerScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { theme } = useTheme();
+    const { width } = useWindowDimensions();
 
     const [entries, setEntries] = useState<HifzEntry[]>([]);
     const [activeTab, setActiveTab] = useState<'dashboard' | 'review'>('dashboard');
@@ -252,11 +243,12 @@ export default function HifzTrackerScreen() {
     const [addSearch, setAddSearch] = useState('');
     const [isOnline, setIsOnline] = useState(true);
 
-    // Reload entries + check connectivity whenever screen comes into focus
+    // Reload entries whenever screen comes into focus
     useFocusEffect(
         useCallback(() => {
             loadEntries().then(setEntries);
-            checkOnline().then(setIsOnline);
+            // Check connectivity once on focus — gated on state change to avoid re-renders on every focus
+            checkOnline().then(online => setIsOnline(prev => prev !== online ? online : prev));
         }, [])
     );
 
@@ -651,7 +643,6 @@ const styles = StyleSheet.create({
     },
     tabBtnActive: {},
     tabText: { fontSize: 15, fontWeight: '600' },
-    tabTextActive: {},
     badge: {
         backgroundColor: '#E53E3E', borderRadius: 10, minWidth: 18, height: 18,
         alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,

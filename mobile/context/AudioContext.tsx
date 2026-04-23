@@ -40,19 +40,22 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     const soundRef = useRef<AudioPlayer | null>(null);
     const expAvStopRef = useRef<(() => void) | null>(null);
 
-    // Initialize audio session once — options differ per platform
+    // Initialize audio session once — options differ per platform.
+    // shouldPlayInBackground: true on both platforms so Quran/Qaida/Recitation
+    // playback continues when the screen locks or the user switches apps. Pairs with
+    // `UIBackgroundModes: audio` on iOS and the FOREGROUND_SERVICE permission on Android.
     useEffect(() => {
         if (Platform.OS === 'ios') {
             setAudioModeAsync({
-                playsInSilentMode: true,       // iOS only — play even when ring/mute switch is off
-                shouldPlayInBackground: false,
+                playsInSilentMode: true,       // play even when ring/mute switch is off
+                shouldPlayInBackground: true,
                 interruptionMode: 'doNotMix',
             }).catch(() => {});
         } else {
             // Android: playsInSilentMode not supported
             // shouldRouteThroughEarpiece: false → use loudspeaker (STREAM_MUSIC), not earpiece
             setAudioModeAsync({
-                shouldPlayInBackground: false,
+                shouldPlayInBackground: true,
                 shouldRouteThroughEarpiece: false,
                 interruptionMode: 'duckOthers',
             }).catch(() => {});

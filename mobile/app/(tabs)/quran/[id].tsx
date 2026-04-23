@@ -5,6 +5,9 @@ import { Feather } from '@expo/vector-icons';
 import { useDatabase } from '../../../context/DatabaseContext';
 import { useLanguage } from '../../../context/LanguageContext';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { fonts } from '../../../context/ThemeContext';
+import { useReciter, RECITERS as GLOBAL_RECITERS } from '../../../context/ReciterContext';
 import { createAudioPlayer } from 'expo-audio';
 import { useAudio } from '../../../context/AudioContext';
 import { useFonts } from 'expo-font';
@@ -255,10 +258,74 @@ export default function QuranReaderScreen() {
     const [urduEdition, setUrduEdition] = useState(URDU_EDITIONS[0].id);
     const [showUrduPicker, setShowUrduPicker] = useState(false);
 
-    // Reciter selection
-    const [selectedReciter, setSelectedReciter] = useState(RECITERS[0]!);
+    // Reciter selection — hoisted to the global ReciterContext so the Profile
+    // "Tweaks" picker and the Quran reader stay in sync, and the choice persists.
+    const { reciter: selectedReciter, setReciter: setSelectedReciter } = useReciter();
     const [showReciterPicker, setShowReciterPicker] = useState(false);
-    const prevReciterIdRef = useRef(RECITERS[0]!.id);
+    const prevReciterIdRef = useRef(selectedReciter.id);
+
+    // ── Bookmarks (#21) ────────────────────────────────────────────────────────
+    type AyahBookmark = {
+        surah_number: number;
+        ayah_number: number;
+        surah_name: string;
+        arabic_snippet: string;
+        saved_at: number;
+    };
+    const BOOKMARK_KEY = '@noor/quran_bookmarks';
+    const [bookmarks, setBookmarks] = useState<AyahBookmark[]>([]);
+    const [showBookmarks, setShowBookmarks] = useState(false);
+
+    useEffect(() => {
+        AsyncStorage.getItem(BOOKMARK_KEY).then(raw => {
+            if (!raw) return;
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) setBookmarks(parsed);
+            } catch {}
+        }).catch(() => {});
+    }, []);
+
+    const isBookmarked = (surahNum: number, ayahNum: number) =>
+        bookmarks.some(b => b.surah_number === surahNum && b.ayah_number === ayahNum);
+
+    const toggleBookmark = (ayah: any) => {
+        const surahNum = ayah.surah_number;
+        const ayahNum = ayah.ayah_number;
+        const exists = isBookmarked(surahNum, ayahNum);
+        const next = exists
+            ? bookmarks.filter(b => !(b.surah_number === surahNum && b.ayah_number === ayahNum))
+            : [
+                ...bookmarks,
+                {
+                    surah_number: surahNum,
+                    ayah_number: ayahNum,
+                    surah_name: surahInfo?.name_english ?? `Surah ${surahNum}`,
+                    arabic_snippet: (ayah.text_uthmani || '').slice(0, 60),
+                    saved_at: Date.now(),
+                } as AyahBookmark,
+            ];
+        setBookmarks(next);
+        AsyncStorage.setItem(BOOKMARK_KEY, JSON.stringify(next)).catch(() => {});
+        if (!exists && Platform.OS !== 'web') {
+            // Light haptic confirms the save (only on add — removal is a clear visual change already)
+        }
+    };
+
+    const jumpToBookmark = (b: AyahBookmark) => {
+        setShowBookmarks(false);
+        if (b.surah_number === surahId) {
+            // Same surah — scroll to the ayah index
+            const idx = ayahs.findIndex(a => a.ayah_number === b.ayah_number);
+            if (idx >= 0) {
+                setTimeout(() => {
+                    flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.2 });
+                }, 200);
+            }
+        } else {
+            router.push(`/(tabs)/quran/${b.surah_number}` as any);
+        }
+    };
 
     // Throttle position/duration state updates — update UI at most every 4th callback tick
     // (updateInterval=250ms → effective UI refresh ~1 per second, enough for progress bar)
@@ -538,8 +605,13 @@ export default function QuranReaderScreen() {
 
         return () => {
             mounted = false;
-            // Clean up audio and reset MiniAudioPlayer state when leaving the Quran reader
+            // Full teardown so a queued didJustFinish setTimeout can't spawn a new player
+            // for the OLD surah after we've navigated to a different one (#19).
+            autoPlayRef.current = false;
+            ++generationRef.current;
+            if (loadTimeoutRef.current) { clearTimeout(loadTimeoutRef.current); loadTimeoutRef.current = null; }
             if (globalSoundRef.current) {
+                try { globalSoundRef.current.pause(); } catch {}
                 try { globalSoundRef.current.remove(); } catch {}
                 globalSoundRef.current = null;
             }
@@ -623,11 +695,11 @@ export default function QuranReaderScreen() {
             setTranslationLoading(true);
             try {
                 const ctl = new AbortController();
-                setTimeout(() => ctl.abort(), 20000);
+                const t = setTimeout(() => ctl.abort(), 20000);
                 const res = await fetch(
                     `${QURAN_API}/verses/by_chapter/${surahId}?words=true&word_fields=text_uthmani&fields=text_uthmani&audio=${selectedReciter.id}&per_page=300&page=1`,
                     { signal: ctl.signal }
-                );
+                ).finally(() => clearTimeout(t));
                 if (!res.ok) throw new Error(`Verse fetch ${res.status}`);
                 const json = await res.json();
                 if (cancelled) return;
@@ -650,15 +722,26 @@ export default function QuranReaderScreen() {
         return () => { cancelled = true; };
     }, [selectedReciter.id]);
 
-    // Keep local isPlaying in sync with global audio state
+    // Keep local isPlaying in sync with global audio state, and tear down our autoplay
+    // chain whenever the audio slot stops belonging to us. This catches two cases the
+    // didJustFinish gate alone can't:
+    //   #20 — Mini player ✕ resets audioState (sourceCategory=null) but the queued
+    //         setTimeout in our chain would otherwise create a fresh player and resume.
+    //   #19 — A second Quran reader (different surahId) claims the slot via setAudioState;
+    //         our background screen would otherwise reclaim it on its next didJustFinish.
     useEffect(() => {
         const isOurSurah = audioState.sourceCategory === 'quran' && audioState.sourceId === surahInfo?.number;
         if (isOurSurah) {
             setIsPlaying(audioState.isPlaying);
         } else {
+            // Slot is no longer ours — invalidate any deferred autoplay continuations.
+            autoPlayRef.current = false;
+            ++generationRef.current;
+            if (loadTimeoutRef.current) { clearTimeout(loadTimeoutRef.current); loadTimeoutRef.current = null; }
             setIsPlaying(false);
+            setShowContinuePrompt(false);
         }
-    }, [audioState.isPlaying, audioState.sourceId, surahInfo?.number]);
+    }, [audioState.isPlaying, audioState.sourceCategory, audioState.sourceId, surahInfo?.number]);
 
     // ── Audio ──────────────────────────────────────────────────────────────────
     const playNextAyah = async (index: number) => {
@@ -755,7 +838,12 @@ export default function QuranReaderScreen() {
                     currentSegmentsRef.current = [];
                     setCurrentWordIndex(-1);
                     if (autoPlayRef.current) {
-                        setTimeout(() => playNextAyah(index + 1), Platform.OS === 'android' ? 300 : 150);
+                        setTimeout(() => {
+                            // Re-check at fire time — autoplay may have been cancelled
+                            // (#19/#20: surah switch or external stop while we were waiting).
+                            if (!autoPlayRef.current || generationRef.current !== gen) return;
+                            playNextAyah(index + 1);
+                        }, Platform.OS === 'android' ? 300 : 150);
                     } else {
                         setIsPlaying(false);
                         setAudioState(s => ({ ...s, isPlaying: false }));
@@ -802,7 +890,13 @@ export default function QuranReaderScreen() {
                         // Android: ExoPlayer.release() is async — give it 50ms to fully release
                         // audio focus before the next player requests it, preventing overlap/glitch.
                         // iOS: next event-loop tick (0ms) is sufficient for AVPlayer teardown.
-                        setTimeout(() => playNextAyah(index + 1), Platform.OS === 'android' ? 50 : 0);
+                        setTimeout(() => {
+                            // Re-check at fire time — autoplay may have been cancelled in the
+                            // meantime (#19/#20: surah switch or external stop). Without this gate,
+                            // a queued continuation creates a new player after the user has moved on.
+                            if (!autoPlayRef.current || generationRef.current !== gen) return;
+                            playNextAyah(index + 1);
+                        }, Platform.OS === 'android' ? 50 : 0);
                     } else {
                         // Single-ayah mode: show continue/stop prompt
                         setPendingNextIndex(index + 1);
@@ -892,6 +986,9 @@ export default function QuranReaderScreen() {
         setCurrentWordIndex(-1);
         if (loadTimeoutRef.current) { clearTimeout(loadTimeoutRef.current); loadTimeoutRef.current = null; }
         if (globalSoundRef.current) {
+            // pause() before remove() — Android ExoPlayer needs both for instant audio cutoff,
+            // otherwise a tail keeps playing while the new reciter starts → two reciters at once.
+            try { globalSoundRef.current.pause(); } catch {}
             try { globalSoundRef.current.remove(); } catch {}
             globalSoundRef.current = null;
         }
@@ -925,8 +1022,9 @@ export default function QuranReaderScreen() {
                     <Feather name="chevron-down" size={16} color={theme.textPrimary} style={{ marginLeft: 4, marginTop: 4 }} />
                 </View>
                 <View style={styles.headerRight}>
-                    <TouchableOpacity style={styles.actionButton}>
-                        <Feather name="info" size={22} color={theme.textPrimary} />
+                    {/* Bookmarks list (#21) — opens a modal showing all saved ayahs. */}
+                    <TouchableOpacity style={styles.actionButton} onPress={() => setShowBookmarks(true)}>
+                        <Feather name="bookmark" size={22} color={bookmarks.length > 0 ? QURAN_GOLD : theme.textPrimary} />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.actionButton} onPress={() => setShowSettings(true)}>
                         <Feather name="settings" size={22} color={theme.textPrimary} />
@@ -1012,6 +1110,23 @@ export default function QuranReaderScreen() {
                                         size={14}
                                         color={isCurrent ? '#FFFFFF' : theme.textSecondary}
                                         style={{ marginLeft: 6 }}
+                                    />
+                                </TouchableOpacity>
+                                {/* Bookmark toggle (#21). Stores {surah, ayah} in AsyncStorage so the
+                                    user can return to a verse later via the header bookmarks list. */}
+                                <TouchableOpacity
+                                    style={styles.bookmarkBtn}
+                                    onPress={() => toggleBookmark(ayah)}
+                                    hitSlop={8}
+                                >
+                                    <Feather
+                                        name="bookmark"
+                                        size={18}
+                                        color={isBookmarked(ayah.surah_number, ayah.ayah_number) ? QURAN_GOLD : theme.textTertiary}
+                                        style={{
+                                            // Filled-look via opacity when bookmarked. expo-vector-icons
+                                            // doesn't ship a filled bookmark in Feather; fall back to colour cue.
+                                        }}
                                     />
                                 </TouchableOpacity>
                             </View>
@@ -1274,7 +1389,10 @@ export default function QuranReaderScreen() {
                                     selectedReciter.id === reciter.id && { backgroundColor: theme.accentLight, borderColor: theme.accent },
                                 ]}
                                 onPress={() => {
-                                    setSelectedReciter(reciter);
+                                    // Persist via context — match shape to the global reciter list
+                                    // so the Profile "Tweaks" picker shows the same entry.
+                                    const globalMatch = GLOBAL_RECITERS.find(g => g.id === reciter.id);
+                                    if (globalMatch) setSelectedReciter(globalMatch);
                                     setShowReciterPicker(false);
                                 }}
                                 activeOpacity={0.75}
@@ -1316,7 +1434,10 @@ export default function QuranReaderScreen() {
                                 <TouchableOpacity
                                     key={reciter.id}
                                     style={[styles.settingOption, { borderBottomColor: theme.border }, selectedReciter.id === reciter.id && styles.settingOptionActive]}
-                                    onPress={() => setSelectedReciter(reciter)}
+                                    onPress={() => {
+                                        const globalMatch = GLOBAL_RECITERS.find(g => g.id === reciter.id);
+                                        if (globalMatch) setSelectedReciter(globalMatch);
+                                    }}
                                 >
                                     <View style={{ flex: 1 }}>
                                         <Text style={[styles.settingOptionText, { color: theme.textPrimary }, selectedReciter.id === reciter.id && { color: QURAN_ACCENT }]}>
@@ -1450,6 +1571,61 @@ export default function QuranReaderScreen() {
                     </View>
                 </View>
             </Modal>
+
+            {/* ─── Bookmarks Modal (#21) ───────────────────────────────────────── */}
+            <Modal
+                transparent
+                animationType="slide"
+                visible={showBookmarks}
+                onRequestClose={() => setShowBookmarks(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20, backgroundColor: theme.bgCard, maxHeight: '80%' }]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Bookmarks</Text>
+                            <TouchableOpacity onPress={() => setShowBookmarks(false)}>
+                                <Feather name="x" size={24} color={theme.textPrimary} />
+                            </TouchableOpacity>
+                        </View>
+                        {bookmarks.length === 0 ? (
+                            <View style={{ paddingVertical: 40, alignItems: 'center', gap: 10 }}>
+                                <Feather name="bookmark" size={36} color={theme.textTertiary} />
+                                <Text style={{ color: theme.textSecondary, fontSize: 14 }}>No bookmarks yet</Text>
+                                <Text style={{ color: theme.textTertiary, fontSize: 12, textAlign: 'center', paddingHorizontal: 32 }}>
+                                    Tap the bookmark icon next to any ayah to save it for later.
+                                </Text>
+                            </View>
+                        ) : (
+                            <FlatList
+                                data={[...bookmarks].sort((a, b) => b.saved_at - a.saved_at)}
+                                keyExtractor={(b) => `${b.surah_number}:${b.ayah_number}`}
+                                renderItem={({ item: b }) => (
+                                    <TouchableOpacity
+                                        style={[styles.urduEditionRow, { borderColor: theme.border }]}
+                                        onPress={() => jumpToBookmark(b)}
+                                        activeOpacity={0.75}
+                                    >
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.urduEditionName, { color: theme.textPrimary }]}>
+                                                {b.surah_name} · {b.surah_number}:{b.ayah_number}
+                                            </Text>
+                                            {!!b.arabic_snippet && (
+                                                <Text style={[styles.urduEditionNameUrdu, { color: theme.textSecondary }]} numberOfLines={1}>
+                                                    {b.arabic_snippet}
+                                                </Text>
+                                            )}
+                                        </View>
+                                        <TouchableOpacity onPress={() => toggleBookmark({ surah_number: b.surah_number, ayah_number: b.ayah_number })} hitSlop={10}>
+                                            <Feather name="trash-2" size={18} color={theme.textTertiary} />
+                                        </TouchableOpacity>
+                                    </TouchableOpacity>
+                                )}
+                                style={{ marginBottom: 8 }}
+                            />
+                        )}
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -1488,9 +1664,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    // Surah title — editorial serif italic per the Falah reader design
     surahTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
+        fontSize: 22,
+        fontFamily: fonts.serif,
         marginLeft: 8,
     },
     // ── Surah hero header (scrolls with content) ─────────────────────────────
@@ -1573,9 +1750,12 @@ const styles = StyleSheet.create({
     ayahContainerActive: {},
     ayahHeader: {
         flexDirection: 'row',
-        justifyContent: 'flex-start',
+        justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 16,
+    },
+    bookmarkBtn: {
+        padding: 6,
     },
     ayahPillBadge: {
         flexDirection: 'row',

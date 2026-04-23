@@ -29,7 +29,7 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
 
         const initDb = async () => {
             try {
-                const dbVersion = 'v19';
+                const dbVersion = 'v20';
                 const dbName = `noor_${dbVersion}.db`;
                 // SQLite on Expo looks for dbs in the 'SQLite' folder of documentDirectory
                 const dbDirectory = `${FileSystem.documentDirectory}SQLite/`;

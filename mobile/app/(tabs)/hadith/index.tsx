@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Dimensions, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Animated, Easing, Share, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDatabase } from '../../../context/DatabaseContext';
-import { useTheme } from '../../../context/ThemeContext';
+import { useTheme, fonts } from '../../../context/ThemeContext';
 
 const BOOKMARKS_KEY = '@hadith_bookmarks';
 // expo-speech-recognition requires a native build — not available in Expo Go
@@ -31,8 +31,7 @@ try {
     // Running in Expo Go — voice search disabled
 }
 
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 48 - 12) / 2;
+// CARD_WIDTH computed inside component via useWindowDimensions (see HadithScreen)
 
 const COLLECTIONS = [
     {
@@ -78,6 +77,14 @@ export default function HadithScreen() {
     const insets = useSafeAreaInsets();
     const { db } = useDatabase();
     const { theme } = useTheme();
+    const { width } = useWindowDimensions();
+    const CARD_WIDTH = (width - 48 - 12) / 2;
+
+    // Back chevron: pop the stack if possible, otherwise fall back to Home tab
+    const goBack = () => {
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)' as any);
+    };
 
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -110,6 +117,19 @@ export default function HadithScreen() {
         }).catch(() => {});
         return () => { mounted = false; };
     }, []);
+
+    const shareHadith = async (hadith: any) => {
+        try {
+            const lines = [
+                hadith.text_arabic || '',
+                '',
+                hadith.text_english || '',
+                '',
+                `— ${hadith.book_slug?.toUpperCase()} ${hadith.hadith_number}`,
+            ].filter((l, i) => i !== 1 || hadith.text_arabic);
+            await Share.share({ message: lines.join('\n').trim() });
+        } catch (_) {}
+    };
 
     const isBookmarked = (hadith: any) =>
         bookmarks.some(b => b.book_slug === hadith.book_slug && b.hadith_number === hadith.hadith_number);
@@ -260,7 +280,12 @@ export default function HadithScreen() {
         >
             {/* Header */}
             <View style={styles.header}>
-                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Hadith Library</Text>
+                <View style={styles.headerLeft}>
+                    <TouchableOpacity style={styles.headerBack} onPress={goBack} hitSlop={10}>
+                        <Feather name="chevron-left" size={28} color={theme.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Hadith Library</Text>
+                </View>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                     <TouchableOpacity style={[styles.headerAction, { backgroundColor: theme.bgInput }]} onPress={() => router.push('/search?scope=hadith' as any)}>
                         <Feather name="search" size={22} color={theme.textPrimary} />
@@ -347,8 +372,8 @@ export default function HadithScreen() {
                         ) : (
                             <>
                                 <Text style={[styles.resultCount, { color: theme.textSecondary }]}>{bookmarks.length} saved hadith{bookmarks.length !== 1 ? 's' : ''}</Text>
-                                {bookmarks.map((hadith, index) => (
-                                    <View key={index} style={[styles.hadithCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                                {bookmarks.map((hadith) => (
+                                    <View key={`${hadith.book_slug}-${hadith.hadith_number}`} style={[styles.hadithCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
                                         <View style={styles.hadithHeader}>
                                             <Text style={[styles.hadithBookTag, { color: theme.accent, backgroundColor: theme.accentLight }]}>
                                                 {hadith.book_slug?.toUpperCase()} · {hadith.hadith_number}
@@ -384,8 +409,8 @@ export default function HadithScreen() {
                         ) : (
                             <>
                                 <Text style={[styles.resultCount, { color: theme.textSecondary }]}>{searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{searchQuery}"</Text>
-                                {searchResults.map((hadith, index) => (
-                                    <View key={index} style={[styles.hadithCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                                {searchResults.map((hadith) => (
+                                    <View key={`${hadith.book_slug}-${hadith.hadith_number}`} style={[styles.hadithCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
                                         <View style={styles.hadithHeader}>
                                             <Text style={[styles.hadithBookTag, { color: theme.accent, backgroundColor: theme.accentLight }]}>
                                                 {hadith.book_slug.toUpperCase()} · {hadith.hadith_number}
@@ -396,7 +421,7 @@ export default function HadithScreen() {
                                         <View style={[styles.divider, { backgroundColor: theme.border }]} />
                                         <Text style={[styles.englishText, { color: theme.textSecondary }]}>{hadith.text_english}</Text>
                                         <View style={[styles.cardActions, { borderTopColor: theme.border }]}>
-                                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.bgInput }]}>
+                                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.bgInput }]} onPress={() => shareHadith(hadith)}>
                                                 <Feather name="share-2" size={18} color={theme.textSecondary} />
                                             </TouchableOpacity>
                                             <TouchableOpacity
@@ -483,10 +508,12 @@ const styles = StyleSheet.create({
         paddingTop: 10,
         marginBottom: 20,
     },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+    headerBack: { marginLeft: -6, marginRight: 6, paddingVertical: 4 },
     headerTitle: {
-        fontSize: 28,
-        fontWeight: '300',
-        letterSpacing: -0.5,
+        fontSize: 30,
+        fontFamily: fonts.serif,
+        letterSpacing: -0.3,
     },
     headerAction: {
         width: 44,

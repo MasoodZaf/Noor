@@ -28,6 +28,7 @@
         },
         "preview": {
             "distribution": "internal",
+            "credentialsSource": "local",
             "android": {
                 "buildType": "apk"
             },
@@ -37,7 +38,7 @@
         },
         "production": {
             "android": {
-                "buildType": "apk"
+                "buildType": "app-bundle"
             },
             "ios": {
                 "buildConfiguration": "Release"

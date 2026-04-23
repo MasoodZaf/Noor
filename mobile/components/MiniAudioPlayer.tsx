@@ -24,13 +24,19 @@ export default function MiniAudioPlayer() {
 
     const togglePlay = () => {
         const player = soundRef.current;
+        // Guard against calling play()/pause() before the player has finished loading —
+        // expo-audio throws on both platforms when the underlying track isn't ready yet.
         if (!player || !player.isLoaded) return;
-        if (isPlaying) {
-            player.pause();
-            setAudioState(s => ({ ...s, isPlaying: false }));
-        } else {
-            player.play();
-            setAudioState(s => ({ ...s, isPlaying: true }));
+        try {
+            if (isPlaying) {
+                player.pause();
+                setAudioState(s => ({ ...s, isPlaying: false }));
+            } else {
+                player.play();
+                setAudioState(s => ({ ...s, isPlaying: true }));
+            }
+        } catch {
+            // Swallow — user can retry; don't leave the UI in a broken state
         }
     };
 

@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, Dimensions, ActivityIndicator, Platform, TouchableOpacity, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useTheme } from '../../context/ThemeContext';
+import { useTheme, fonts } from '../../context/ThemeContext';
 import Svg, {
     Circle, Line, G, Text as SvgText, Path, Defs,
     LinearGradient as SvgLinearGradient, Stop, RadialGradient, Rect,
@@ -59,6 +59,13 @@ const qiblaCacheKey = (lat: number, lng: number) =>
 export default function QiblaScreen() {
     const insets = useSafeAreaInsets();
     const { theme } = useTheme();
+    const router = useRouter();
+
+    // Back chevron: pop the stack if possible, otherwise fall back to Home tab
+    const goBack = () => {
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)' as any);
+    };
 
     const [heading, setHeading] = useState(0);
     const [qiblaDirection, setQiblaDirection] = useState(0);
@@ -280,7 +287,12 @@ export default function QiblaScreen() {
 
             {/* ── Header ── */}
             <View style={styles.header}>
-                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Qibla Compass</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TouchableOpacity onPress={goBack} hitSlop={10} style={{ marginLeft: -6, marginRight: 6, paddingVertical: 4 }}>
+                        <Feather name="chevron-left" size={28} color={theme.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Qibla Compass</Text>
+                </View>
                 <View style={styles.locationPill}>
                     <Feather name="map-pin" size={13} color={theme.gold} />
                     <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
@@ -497,7 +509,8 @@ const styles = StyleSheet.create({
     container: { flex: 1 },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     header: { paddingHorizontal: 24, paddingTop: 10, marginBottom: 4 },
-    headerTitle: { fontSize: 28, fontWeight: 'bold', letterSpacing: -0.5 },
+    // Qibla title — "Face the Kaʿba." editorial serif italic per the design
+    headerTitle: { fontSize: 30, fontFamily: fonts.serif, letterSpacing: -0.3 },
     locationPill: { flexDirection: 'row', alignItems: 'center', marginTop: 4, opacity: 0.85 },
     headerSubtitle: { fontSize: 13, marginLeft: 5, fontWeight: '500' },
     compassContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },

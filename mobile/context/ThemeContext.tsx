@@ -5,13 +5,50 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type ThemeId = 'warm' | 'forest' | 'midnight';
 export type ThemeMode = ThemeId | 'auto';
+export type AccentHue = 'gold' | 'forest' | 'clay' | 'sky';
+
+/** Typography token set — shared across all themes (fonts don't change by mode).
+ *  Loaded once in `app/_layout.tsx` via useFonts. When fonts aren't yet ready
+ *  the values are still valid font family names — RN will fall back to the
+ *  system default while loading, so nothing crashes. */
+export const fonts = {
+    serif:       'CormorantGaramond_500Medium_Italic',
+    serifBold:   'CormorantGaramond_600SemiBold_Italic',
+    serifRegular:'CormorantGaramond_400Regular',
+    body:        'InterTight_400Regular',
+    bodyMedium:  'InterTight_500Medium',
+    bodyBold:    'InterTight_600SemiBold',
+    mono:        'JetBrainsMono_500Medium',
+    monoBold:    'JetBrainsMono_600SemiBold',
+    arabic:      'ScheherazadeNew_400Regular',
+    arabicBold:  'ScheherazadeNew_600SemiBold',
+};
+
+export type AppFonts = typeof fonts;
+
+/** Accent palettes — each has a base + a darker/lighter variant.
+ *  Values lifted from the Falah design handoff (Aurmak, Falah Mobile App). */
+export const ACCENT_PALETTES: Record<AccentHue, { base: string; deep: string; soft: string; light: string; name: string }> = {
+    gold:   { base: '#C9A84C', deep: '#A8823A', soft: '#E8C96A', light: 'rgba(201,168,76,0.14)', name: 'Gold' },
+    forest: { base: '#2E7D52', deep: '#1F4E3D', soft: '#5AA37F', light: 'rgba(46,125,82,0.14)',  name: 'Forest' },
+    clay:   { base: '#B05A48', deep: '#8C4A3C', soft: '#D38372', light: 'rgba(176,90,72,0.14)',  name: 'Clay' },
+    sky:    { base: '#4C7891', deep: '#3A5A6E', soft: '#7FA2B6', light: 'rgba(76,120,145,0.18)', name: 'Sky' },
+};
+
+/** Each theme's *default* accent hue — used on first launch before the user
+ *  explicitly picks one. Mirrors the Falah prototype's defaults. */
+const THEME_DEFAULT_ACCENT: Record<ThemeId, AccentHue> = {
+    warm:     'clay',   // Parchment defaults to Clay — matches the design's locked-in default
+    forest:   'forest',
+    midnight: 'sky',
+};
 
 export type AppTheme = {
     id: ThemeId;
     name: string;
     description: string;
     isDark: boolean;
-    preview: [string, string, string]; // 3 swatches for the picker
+    preview: [string, string, string];
 
     // Backgrounds
     bg: string;
@@ -20,15 +57,16 @@ export type AppTheme = {
     bgSecondary: string;
     bgOverlay: string;
 
-    // Text  (all meet WCAG AA 4.5:1 on their respective bg)
+    // Text
     textPrimary: string;
     textSecondary: string;
     textTertiary: string;
     textInverse: string;
 
-    // Accents
+    // Accents — dynamic based on user's AccentHue pick
     accent: string;
     accentLight: string;
+    /** Gold stays fixed per theme (used for Arabic ornaments regardless of accent hue) */
     gold: string;
 
     // Borders
@@ -41,137 +79,146 @@ export type AppTheme = {
     tabInactive: string;
     tabBorder: string;
 
-    // Status bar
     statusBar: 'light' | 'dark';
+
+    fonts: AppFonts;
+
+    /** Arabic scale multiplier (0.8 – 1.6). Multiply Arabic font sizes by this
+     *  so users can bump verse text up/down without changing the rest of the UI. */
+    arabicScale: number;
+
+    /** The accent hue the user currently has selected (for the picker UI). */
+    accentHue: AccentHue;
 };
 
-// ─── Theme Definitions ────────────────────────────────────────────────────────
+// ─── Base theme definitions (accent-agnostic) ────────────────────────────────
 
-/**
- * WARM PARCHMENT — Light, cream tones. Designed for long reading sessions.
- * Like reading a premium book under a warm lamp. Easy on eyes in daylight.
- */
-export const WARM_PARCHMENT: AppTheme = {
+/** Base palette without accent — accent is layered on top in makeTheme(). */
+type BaseTheme = Omit<AppTheme, 'accent' | 'accentLight' | 'tabActive' | 'arabicScale' | 'accentHue'>;
+
+const BASE_WARM_PARCHMENT: BaseTheme = {
     id: 'warm',
-    name: 'Warm Parchment',
-    description: 'Cream tones, warm & inviting',
+    name: 'Parchment',
+    description: 'Aged parchment · warm editorial',
     isDark: false,
-    preview: ['#FDF8EF', '#1A9B55', '#B8912A'],
+    preview: ['#F4EEE0', '#B05A48', '#C9A84C'],
 
-    bg: '#FDF8EF',
-    bgCard: '#FFFFFF',
-    bgInput: 'rgba(0,0,0,0.04)',
-    bgSecondary: '#F4EDE0',
-    bgOverlay: '#FDF8EF',
+    bg: '#F4EEE0',
+    bgCard: '#FBF7EC',
+    bgInput: 'rgba(19,33,27,0.05)',
+    bgSecondary: '#EDE4D1',
+    bgOverlay: '#F4EEE0',
 
-    textPrimary: '#1A1510',       // contrast on white: 17.4:1
-    textSecondary: '#58524A',     // contrast on white: 7.2:1
-    textTertiary: '#9A9287',
-    textInverse: '#FFFFFF',
+    textPrimary: '#13211B',
+    textSecondary: '#526058',
+    textTertiary: '#8A8F87',
+    textInverse: '#FBF7EC',
 
-    accent: '#1A9B55',
-    accentLight: 'rgba(26,155,85,0.10)',
-    gold: '#B8912A',
+    gold: '#C9A84C',
 
-    border: 'rgba(0,0,0,0.06)',
-    borderStrong: 'rgba(0,0,0,0.12)',
+    border: 'rgba(19,33,27,0.10)',
+    borderStrong: 'rgba(19,33,27,0.16)',
 
-    tabBg: '#FFFFFF',
-    tabActive: '#1A9B55',
-    tabInactive: '#9CA3AF',
-    tabBorder: 'rgba(0,0,0,0.06)',
+    tabBg: '#FBF7EC',
+    tabInactive: '#8A8F87',
+    tabBorder: 'rgba(19,33,27,0.06)',
 
     statusBar: 'dark',
+    fonts,
 };
 
-/**
- * FOREST DARK — Deep forest green. Inspired by the app's Quran reader palette.
- * Warm dark mode — easy on eyes during evening, feels rich and natural.
- */
-export const FOREST_DARK: AppTheme = {
+const BASE_FOREST_DARK: BaseTheme = {
     id: 'forest',
-    name: 'Forest Dark',
-    description: 'Deep green, warm & immersive',
+    name: 'Forest',
+    description: 'Deep forest · warm & immersive',
     isDark: true,
-    preview: ['#0D1A13', '#2ECC94', '#C9A84C'],
+    preview: ['#0C100E', '#2E7D52', '#C9A84C'],
 
-    bg: '#0D1A13',
-    bgCard: '#132218',
-    bgInput: 'rgba(255,255,255,0.06)',
-    bgSecondary: '#0A1610',
-    bgOverlay: '#132218',
+    bg: '#0C100E',
+    bgCard: '#1A221E',
+    bgInput: 'rgba(232,227,211,0.08)',
+    bgSecondary: '#141A17',
+    bgOverlay: '#1A221E',
 
-    textPrimary: '#EBF5EE',       // contrast on #132218: 14.8:1
-    textSecondary: '#7AA887',     // contrast on #132218: 4.7:1
-    textTertiary: '#4A6655',
-    textInverse: '#0D1A13',
+    textPrimary: '#E8E3D3',
+    textSecondary: '#B4B0A3',
+    textTertiary: '#6E6C63',
+    textInverse: '#0C100E',
 
-    accent: '#2ECC94',
-    accentLight: 'rgba(46,204,148,0.15)',
-    gold: '#C9A84C',
+    gold: '#D4AC5C',
 
-    border: 'rgba(255,255,255,0.08)',
-    borderStrong: 'rgba(255,255,255,0.15)',
+    border: 'rgba(232,227,211,0.08)',
+    borderStrong: 'rgba(232,227,211,0.14)',
 
-    tabBg: '#0A1610',
-    tabActive: '#2ECC94',
-    tabInactive: '#4A6655',
-    tabBorder: 'rgba(255,255,255,0.06)',
+    tabBg: '#141A17',
+    tabInactive: '#6E6C63',
+    tabBorder: 'rgba(232,227,211,0.05)',
 
     statusBar: 'light',
+    fonts,
 };
 
-/**
- * MIDNIGHT BLUE — Deep navy cosmos. Classic premium dark mode.
- * Cool and crisp for late night reading. Reduces eye strain in darkness.
- */
-export const MIDNIGHT_BLUE: AppTheme = {
+const BASE_MIDNIGHT_BLUE: BaseTheme = {
     id: 'midnight',
-    name: 'Midnight Blue',
-    description: 'Deep navy, cool & premium',
+    name: 'Ramaḍān Night',
+    description: 'Indigo cosmos · for the night',
     isDark: true,
-    preview: ['#0C0F18', '#3DC87A', '#C9A84C'],
+    preview: ['#070A18', '#4C7891', '#C9A84C'],
 
-    bg: '#0C0F18',
-    bgCard: '#161B2E',
-    bgInput: 'rgba(255,255,255,0.07)',
-    bgSecondary: '#0A0D18',
-    bgOverlay: '#161B2E',
+    bg: '#070A18',
+    bgCard: '#141A33',
+    bgInput: 'rgba(232,227,211,0.07)',
+    bgSecondary: '#0D1226',
+    bgOverlay: '#141A33',
 
-    textPrimary: '#ECF0FF',       // contrast on #161B2E: 14.1:1
-    textSecondary: '#8A93B5',     // contrast on #161B2E: 5.0:1
-    textTertiary: '#4E5670',
-    textInverse: '#0C0F18',
+    textPrimary: '#E8E3D3',
+    textSecondary: '#A8A5C4',
+    textTertiary: '#6F6D8C',
+    textInverse: '#070A18',
 
-    accent: '#3DC87A',
-    accentLight: 'rgba(61,200,122,0.15)',
-    gold: '#C9A84C',
+    gold: '#D4AC5C',
 
-    border: 'rgba(255,255,255,0.08)',
-    borderStrong: 'rgba(255,255,255,0.16)',
+    border: 'rgba(232,227,211,0.08)',
+    borderStrong: 'rgba(232,227,211,0.14)',
 
-    tabBg: '#0A0D18',
-    tabActive: '#3DC87A',
-    tabInactive: '#4E5670',
-    tabBorder: 'rgba(255,255,255,0.06)',
+    tabBg: '#0D1226',
+    tabInactive: '#6F6D8C',
+    tabBorder: 'rgba(232,227,211,0.05)',
 
     statusBar: 'light',
+    fonts,
 };
 
-// ─── Backward-compat alias (used by Quran screens that import WARM_SANDY) ─────
+const BASE_THEMES: Record<ThemeId, BaseTheme> = {
+    warm: BASE_WARM_PARCHMENT,
+    forest: BASE_FOREST_DARK,
+    midnight: BASE_MIDNIGHT_BLUE,
+};
+
+/** Compose a full AppTheme from a base + accent hue + arabic scale. */
+function makeTheme(id: ThemeId, accentHue: AccentHue, arabicScale: number): AppTheme {
+    const base = BASE_THEMES[id];
+    const pal = ACCENT_PALETTES[accentHue];
+    return {
+        ...base,
+        accent: pal.base,
+        accentLight: pal.light,
+        // Dark themes: tab active uses gold (more reverent than any bright accent).
+        // Light theme: tab active follows the accent for a splash of colour.
+        tabActive: base.isDark ? base.gold : pal.base,
+        accentHue,
+        arabicScale,
+    };
+}
+
+// ─── Ready-made exports (used by a few legacy screens that import themes directly) ─
+export const WARM_PARCHMENT: AppTheme = makeTheme('warm', 'clay', 1);
+export const FOREST_DARK: AppTheme = makeTheme('forest', 'forest', 1);
+export const MIDNIGHT_BLUE: AppTheme = makeTheme('midnight', 'sky', 1);
 export const WARM_SANDY = WARM_PARCHMENT;
 export const DARK_MIDNIGHT = MIDNIGHT_BLUE;
 
-const THEMES: Record<ThemeId, AppTheme> = {
-    warm: WARM_PARCHMENT,
-    forest: FOREST_DARK,
-    midnight: MIDNIGHT_BLUE,
-};
-
 // ─── Auto-mode: resolve a theme from current hour ────────────────────────────
-// 05:00 – 18:00  →  Warm Parchment  (daytime)
-// 18:00 – 21:00  →  Forest Dark     (evening)
-// 21:00 – 05:00  →  Midnight Blue   (night)
 function resolveAutoTheme(): ThemeId {
     const h = new Date().getHours();
     if (h >= 5 && h < 18) return 'warm';
@@ -185,6 +232,10 @@ type ThemeContextValue = {
     theme: AppTheme;
     themeMode: ThemeMode;
     setThemeMode: (mode: ThemeMode) => void;
+    accentHue: AccentHue;
+    setAccentHue: (hue: AccentHue) => void;
+    arabicScale: number;
+    setArabicScale: (scale: number) => void;
     /** @deprecated  Use setThemeMode instead */
     toggleTheme: () => void;
 };
@@ -193,23 +244,48 @@ const ThemeContext = createContext<ThemeContextValue>({
     theme: WARM_PARCHMENT,
     themeMode: 'warm',
     setThemeMode: () => {},
+    accentHue: 'clay',
+    setAccentHue: () => {},
+    arabicScale: 1,
+    setArabicScale: () => {},
     toggleTheme: () => {},
 });
+
+const STORAGE_KEYS = {
+    theme: '@noor/app_theme',
+    accent: '@noor/app_accent',
+    arabicScale: '@noor/arabic_scale',
+};
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const [mode, setMode] = useState<ThemeMode>('warm');
     const [autoResolved, setAutoResolved] = useState<ThemeId>(resolveAutoTheme());
+    // Accent starts null so first resolve can apply the theme's default hue
+    const [accentHue, setAccentHueState] = useState<AccentHue | null>(null);
+    const [arabicScale, setArabicScaleState] = useState<number>(1);
 
-    // Persist + load saved mode
+    // Load persisted settings once
     useEffect(() => {
-        AsyncStorage.getItem('@noor/app_theme').then(val => {
-            if (val === 'warm' || val === 'forest' || val === 'midnight' || val === 'auto') {
-                setMode(val);
-            }
-        }).catch(() => {});
+        (async () => {
+            try {
+                const t = await AsyncStorage.getItem(STORAGE_KEYS.theme);
+                if (t === 'warm' || t === 'forest' || t === 'midnight' || t === 'auto') {
+                    setMode(t);
+                }
+                const a = await AsyncStorage.getItem(STORAGE_KEYS.accent);
+                if (a === 'gold' || a === 'forest' || a === 'clay' || a === 'sky') {
+                    setAccentHueState(a);
+                }
+                const s = await AsyncStorage.getItem(STORAGE_KEYS.arabicScale);
+                if (s) {
+                    const n = parseFloat(s);
+                    if (!isNaN(n) && n >= 0.6 && n <= 2.0) setArabicScaleState(n);
+                }
+            } catch {}
+        })();
     }, []);
 
-    // For auto mode: re-resolve every minute so the theme shifts at the right time
+    // Auto mode tick
     useEffect(() => {
         if (mode !== 'auto') return;
         setAutoResolved(resolveAutoTheme());
@@ -219,7 +295,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     const setThemeMode = (next: ThemeMode) => {
         setMode(next);
-        AsyncStorage.setItem('@noor/app_theme', next).catch(() => {});
+        AsyncStorage.setItem(STORAGE_KEYS.theme, next).catch(() => {});
+    };
+
+    const setAccentHue = (hue: AccentHue) => {
+        setAccentHueState(hue);
+        AsyncStorage.setItem(STORAGE_KEYS.accent, hue).catch(() => {});
+    };
+
+    const setArabicScale = (scale: number) => {
+        const clamped = Math.max(0.8, Math.min(1.6, scale));
+        setArabicScaleState(clamped);
+        AsyncStorage.setItem(STORAGE_KEYS.arabicScale, String(clamped)).catch(() => {});
     };
 
     const toggleTheme = () => {
@@ -229,10 +316,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     };
 
     const resolvedId = mode === 'auto' ? autoResolved : mode;
-    const theme = THEMES[resolvedId];
+    // If no explicit accent saved, fall back to the theme's designed default
+    const effectiveAccent = accentHue ?? THEME_DEFAULT_ACCENT[resolvedId];
+    const theme = makeTheme(resolvedId, effectiveAccent, arabicScale);
 
     return (
-        <ThemeContext.Provider value={{ theme, themeMode: mode, setThemeMode, toggleTheme }}>
+        <ThemeContext.Provider value={{
+            theme,
+            themeMode: mode,
+            setThemeMode,
+            accentHue: effectiveAccent,
+            setAccentHue,
+            arabicScale,
+            setArabicScale,
+            toggleTheme,
+        }}>
             {children}
         </ThemeContext.Provider>
     );

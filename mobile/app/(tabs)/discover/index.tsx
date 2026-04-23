@@ -20,7 +20,7 @@ const FAWAZ_HADITH = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1';
 const LANG_EDITIONS: Record<string, Record<string, string>> = {
     bukhari:  { english: 'eng-bukhari',  urdu: 'urd-bukhari',  indonesian: 'ind-bukhari',  french: 'fra-bukhari',  bengali: 'ben-bukhari',  turkish: 'tur-bukhari'  },
     muslim:   { english: 'eng-muslim',   urdu: 'urd-muslim',   indonesian: 'ind-muslim',   french: 'fra-muslim',   bengali: 'ben-muslim',   turkish: 'tur-muslim'   },
-    tirmidhi: { english: 'eng-tirmidhi', urdu: 'urd-tirmidhi', indonesian: 'ind-tirmidhi', french: 'eng-tirmidhi', bengali: 'ben-tirmidhi', turkish: 'tur-tirmidhi' },
+    tirmidhi: { english: 'eng-tirmidhi', urdu: 'urd-tirmidhi', indonesian: 'ind-tirmidhi', bengali: 'ben-tirmidhi', turkish: 'tur-tirmidhi' }, // No French Tirmidhi on CDN — falls back to English
     abudawud: { english: 'eng-abudawud', urdu: 'urd-abudawud', indonesian: 'ind-abudawud', french: 'fra-abudawud', bengali: 'ben-abudawud', turkish: 'tur-abudawud' },
     nasai:    { english: 'eng-nasai',    urdu: 'urd-nasai',    indonesian: 'ind-nasai',    french: 'fra-nasai',    bengali: 'ben-nasai',    turkish: 'tur-nasai'    },
     ibnmajah: { english: 'eng-ibnmajah', urdu: 'urd-ibnmajah', indonesian: 'ind-ibnmajah', french: 'fra-ibnmajah', bengali: 'ben-ibnmajah', turkish: 'tur-ibnmajah' },
@@ -41,11 +41,11 @@ async function fetchHadithTranslations(
             const edition = LANG_EDITIONS[slug]?.[lang] ?? LANG_EDITIONS[slug]?.['english'];
             if (!edition) return { key: `${slug}:${number}`, text: '' };
             const ctl = new AbortController();
-            setTimeout(() => ctl.abort(), 5000);
+            const t = setTimeout(() => ctl.abort(), 5000);
             const res = await fetch(
                 `${FAWAZ_HADITH}/editions/${edition}/${number}.json`,
                 { signal: ctl.signal }
-            );
+            ).finally(() => clearTimeout(t));
             if (!res.ok) return { key: `${slug}:${number}`, text: '' };
             const json = await res.json();
             // Fawaz individual file: { hadithnumber, text, arabic } or { hadiths: [...] }
@@ -132,6 +132,12 @@ export default function DiscoverScreen() {
     const isRamadan = useMemo(() => moment().iMonth() === 8, []);
     const { db } = useDatabase();
     const { language } = useLanguage();
+
+    // Back chevron: pop the stack if possible, otherwise fall back to Home tab
+    const goBack = () => {
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)' as any);
+    };
     const { theme } = useTheme();
     const inputRef = useRef<TextInput>(null);
 
@@ -173,16 +179,23 @@ export default function DiscoverScreen() {
         if (db) {
             try {
                 const ctl2 = new AbortController();
-                setTimeout(() => ctl2.abort(), 6000);
+                const t2 = setTimeout(() => ctl2.abort(), 6000);
                 const res = await fetch(
                     `${QURANI_BASE}/search/${encodeURIComponent(q)}?language=${apiLang}&limit=15&exactSearch=false`,
                     { signal: ctl2.signal }
-                );
+                ).finally(() => clearTimeout(t2));
                 const json = await res.json();
                 if (json.code === 200 && json.data?.ayahs?.length) {
                     const ayahs: any[] = json.data.ayahs;
-                    // Fetch translations for matched verses from SQLite in selected language
-                    const refs = ayahs.map((a: any) => `(${a.surah?.number},${a.numberInSurah})`).join(',');
+                    // Validate refs are integers in Quran bounds before splicing into SQL
+                    const validatedRefs = ayahs
+                        .filter((a: any) =>
+                            Number.isInteger(a.surah?.number) && a.surah.number >= 1 && a.surah.number <= 114 &&
+                            Number.isInteger(a.numberInSurah) && a.numberInSurah >= 1
+                        )
+                        .map((a: any) => `(${a.surah.number},${a.numberInSurah})`);
+                    if (validatedRefs.length === 0) { setResults([]); return; }
+                    const refs = validatedRefs.join(',');
                     const transRows = await db.getAllAsync<any>(
                         `SELECT surah_number, ayah_number, ${col} AS translation
                          FROM ayahs
@@ -192,15 +205,20 @@ export default function DiscoverScreen() {
                     for (const r of transRows) {
                         transMap[`${r.surah_number}:${r.ayah_number}`] = r.translation ?? '';
                     }
-                    setResults(ayahs.map((a: any): QuranResult => ({
-                        type: 'quran',
-                        ref: `${a.surah?.number ?? ''}:${a.numberInSurah ?? ''}`,
-                        surahName: a.surah?.englishName ?? '',
-                        arabic: a.text ?? '',
-                        english: transMap[`${a.surah?.number}:${a.numberInSurah}`]
-                            || a.translation
-                            || '',
-                    })));
+                    setResults(ayahs
+                        .filter((a: any) =>
+                            Number.isInteger(a.surah?.number) && a.surah.number >= 1 && a.surah.number <= 114 &&
+                            Number.isInteger(a.numberInSurah) && a.numberInSurah >= 1
+                        )
+                        .map((a: any): QuranResult => ({
+                            type: 'quran',
+                            ref: `${a.surah.number}:${a.numberInSurah}`,
+                            surahName: a.surah?.englishName ?? '',
+                            arabic: a.text ?? '',
+                            english: transMap[`${a.surah.number}:${a.numberInSurah}`]
+                                || a.translation
+                                || '',
+                        })));
                     return;
                 }
             } catch { /* fall through to offline */ }
@@ -325,9 +343,14 @@ export default function DiscoverScreen() {
             <View style={[styles.stickyTop, { backgroundColor: theme.bg, borderBottomColor: theme.border }]}>
                 {/* Title row */}
                 <View style={styles.titleRow}>
-                    <View>
-                        <Text style={[styles.titleText, { color: theme.textPrimary }]}>Explore Deen</Text>
-                        <Text style={[styles.subtitleText, { color: theme.textSecondary }]}>Search or browse tools</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <TouchableOpacity onPress={goBack} hitSlop={10} style={{ marginLeft: -6, marginRight: 6, paddingVertical: 4 }}>
+                            <Feather name="chevron-left" size={28} color={theme.textPrimary} />
+                        </TouchableOpacity>
+                        <View>
+                            <Text style={[styles.titleText, { color: theme.textPrimary }]}>Explore Deen</Text>
+                            <Text style={[styles.subtitleText, { color: theme.textSecondary }]}>Search or browse tools</Text>
+                        </View>
                     </View>
                     <TouchableOpacity
                         style={styles.aiDeenBtn}
@@ -494,18 +517,7 @@ export default function DiscoverScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* TODO: Islamic Library — feature coming soon, temporarily hidden
-                    <TouchableOpacity style={[styles.horizontalTile, { backgroundColor: theme.bgCard, borderColor: theme.border }]} onPress={() => router.push('/discover/articles' as any)} activeOpacity={0.9}>
-                        <View style={[styles.horizontalIconBox, { backgroundColor: theme.bgSecondary }]}>
-                            <Feather name="book-open" size={24} color={theme.textPrimary} />
-                        </View>
-                        <View style={styles.horizontalTextContent}>
-                            <Text style={[styles.horizontalTitle, { color: theme.textPrimary }]}>Islamic Library</Text>
-                            <Text style={[styles.horizontalSubtitle, { color: theme.textSecondary }]}>Articles & daily essays on Deen</Text>
-                        </View>
-                        <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-                    </TouchableOpacity>
-                    */}
+                    {/* Islamic Library tile — hidden until content is ready */}
                 </ScrollView>
             )}
         </KeyboardAvoidingView>

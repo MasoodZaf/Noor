@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, ScrollView,
-    Animated, ActivityIndicator, Dimensions, Platform,
+    Animated, ActivityIndicator, Platform,
 } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -10,20 +11,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { applySM2, HifzEntry } from './index';
 
-async function checkOnline(): Promise<boolean> {
-    try {
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 4000);
-        await fetch('https://1.1.1.1', { method: 'HEAD', signal: ctrl.signal });
-        clearTimeout(t);
-        return true;
-    } catch { return false; }
-}
 import { useDatabase } from '../../../../context/DatabaseContext';
 import { sanitizeArabicText } from '../../../../utils/arabic';
 import { useTheme } from '../../../../context/ThemeContext';
 
-const { width } = Dimensions.get('window');
 const HIFZ_KEY = '@noor/hifz_entries';
 
 interface Ayah {
@@ -43,6 +34,7 @@ const RATINGS: { label: string; quality: 0 | 3 | 4 | 5; color: string; desc: str
 export default function DrillScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    const { width } = useWindowDimensions();
     const { surahId, surahName } = useLocalSearchParams<{ surahId: string; surahName: string }>();
     const { theme } = useTheme();
 
@@ -78,14 +70,12 @@ export default function DrillScreen() {
         setLoading(true);
         setError('');
         try {
-            // Check network connectivity first
-            const online = await checkOnline();
-            if (!online) throw new Error('NO_NETWORK');
+            // Data comes from local SQLite — no network required
             if (!db || !isReady) throw new Error('Offline vault not ready. Please wait a moment and retry.');
             if (!surahId) throw new Error('Invalid surah selected.');
             const rows = await db.getAllAsync(
                 `SELECT ayah_number, text_arabic, text_english
-                 FROM ayahs WHERE surah_id = ?
+                 FROM ayahs WHERE surah_number = ?
                  ORDER BY ayah_number ASC`,
                 [Number(surahId)]
             ) as any[];
@@ -96,11 +86,7 @@ export default function DrillScreen() {
                 translation: r.text_english,
             })));
         } catch (e: any) {
-            if (e?.message === 'NO_NETWORK') {
-                setError('NO_NETWORK');
-            } else {
-                setError('Could not load ayahs. Please check your connection and retry.');
-            }
+            setError(e?.message || 'Could not load ayahs. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -165,20 +151,13 @@ export default function DrillScreen() {
     }
 
     if (error) {
-        const isOfflineError = error === 'NO_NETWORK';
         return (
             <View style={[styles.centered, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
-                <Feather name={isOfflineError ? 'wifi-off' : 'alert-circle'} size={48} color={isOfflineError ? '#c0392b' : theme.accentLight} />
-                <Text style={[styles.errorTitle, { color: theme.textPrimary }]}>
-                    {isOfflineError ? 'No Internet Connection' : 'Failed to load'}
-                </Text>
-                <Text style={[styles.errorDesc, { color: theme.textSecondary }]}>
-                    {isOfflineError
-                        ? 'Hifz drill requires an active internet connection to load Quran data. Please connect and try again.'
-                        : error}
-                </Text>
-                <TouchableOpacity style={[styles.retryBtn, { backgroundColor: isOfflineError ? '#c0392b' : theme.gold }]} onPress={() => { if (db && surahId) fetchAyahs(); }}>
-                    <Text style={[styles.retryText, { color: theme.textInverse }]}>{isOfflineError ? 'Try Again' : 'Retry'}</Text>
+                <Feather name="alert-circle" size={48} color={theme.accentLight} />
+                <Text style={[styles.errorTitle, { color: theme.textPrimary }]}>Failed to load</Text>
+                <Text style={[styles.errorDesc, { color: theme.textSecondary }]}>{error}</Text>
+                <TouchableOpacity style={[styles.retryBtn, { backgroundColor: theme.gold }]} onPress={() => { if (db && surahId) fetchAyahs(); }}>
+                    <Text style={[styles.retryText, { color: theme.textInverse }]}>Retry</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={{ marginTop: 12 }} onPress={() => router.back()}>
                     <Text style={{ color: theme.textSecondary, fontSize: 14 }}>← Back to Tracker</Text>

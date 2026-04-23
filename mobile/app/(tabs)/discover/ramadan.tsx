@@ -31,6 +31,53 @@ const RAMADAN_NOTIF: Record<string, { sehriTitle: string; sehriBody: string; ift
 // ── AlAdhan API ────────────────────────────────────────────────────────────────
 const ALADHAN = 'https://api.aladhan.com/v1';
 
+// Stable Ramadan notification identifiers — used so the language-change listener
+// can cancel/replace sehri and iftar alerts without wiping prayer notifications.
+const RAMADAN_NOTIF_IDS = {
+    sehri: 'falah-ramadan-sehri',
+    iftar: 'falah-ramadan-iftar',
+} as const;
+
+/**
+ * Cancels Ramadan-scoped notifications (by identifier) and reschedules sehri/iftar
+ * with the given language. Only acts when notification permission is granted and
+ * the corresponding alert time hasn't already passed today.
+ */
+async function scheduleRamadanNotifications(
+    notifications: typeof import('expo-notifications') | null,
+    sehriDate: Date,
+    iftarDate: Date,
+    lang: string,
+) {
+    if (!notifications) return;
+    const { status } = await notifications.getPermissionsAsync();
+    if (status !== 'granted') return;
+
+    // Cancel existing Ramadan notifications first
+    for (const id of Object.values(RAMADAN_NOTIF_IDS)) {
+        await notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+    }
+
+    const strings = RAMADAN_NOTIF[lang] ?? RAMADAN_NOTIF['english'];
+    const nowMs = Date.now();
+    const sehriAlertAt = new Date(sehriDate.getTime() - 10 * 60 * 1000); // 10 min before fajr
+
+    if (sehriAlertAt.getTime() > nowMs) {
+        await notifications.scheduleNotificationAsync({
+            identifier: RAMADAN_NOTIF_IDS.sehri,
+            content: { title: strings.sehriTitle, body: strings.sehriBody, sound: true },
+            trigger: { type: notifications.SchedulableTriggerInputTypes.DATE, date: sehriAlertAt },
+        }).catch(() => {});
+    }
+    if (iftarDate.getTime() > nowMs) {
+        await notifications.scheduleNotificationAsync({
+            identifier: RAMADAN_NOTIF_IDS.iftar,
+            content: { title: strings.iftarTitle, body: strings.iftarBody, sound: true },
+            trigger: { type: notifications.SchedulableTriggerInputTypes.DATE, date: iftarDate },
+        }).catch(() => {});
+    }
+}
+
 // Cache geocode results for 24h — BigDataCloud is a free service with no SLA.
 // Key is rounded to ~1km precision; value is the locality string.
 const GEO_CACHE_KEY = (lat: number, lon: number) =>
@@ -60,6 +107,7 @@ const reverseGeocode = async (lat: number, lon: number): Promise<string> => {
 const todayKey = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
 const storageKey = (suffix: string) => `@ramadan_${suffix}_${todayKey()}`;
 const streakKey = '@ramadan_streak';
+const streakDateKey = '@ramadan_streak_date'; // tracks which local date was last counted
 const pagesKey = () => storageKey('pages');
 const fastedKey = () => storageKey('fasted');
 const timingsKey = () => `@ramadan_timings_${todayKey()}`;
@@ -184,8 +232,20 @@ export default function RamadanScreen() {
                 if (mountedRef.current && locality) setLocationName(locality);
             } catch (_) {}
 
+            // H9: use saved prayer method instead of hardcoded method=1
+            let prayerMethod = 1; // default: University of Karachi
+            try {
+                const settingsRaw = await AsyncStorage.getItem('@prayer_settings');
+                if (settingsRaw) {
+                    const settings = JSON.parse(settingsRaw);
+                    if (typeof settings.method === 'number' && settings.method > 0) {
+                        prayerMethod = settings.method;
+                    }
+                }
+            } catch {}
+
             const ts = Math.floor(Date.now() / 1000);
-            const res = await fetch(`${ALADHAN}/timings/${ts}?latitude=${latitude}&longitude=${longitude}&method=1`);
+            const res = await fetch(`${ALADHAN}/timings/${ts}?latitude=${latitude}&longitude=${longitude}&method=${prayerMethod}`);
             const json = await res.json();
 
             if (json.code === 200) {
@@ -212,21 +272,7 @@ export default function RamadanScreen() {
                     const { status: notifStatus } = await Notifications.getPermissionsAsync();
                     if (!mountedRef.current) return;
                     if (notifStatus !== 'granted') setNotifsDenied(true);
-                    if (notifStatus === 'granted') {
-                        const notifStrings = RAMADAN_NOTIF[language] ?? RAMADAN_NOTIF['english'];
-                        if (sehriDate.getTime() > Date.now()) {
-                            await Notifications.scheduleNotificationAsync({
-                                content: { title: notifStrings.sehriTitle, body: notifStrings.sehriBody, sound: true },
-                                trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(sehriDate.getTime() - 10 * 60 * 1000) },
-                            }).catch(() => {});
-                        }
-                        if (iftarDate.getTime() > Date.now()) {
-                            await Notifications.scheduleNotificationAsync({
-                                content: { title: notifStrings.iftarTitle, body: notifStrings.iftarBody, sound: true },
-                                trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: iftarDate },
-                            }).catch(() => {});
-                        }
-                    }
+                    else await scheduleRamadanNotifications(Notifications, sehriDate, iftarDate, language);
                 }
             }
         } catch (e) {
@@ -236,28 +282,51 @@ export default function RamadanScreen() {
 
     useEffect(() => { loadData(); }, []);
 
+    // Reschedule sehri/iftar notifications when the user changes app language.
+    // Uses cached `timings` — skips the first render and any state where timings
+    // haven't loaded yet (the initial schedule inside fetchTimings covers that case).
+    const didMountRef = useRef(false);
+    useEffect(() => {
+        if (!didMountRef.current) { didMountRef.current = true; return; }
+        if (!timings) return;
+        scheduleRamadanNotifications(Notifications, timings.sehriDate, timings.iftarDate, language)
+            .catch(e => console.warn('[Noor/Ramadan] Language reschedule failed:', e));
+    }, [language]);
+
     const toggleFasted = async () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         const newVal = !fasted;
-        setFasted(newVal);
-        await AsyncStorage.setItem(fastedKey(), String(newVal));
+        try {
+            // Persist first — only flip UI state if storage succeeds, so refresh/restart stays consistent
+            await AsyncStorage.setItem(fastedKey(), String(newVal));
+            setFasted(newVal);
 
-        // Update streak
-        if (newVal) {
-            const newStreak = streak + 1;
-            setStreak(newStreak);
-            await AsyncStorage.setItem(streakKey, String(newStreak));
-        } else if (streak > 0) {
-            const newStreak = streak - 1;
-            setStreak(newStreak);
-            await AsyncStorage.setItem(streakKey, String(newStreak));
+            // H10: Only count/uncount today once — prevent toggling from inflating streak
+            const today = todayKey();
+            const lastStreakDate = await AsyncStorage.getItem(streakDateKey);
+
+            if (newVal && lastStreakDate !== today) {
+                // Marking fasted for the first time today — increment streak
+                const newStreak = streak + 1;
+                await AsyncStorage.setItem(streakKey, String(newStreak));
+                await AsyncStorage.setItem(streakDateKey, today);
+                setStreak(newStreak);
+            } else if (!newVal && lastStreakDate === today) {
+                // Unmarking fasted for today — undo this day's streak increment
+                const newStreak = Math.max(0, streak - 1);
+                await AsyncStorage.setItem(streakKey, String(newStreak));
+                await AsyncStorage.removeItem(streakDateKey);
+                setStreak(newStreak);
+            }
+        } catch (e) {
+            console.warn('[Noor/Ramadan] Toggle fasted failed:', e);
         }
     };
 
     const adjustPages = async (delta: number) => {
         const next = Math.max(0, Math.min(604, pagesRead + delta)); // 604 pages in Quran
         setPagesRead(next);
-        await AsyncStorage.setItem(pagesKey(), String(next));
+        await AsyncStorage.setItem(pagesKey(), String(next)).catch(() => {});
         Haptics.selectionAsync();
     };
 
@@ -270,12 +339,18 @@ export default function RamadanScreen() {
     const timeToSehri = timings ? countdown(timings.sehriDate) : '—';
 
     const hijriDate = moment().format('iDo iMMMM iYYYY [AH]');
+    // Hijri month index 8 = Ramadan (1-indexed: 9). Outside Ramadan we still want the
+    // tracker available (voluntary fasts: Mondays/Thursdays, Ayyamul Beed, Ashura, etc.)
+    // but the header should reflect the actual month — saying "Ramadan" during Shawwal
+    // confused users (#26).
+    const isRamadan = moment().iMonth() === 8;
+    const screenTitle = isRamadan ? 'Ramadan' : 'Fasting Tracker';
 
     if (loading) {
         return (
             <View style={[styles.container, { alignItems: 'center', justifyContent: 'center', paddingTop: insets.top, backgroundColor: theme.bg }]}>
                 <ActivityIndicator color={theme.gold} size="large" />
-                <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Fetching Ramadan timings…</Text>
+                <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Fetching fasting times…</Text>
             </View>
         );
     }
@@ -288,7 +363,7 @@ export default function RamadanScreen() {
                     <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <View>
-                    <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Ramadan</Text>
+                    <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{screenTitle}</Text>
                     {locationName ? <Text style={[styles.headerSub, { color: theme.textSecondary }]}>{locationName}</Text> : null}
                 </View>
                 <View style={{ width: 40 }} />

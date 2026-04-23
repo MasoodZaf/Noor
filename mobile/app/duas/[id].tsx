@@ -1,12 +1,10 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Animated } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-
-const { width } = Dimensions.get('window');
 
 import { useDatabase } from '../../context/DatabaseContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -257,7 +255,15 @@ export default function DuaDetailScreen() {
                                         <Feather name={isExpanded ? "chevron-up" : "chevron-down"} size={20} color={theme.textSecondary} />
                                     </View>
 
-                                    <Text style={[styles.arabicHeroText, { color: theme.gold }]}>{item.arabic}</Text>
+                                    {/* Arabic size follows the user's Tweaks → Arabic Scale setting */}
+                                    <Text style={[
+                                        styles.arabicHeroText,
+                                        {
+                                            color: theme.gold,
+                                            fontSize: 32 * theme.arabicScale,
+                                            lineHeight: 52 * theme.arabicScale,
+                                        },
+                                    ]}>{item.arabic}</Text>
 
                                     {/* Expanded Details Section */}
                                     {isExpanded && (
