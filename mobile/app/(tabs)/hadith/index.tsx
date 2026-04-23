@@ -444,7 +444,10 @@ export default function HadithScreen() {
                             {COLLECTIONS.map(col => (
                                 <TouchableOpacity
                                     key={col.id}
-                                    style={styles.collectionGridItem}
+                                    // width/height are applied here (not in StyleSheet) because CARD_WIDTH
+                                    // is derived from useWindowDimensions inside the component — referencing
+                                    // it from module-level StyleSheet.create crashes under Hermes on Android.
+                                    style={[styles.collectionGridItem, { width: CARD_WIDTH, height: CARD_WIDTH * 1.35 }]}
                                     activeOpacity={0.85}
                                     onPress={() => router.push(`/hadith/${col.id}` as any)}
                                 >
@@ -617,8 +620,7 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     collectionGridItem: {
-        width: CARD_WIDTH,
-        height: CARD_WIDTH * 1.35,
+        // width/height applied inline where used — depend on runtime CARD_WIDTH
         borderRadius: 20,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 6 },

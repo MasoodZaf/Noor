@@ -154,7 +154,9 @@ export default function DuasScreen() {
                                 {categories.map((cat) => (
                                     <TouchableOpacity
                                         key={cat.id}
-                                        style={styles.categoryCardWrapper}
+                                        // width/height applied inline — CARD_WIDTH is runtime-only
+                                        // (StyleSheet.create runs at module load, before the component body).
+                                        style={[styles.categoryCardWrapper, { width: CARD_WIDTH, height: CARD_WIDTH * 1.1 }]}
                                         activeOpacity={0.8}
                                         onPress={() => router.push(`/duas/${cat.id}` as any)}
                                     >
@@ -300,8 +302,7 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     categoryCardWrapper: {
-        width: CARD_WIDTH,
-        height: CARD_WIDTH * 1.1,
+        // width/height applied inline where used — depend on runtime CARD_WIDTH
         borderRadius: 20,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
