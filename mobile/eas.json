@@ -28,9 +28,9 @@
         },
         "preview": {
             "distribution": "internal",
-            "credentialsSource": "local",
             "android": {
-                "buildType": "apk"
+                "buildType": "apk",
+                "credentialsSource": "local"
             },
             "ios": {
                 "buildConfiguration": "Release"
