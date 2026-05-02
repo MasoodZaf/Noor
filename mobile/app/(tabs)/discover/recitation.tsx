@@ -332,7 +332,12 @@ export default function RecitationScreen() {
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: theme.border }]}>
-                <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+                <TouchableOpacity
+                    onPress={goBack}
+                    style={styles.backBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
@@ -359,6 +364,10 @@ export default function RecitationScreen() {
                     style={[styles.surahSelector, { backgroundColor: theme.bgCard, borderColor: theme.borderStrong }]}
                     onPress={() => setShowSurahPicker(p => !p)}
                     activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Surah ${selectedSurah.number} ${selectedSurah.name}`}
+                    accessibilityHint="Tap to change surah"
+                    accessibilityState={{ expanded: showSurahPicker }}
                 >
                     <View style={styles.surahSelectorLeft}>
                         <View style={[styles.surahNumberBadge, { backgroundColor: theme.accentLight }]}>
@@ -380,6 +389,9 @@ export default function RecitationScreen() {
                                 key={s.number}
                                 style={[styles.surahOption, { borderBottomColor: theme.border }, selectedSurah.number === s.number && styles.surahOptionActive]}
                                 onPress={() => { setSelectedSurah(s); setShowSurahPicker(false); setResult(null); setRecState('idle'); }}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Surah ${s.number} ${s.name}, ${s.ayahs} ayahs`}
+                                accessibilityState={{ selected: selectedSurah.number === s.number }}
                             >
                                 <Text style={[styles.surahOptionNum, { color: theme.textSecondary }, selectedSurah.number === s.number && { color: theme.gold }]}>
                                     {s.number}
@@ -425,6 +437,14 @@ export default function RecitationScreen() {
                         onPress={recState === 'idle' || recState === 'done' ? startRecording : stopRecording}
                         disabled={recState === 'processing'}
                         activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                            recState === 'idle' ? 'Start recording'
+                            : recState === 'recording' ? 'Stop recording'
+                            : recState === 'processing' ? 'Analysing recitation'
+                            : 'Record again'
+                        }
+                        accessibilityState={{ disabled: recState === 'processing', busy: recState === 'recording' || recState === 'processing' }}
                     >
                         {recState === 'processing' ? (
                             <Feather name="loader" size={28} color={theme.textInverse} />

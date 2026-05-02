@@ -124,7 +124,12 @@ export default function LiveScreen() {
                     <View style={[styles.errorCard, { flex: 1 }]}>
                         <Text style={styles.errorEmoji}>{activeStream.icon}</Text>
                         <Text style={styles.errorTitle}>{activeStream.title}</Text>
-                        <TouchableOpacity style={styles.openYtBtn} onPress={() => Linking.openURL(activeStream.youtubeUrl)}>
+                        <TouchableOpacity
+                            style={styles.openYtBtn}
+                            onPress={() => Linking.openURL(activeStream.youtubeUrl)}
+                            accessibilityRole="link"
+                            accessibilityLabel="Watch on YouTube"
+                        >
                             <Feather name="youtube" size={16} color="#FFF" />
                             <Text style={styles.openYtText}>Watch on YouTube</Text>
                         </TouchableOpacity>
@@ -151,6 +156,8 @@ export default function LiveScreen() {
                 <TouchableOpacity
                     style={styles.portraitBtn}
                     onPress={() => ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Exit fullscreen"
                 >
                     <Feather name="minimize-2" size={16} color="#FFF" />
                 </TouchableOpacity>
@@ -170,7 +177,12 @@ export default function LiveScreen() {
             <StatusBar hidden={false} />
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: theme.border }]}>
-                <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+                <TouchableOpacity
+                    onPress={goBack}
+                    style={styles.backBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Live Broadcasts</Text>
@@ -188,6 +200,8 @@ export default function LiveScreen() {
                             <TouchableOpacity
                                 style={styles.openYtBtn}
                                 onPress={() => Linking.openURL(activeStream.youtubeUrl)}
+                                accessibilityRole="link"
+                                accessibilityLabel="Watch live on YouTube"
                             >
                                 <Feather name="youtube" size={16} color="#FFF" />
                                 <Text style={styles.openYtText}>Watch Live on YouTube</Text>
@@ -225,6 +239,8 @@ export default function LiveScreen() {
                         <TouchableOpacity
                             style={styles.ytFallbackBtn}
                             onPress={() => Linking.openURL(activeStream.youtubeUrl)}
+                            accessibilityRole="link"
+                            accessibilityLabel="Open in YouTube app"
                         >
                             <Feather name="youtube" size={14} color="#FFF" />
                             <Text style={styles.ytFallbackText}>Open in YouTube</Text>
@@ -251,6 +267,9 @@ export default function LiveScreen() {
                             style={[styles.streamCard, { backgroundColor: theme.bgCard, borderColor: theme.border }, isActive && { borderColor: stream.color, borderWidth: 2 }]}
                             activeOpacity={0.8}
                             onPress={() => switchStream(stream)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${stream.title}, ${stream.subtitle}${isActive ? ', currently playing' : ''}`}
+                            accessibilityState={{ selected: isActive }}
                         >
                             <View style={[styles.iconCircle, { backgroundColor: stream.color + '22' }]}>
                                 <Text style={styles.cardEmoji}>{stream.icon}</Text>

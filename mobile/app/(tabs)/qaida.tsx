@@ -41,10 +41,10 @@ export default function QaidaScreen() {
                 [userId]
             );
 
-            const progRow = await db.getFirstAsync(
+            const progRow = await db.getFirstAsync<{ current_lesson_id: number }>(
                 'SELECT current_lesson_id FROM qaida_progress WHERE user_id = ?',
                 [userId]
-            ) as any;
+            );
 
             if (progRow) {
                 // current_lesson_id points to the next lesson to do.
@@ -79,7 +79,13 @@ export default function QaidaScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                    <TouchableOpacity onPress={goBack} hitSlop={10} style={{ marginLeft: -6, marginRight: 6, paddingVertical: 4 }}>
+                    <TouchableOpacity
+                        onPress={goBack}
+                        hitSlop={10}
+                        style={{ marginLeft: -6, marginRight: 6, paddingVertical: 4 }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Go back"
+                    >
                         <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                     </TouchableOpacity>
                     <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Noorani Qaida</Text>
@@ -92,6 +98,8 @@ export default function QaidaScreen() {
                 <TouchableOpacity
                     style={[styles.quickActionCard, { backgroundColor: theme.accent }]}
                     onPress={() => router.push(`/qaida/${progress + 1}`)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Continue lesson ${progress + 1}: ${lessons[progress]?.title || 'Finished'}`}
                 >
                     <View style={[styles.quickActionIcon, { backgroundColor: theme.gold }]}>
                         <Feather name="play" size={20} color={theme.textInverse} />
@@ -126,6 +134,9 @@ export default function QaidaScreen() {
                                 ]}
                                 activeOpacity={isLocked ? 1 : 0.8}
                                 onPress={() => !isLocked && router.push(`/qaida/${lesson.id}`)}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Lesson ${lesson.id}: ${lesson.title}, ${isLocked ? 'locked' : isCurrent ? 'continue' : 'completed'}`}
+                                accessibilityState={{ disabled: isLocked, selected: isCurrent }}
                             >
                                 <View style={styles.lessonRight}>
                                     {isCompleted ? (

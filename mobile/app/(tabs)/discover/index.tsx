@@ -14,7 +14,7 @@ import { useLanguage } from '../../../context/LanguageContext';
 import { useTheme } from '../../../context/ThemeContext';
 
 // ─── Fawaz Hadith API ─────────────────────────────────────────────────────────
-const FAWAZ_HADITH = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1';
+import { FAWAZ_HADITH } from '../../../utils/apis';
 
 // Translation editions per collection × language (mirrors hadith/[id].tsx)
 const LANG_EDITIONS: Record<string, Record<string, string>> = {
@@ -196,11 +196,12 @@ export default function DiscoverScreen() {
                         .map((a: any) => `(${a.surah.number},${a.numberInSurah})`);
                     if (validatedRefs.length === 0) { setResults([]); return; }
                     const refs = validatedRefs.join(',');
-                    const transRows = await db.getAllAsync<any>(
+                    type TransRow = { surah_number: number; ayah_number: number; translation: string };
+                    const transRows: TransRow[] = await db.getAllAsync<TransRow>(
                         `SELECT surah_number, ayah_number, ${col} AS translation
                          FROM ayahs
                          WHERE (surah_number, ayah_number) IN (VALUES ${refs})`
-                    ).catch(() => [] as any[]);
+                    ).catch(() => []);
                     const transMap: Record<string, string> = {};
                     for (const r of transRows) {
                         transMap[`${r.surah_number}:${r.ayah_number}`] = r.translation ?? '';
@@ -344,7 +345,13 @@ export default function DiscoverScreen() {
                 {/* Title row */}
                 <View style={styles.titleRow}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                        <TouchableOpacity onPress={goBack} hitSlop={10} style={{ marginLeft: -6, marginRight: 6, paddingVertical: 4 }}>
+                        <TouchableOpacity
+                            onPress={goBack}
+                            hitSlop={10}
+                            style={{ marginLeft: -6, marginRight: 6, paddingVertical: 4 }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Go back"
+                        >
                             <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                         </TouchableOpacity>
                         <View>
@@ -356,6 +363,8 @@ export default function DiscoverScreen() {
                         style={styles.aiDeenBtn}
                         onPress={() => router.push('/search' as any)}
                         activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityLabel="Open AiDeen Islamic search"
                     >
                         <LinearGradient
                             colors={['#11d452', '#0a9a3b']}
@@ -384,7 +393,12 @@ export default function DiscoverScreen() {
                     />
                     {loading && <ActivityIndicator size="small" color={theme.accent} style={{ marginLeft: 8 }} />}
                     {!loading && query.length > 0 && (
-                        <TouchableOpacity onPress={() => { setQuery(''); setResults([]); Keyboard.dismiss(); }}>
+                        <TouchableOpacity
+                            onPress={() => { setQuery(''); setResults([]); Keyboard.dismiss(); }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Clear search"
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
                             <Feather name="x" size={18} color={theme.textSecondary} />
                         </TouchableOpacity>
                     )}
@@ -398,6 +412,9 @@ export default function DiscoverScreen() {
                             style={[styles.scopePill, { backgroundColor: theme.bgInput }, scope === s.id && { backgroundColor: theme.textPrimary }]}
                             onPress={() => setScope(s.id)}
                             activeOpacity={0.75}
+                            accessibilityRole="tab"
+                            accessibilityLabel={`Filter by ${s.label}`}
+                            accessibilityState={{ selected: scope === s.id }}
                         >
                             <Feather
                                 name={s.icon}
@@ -455,6 +472,8 @@ export default function DiscoverScreen() {
                                 style={[styles.exampleChip, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
                                 onPress={() => { setQuery(ex); inputRef.current?.focus(); }}
                                 activeOpacity={0.75}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Search for ${ex}`}
                             >
                                 <Feather name="search" size={12} color={theme.textSecondary} style={{ marginRight: 5 }} />
                                 <Text style={[styles.exampleChipText, { color: theme.textPrimary }]}>{ex}</Text>
@@ -466,7 +485,7 @@ export default function DiscoverScreen() {
                     <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Daily Tools</Text>
 
                     <View style={styles.gridRow}>
-                        <TouchableOpacity style={[styles.gridTile, { backgroundColor: theme.bgCard, borderColor: theme.border }]} onPress={() => router.push('/discover/halal' as any)} activeOpacity={0.9}>
+                        <TouchableOpacity style={[styles.gridTile, { backgroundColor: theme.bgCard, borderColor: theme.border }]} onPress={() => router.push('/discover/halal' as any)} activeOpacity={0.9} accessibilityRole="button" accessibilityLabel="Halal places: find food and mosques near you">
                             <View style={styles.cardHeader}>
                                 <View style={[styles.gridIconBox, { backgroundColor: '#fee2e2' }]}>
                                     <Feather name="map-pin" size={22} color="#ef4444" />
@@ -478,7 +497,7 @@ export default function DiscoverScreen() {
                             </View>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={[styles.gridTile, { backgroundColor: theme.bgCard, borderColor: theme.border }]} onPress={() => router.push('/discover/live' as any)} activeOpacity={0.9}>
+                        <TouchableOpacity style={[styles.gridTile, { backgroundColor: theme.bgCard, borderColor: theme.border }]} onPress={() => router.push('/discover/live' as any)} activeOpacity={0.9} accessibilityRole="button" accessibilityLabel="Makkah Live: holy streams">
                             <View style={styles.cardHeader}>
                                 <View style={[styles.gridIconBox, { backgroundColor: '#dbeafe' }]}>
                                     <Feather name="video" size={22} color="#3b82f6" />
@@ -492,7 +511,7 @@ export default function DiscoverScreen() {
                     </View>
 
                     <View style={styles.gridRow}>
-                        <TouchableOpacity style={[styles.gridTile, { backgroundColor: theme.bgCard, borderColor: theme.border }]} onPress={() => router.push('/discover/ramadan' as any)} activeOpacity={0.9}>
+                        <TouchableOpacity style={[styles.gridTile, { backgroundColor: theme.bgCard, borderColor: theme.border }]} onPress={() => router.push('/discover/ramadan' as any)} activeOpacity={0.9} accessibilityRole="button" accessibilityLabel={isRamadan ? 'Ramadan: sehri, iftar and fast tracker' : 'Fasting: track your fasts and prayer times'}>
                             <View style={styles.cardHeader}>
                                 <View style={[styles.gridIconBox, { backgroundColor: '#fef9c3' }]}>
                                     <Feather name="moon" size={22} color="#eab308" />
@@ -504,7 +523,7 @@ export default function DiscoverScreen() {
                             </View>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={[styles.gridTile, { backgroundColor: theme.bgCard, borderColor: theme.border }]} onPress={() => router.push('/discover/recitation' as any)} activeOpacity={0.9}>
+                        <TouchableOpacity style={[styles.gridTile, { backgroundColor: theme.bgCard, borderColor: theme.border }]} onPress={() => router.push('/discover/recitation' as any)} activeOpacity={0.9} accessibilityRole="button" accessibilityLabel="Recitation: AI tajweed correction">
                             <View style={styles.cardHeader}>
                                 <View style={[styles.gridIconBox, { backgroundColor: '#dcfce7' }]}>
                                     <Feather name="mic" size={22} color="#22c55e" />

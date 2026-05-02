@@ -281,18 +281,32 @@ export default function HadithScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
-                    <TouchableOpacity style={styles.headerBack} onPress={goBack} hitSlop={10}>
+                    <TouchableOpacity
+                        style={styles.headerBack}
+                        onPress={goBack}
+                        hitSlop={10}
+                        accessibilityRole="button"
+                        accessibilityLabel="Go back"
+                    >
                         <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                     </TouchableOpacity>
                     <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Hadith Library</Text>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity style={[styles.headerAction, { backgroundColor: theme.bgInput }]} onPress={() => router.push('/search?scope=hadith' as any)}>
+                    <TouchableOpacity
+                        style={[styles.headerAction, { backgroundColor: theme.bgInput }]}
+                        onPress={() => router.push('/search?scope=hadith' as any)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Search hadiths"
+                    >
                         <Feather name="search" size={22} color={theme.textPrimary} />
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.headerAction, { backgroundColor: showBookmarks ? theme.accent : theme.bgInput }]}
                         onPress={() => { setShowBookmarks(v => !v); setSearchQuery(''); }}
+                        accessibilityRole="button"
+                        accessibilityLabel={showBookmarks ? 'Show all hadiths' : `View bookmarks${bookmarks.length > 0 ? `, ${bookmarks.length} saved` : ''}`}
+                        accessibilityState={{ selected: showBookmarks }}
                     >
                         <Feather name="bookmark" size={22} color={showBookmarks ? '#fff' : theme.textPrimary} />
                         {bookmarks.length > 0 && !showBookmarks && (
@@ -328,7 +342,13 @@ export default function HadithScreen() {
                             editable={!isListening}
                         />
                         {searchQuery.length > 0 && !isListening && (
-                            <TouchableOpacity onPress={() => setSearchQuery('')} style={{ marginRight: 8 }}>
+                            <TouchableOpacity
+                                onPress={() => setSearchQuery('')}
+                                style={{ marginRight: 8 }}
+                                accessibilityRole="button"
+                                accessibilityLabel="Clear search"
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
                                 <Feather name="x-circle" size={18} color={theme.textSecondary} />
                             </TouchableOpacity>
                         )}
@@ -339,6 +359,8 @@ export default function HadithScreen() {
                                     style={[styles.micBtn, { backgroundColor: theme.bgSecondary }, isListening && styles.micBtnActive]}
                                     onPress={toggleVoiceSearch}
                                     activeOpacity={0.7}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={isListening ? 'Stop voice search' : 'Start voice search'}
                                 >
                                     <Feather name={isListening ? 'mic-off' : 'mic'} size={16} color={isListening ? '#FFFFFF' : theme.textSecondary} />
                                 </TouchableOpacity>
@@ -384,7 +406,12 @@ export default function HadithScreen() {
                                         <View style={[styles.divider, { backgroundColor: theme.border }]} />
                                         <Text style={[styles.englishText, { color: theme.textSecondary }]}>{hadith.text_english}</Text>
                                         <View style={[styles.cardActions, { borderTopColor: theme.border }]}>
-                                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.bgInput }]} onPress={() => toggleBookmark(hadith)}>
+                                            <TouchableOpacity
+                                                style={[styles.actionBtn, { backgroundColor: theme.bgInput }]}
+                                                onPress={() => toggleBookmark(hadith)}
+                                                accessibilityRole="button"
+                                                accessibilityLabel="Remove bookmark"
+                                            >
                                                 <Feather name="bookmark" size={18} color={theme.accent} />
                                             </TouchableOpacity>
                                         </View>
@@ -421,12 +448,20 @@ export default function HadithScreen() {
                                         <View style={[styles.divider, { backgroundColor: theme.border }]} />
                                         <Text style={[styles.englishText, { color: theme.textSecondary }]}>{hadith.text_english}</Text>
                                         <View style={[styles.cardActions, { borderTopColor: theme.border }]}>
-                                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.bgInput }]} onPress={() => shareHadith(hadith)}>
+                                            <TouchableOpacity
+                                                style={[styles.actionBtn, { backgroundColor: theme.bgInput }]}
+                                                onPress={() => shareHadith(hadith)}
+                                                accessibilityRole="button"
+                                                accessibilityLabel="Share hadith"
+                                            >
                                                 <Feather name="share-2" size={18} color={theme.textSecondary} />
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 style={[styles.actionBtn, { backgroundColor: isBookmarked(hadith) ? theme.accentLight : theme.bgInput }]}
                                                 onPress={() => toggleBookmark(hadith)}
+                                                accessibilityRole="button"
+                                                accessibilityLabel={isBookmarked(hadith) ? 'Remove bookmark' : 'Bookmark hadith'}
+                                                accessibilityState={{ selected: isBookmarked(hadith) }}
                                             >
                                                 <Feather name="bookmark" size={18} color={isBookmarked(hadith) ? theme.accent : theme.textSecondary} />
                                             </TouchableOpacity>
@@ -450,6 +485,8 @@ export default function HadithScreen() {
                                     style={[styles.collectionGridItem, { width: CARD_WIDTH, height: CARD_WIDTH * 1.35 }]}
                                     activeOpacity={0.85}
                                     onPress={() => router.push(`/hadith/${col.id}` as any)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`${col.title}, ${col.count.toLocaleString()} hadiths`}
                                 >
                                     <LinearGradient colors={col.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.categoryCard}>
                                         {/* Background geometric decoration — large Rub el Hizb star */}
@@ -481,7 +518,11 @@ export default function HadithScreen() {
                         </View>
 
                         {/* Source Banner */}
-                        <TouchableOpacity style={[styles.premiumBanner, { backgroundColor: theme.accent }]}>
+                        <TouchableOpacity
+                            style={[styles.premiumBanner, { backgroundColor: theme.accent }]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Live Fawaz Hadith API: full collections with grades and 6 languages"
+                        >
                             <View style={styles.bannerIcon}>
                                 <Feather name="wifi" size={24} color={theme.textInverse} />
                             </View>

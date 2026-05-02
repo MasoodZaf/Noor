@@ -99,7 +99,12 @@ export default function ZakatScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
             <View style={[styles.header, { backgroundColor: theme.bgCard }]}>
-                <TouchableOpacity onPress={handleBack} style={styles.iconButton}>
+                <TouchableOpacity
+                    onPress={handleBack}
+                    style={styles.iconButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={currentStep > 1 ? 'Previous step' : 'Go back'}
+                >
                     <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Zakat Calculator</Text>
@@ -109,10 +114,18 @@ export default function ZakatScreen() {
                         style={styles.headerHomeBtn}
                         onPress={() => router.replace('/(tabs)' as any)}
                         hitSlop={10}
+                        accessibilityRole="button"
+                        accessibilityLabel="Exit to home"
                     >
                         <Feather name="home" size={20} color={theme.textPrimary} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.infoButton, { backgroundColor: theme.textPrimary }]} onPress={showZakatInfo}>
+                    <TouchableOpacity
+                        style={[styles.infoButton, { backgroundColor: theme.textPrimary }]}
+                        onPress={showZakatInfo}
+                        accessibilityRole="button"
+                        accessibilityLabel="About Zakat"
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
                         <Text style={styles.infoButtonText}>i</Text>
                     </TouchableOpacity>
                 </View>
@@ -147,7 +160,13 @@ export default function ZakatScreen() {
                                     </View>
                                     <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Gold & Silver</Text>
                                 </View>
-                                <TouchableOpacity style={styles.helpIcon} onPress={() => showFieldHelp('gold')}>
+                                <TouchableOpacity
+                                    style={styles.helpIcon}
+                                    onPress={() => showFieldHelp('gold')}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Help: Gold and silver"
+                                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                                >
                                     <Text style={styles.helpIconText}>?</Text>
                                 </TouchableOpacity>
                             </View>
@@ -173,7 +192,13 @@ export default function ZakatScreen() {
                                     </View>
                                     <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Cash on Hand & Bank</Text>
                                 </View>
-                                <TouchableOpacity style={styles.helpIcon} onPress={() => showFieldHelp('cash')}>
+                                <TouchableOpacity
+                                    style={styles.helpIcon}
+                                    onPress={() => showFieldHelp('cash')}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Help: Cash on hand and bank"
+                                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                                >
                                     <Text style={styles.helpIconText}>?</Text>
                                 </TouchableOpacity>
                             </View>
@@ -199,7 +224,13 @@ export default function ZakatScreen() {
                                     </View>
                                     <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Investments & Stocks</Text>
                                 </View>
-                                <TouchableOpacity style={styles.helpIcon} onPress={() => showFieldHelp('investments')}>
+                                <TouchableOpacity
+                                    style={styles.helpIcon}
+                                    onPress={() => showFieldHelp('investments')}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Help: Investments and stocks"
+                                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                                >
                                     <Text style={styles.helpIconText}>?</Text>
                                 </TouchableOpacity>
                             </View>
@@ -231,7 +262,13 @@ export default function ZakatScreen() {
                                     </View>
                                     <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Business Inventory</Text>
                                 </View>
-                                <TouchableOpacity style={styles.helpIcon} onPress={() => showFieldHelp('business')}>
+                                <TouchableOpacity
+                                    style={styles.helpIcon}
+                                    onPress={() => showFieldHelp('business')}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Help: Business inventory"
+                                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                                >
                                     <Text style={styles.helpIconText}>?</Text>
                                 </TouchableOpacity>
                             </View>
@@ -257,7 +294,13 @@ export default function ZakatScreen() {
                                     </View>
                                     <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Real Estate for Trade</Text>
                                 </View>
-                                <TouchableOpacity style={styles.helpIcon} onPress={() => showFieldHelp('property')}>
+                                <TouchableOpacity
+                                    style={styles.helpIcon}
+                                    onPress={() => showFieldHelp('property')}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Help: Real estate for trade"
+                                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                                >
                                     <Text style={styles.helpIconText}>?</Text>
                                 </TouchableOpacity>
                             </View>
@@ -289,7 +332,13 @@ export default function ZakatScreen() {
                                     </View>
                                     <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Unpaid Debts</Text>
                                 </View>
-                                <TouchableOpacity style={styles.helpIcon} onPress={() => showFieldHelp('debts')}>
+                                <TouchableOpacity
+                                    style={styles.helpIcon}
+                                    onPress={() => showFieldHelp('debts')}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Help: Unpaid debts"
+                                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                                >
                                     <Text style={styles.helpIconText}>?</Text>
                                 </TouchableOpacity>
                             </View>
@@ -315,7 +364,13 @@ export default function ZakatScreen() {
                                     </View>
                                     <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Outstanding Bills</Text>
                                 </View>
-                                <TouchableOpacity style={styles.helpIcon} onPress={() => showFieldHelp('bills')}>
+                                <TouchableOpacity
+                                    style={styles.helpIcon}
+                                    onPress={() => showFieldHelp('bills')}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Help: Outstanding bills"
+                                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                                >
                                     <Text style={styles.helpIconText}>?</Text>
                                 </TouchableOpacity>
                             </View>
@@ -383,7 +438,12 @@ export default function ZakatScreen() {
                             {currencySymbol}{zakatPayable.toLocaleString(languageTag, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Text>
                     </View>
-                    <TouchableOpacity style={[styles.nextBtn, { backgroundColor: theme.gold }]} onPress={handleNext}>
+                    <TouchableOpacity
+                        style={[styles.nextBtn, { backgroundColor: theme.gold }]}
+                        onPress={handleNext}
+                        accessibilityRole="button"
+                        accessibilityLabel={currentStep < 4 ? `Next step, ${currentStep + 1} of 4` : 'Finish Zakat calculator'}
+                    >
                         <Text style={[styles.nextBtnText, { color: theme.textInverse }]}>{currentStep < 4 ? 'Next Step' : 'Finish'}</Text>
                     </TouchableOpacity>
                 </View>

@@ -68,7 +68,13 @@ export default function ReaderScreen() {
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: theme.border, backgroundColor: theme.bgCard }]}>
-                <TouchableOpacity onPress={goBack} style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity
+                    onPress={goBack}
+                    style={styles.backBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="chevron-left" size={26} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
@@ -85,6 +91,8 @@ export default function ReaderScreen() {
                     style={styles.reloadBtn}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     onPress={() => { setErrored(false); setLoading(true); setReloadKey(k => k + 1); }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Reload document"
                 >
                     <Feather name="refresh-cw" size={18} color={theme.textSecondary} />
                 </TouchableOpacity>
@@ -113,6 +121,8 @@ export default function ReaderScreen() {
                     <TouchableOpacity
                         style={[styles.retryBtn, { backgroundColor: theme.gold }]}
                         onPress={() => { setErrored(false); setLoading(true); setReloadKey(k => k + 1); }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Retry loading"
                     >
                         <Text style={[styles.retryBtnText, { color: theme.textInverse }]}>Retry</Text>
                     </TouchableOpacity>
@@ -120,6 +130,8 @@ export default function ReaderScreen() {
                         <TouchableOpacity
                             style={[styles.openBrowserBtn, { borderColor: theme.border }]}
                             onPress={() => Linking.openURL(url)}
+                            accessibilityRole="link"
+                            accessibilityLabel="Open in browser"
                         >
                             <Feather name="external-link" size={14} color={theme.textSecondary} style={{ marginRight: 6 }} />
                             <Text style={[styles.openBrowserText, { color: theme.textSecondary }]}>Open in Browser</Text>

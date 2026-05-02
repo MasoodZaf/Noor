@@ -6,8 +6,26 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useDatabase } from '../../context/DatabaseContext';
 import { useTheme, fonts } from '../../context/ThemeContext';
+import { useCachedImageUri } from '../../components/CachedImage';
 
 // CARD_WIDTH computed inside component via useWindowDimensions (see DuasScreen)
+
+interface DuaCategoryRow {
+    id: string;
+    title: string;
+    count: number;
+    image: string;
+}
+
+interface DuaListRow {
+    id: string | number;
+    category_id: string;
+    title: string;
+    arabic_text: string;
+    transliteration: string;
+    translation_en: string;
+    category: string;
+}
 
 const CATEGORY_FALLBACK_COLORS: Record<string, string> = {
     'Morning & Evening': '#F4A460',
@@ -32,9 +50,9 @@ export default function DuasScreen() {
     const { theme } = useTheme();
     const { width } = useWindowDimensions();
     const CARD_WIDTH = (width - 48 - 12) / 2; // 2 columns with 12px gap, 24px padding on sides
-    const [categories, setCategories] = useState<any[]>([]);
-    const [popularDuas, setPopularDuas] = useState<any[]>([]);
-    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [categories, setCategories] = useState<DuaCategoryRow[]>([]);
+    const [popularDuas, setPopularDuas] = useState<DuaListRow[]>([]);
+    const [searchResults, setSearchResults] = useState<DuaListRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [searching, setSearching] = useState(false);
     const [search, setSearch] = useState('');
@@ -44,27 +62,27 @@ export default function DuasScreen() {
         if (!db) return;
         async function loadData() {
             try {
-                const catResults = await db?.getAllAsync(`
+                const catResults = await db?.getAllAsync<{ id: string; title: string; count: number }>(`
                     SELECT c.id, c.name_english as title, COUNT(d.id) as count
                     FROM dua_categories c
                     LEFT JOIN duas d ON d.category_id = c.id
                     GROUP BY c.id ORDER BY c.sort_order ASC
                 `);
 
-                const mappedCats = (catResults as any[]).map((c) => ({
+                const mappedCats: DuaCategoryRow[] = (catResults ?? []).map(c => ({
                     ...c,
-                    image: CATEGORY_IMAGES[c.title] || 'https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?q=80&w=500&auto=format&fit=crop'
+                    image: CATEGORY_IMAGES[c.title] || 'https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?q=80&w=500&auto=format&fit=crop',
                 }));
                 setCategories(mappedCats);
 
-                const duaResults = await db?.getAllAsync(`
+                const duaResults = await db?.getAllAsync<DuaListRow>(`
                     SELECT d.id, d.category_id, d.title, d.arabic_text, d.transliteration, d.translation_en, c.name_english as category
                     FROM duas d
                     JOIN dua_categories c ON d.category_id = c.id
                     ORDER BY d.sort_order ASC
                     LIMIT 5
                 `);
-                setPopularDuas(duaResults as any[]);
+                setPopularDuas(duaResults ?? []);
 
             } catch (error) {
                 console.error("Error loading duas data:", error);
@@ -85,7 +103,7 @@ export default function DuasScreen() {
         const timer = setTimeout(async () => {
             setSearching(true);
             try {
-                const results = await db?.getAllAsync(`
+                const results = await db?.getAllAsync<DuaListRow>(`
                     SELECT d.id, d.category_id, d.title, d.arabic_text, d.transliteration, d.translation_en, c.name_english as category
                     FROM duas d
                     JOIN dua_categories c ON d.category_id = c.id
@@ -93,7 +111,7 @@ export default function DuasScreen() {
                     ORDER BY d.sort_order ASC
                     LIMIT 30
                 `, [`%${query}%`, `%${query}%`, `%${query}%`]);
-                setSearchResults(results as any[]);
+                setSearchResults(results ?? []);
             } catch (e) {
                 console.error('Dua search error:', e);
             } finally {
@@ -109,7 +127,13 @@ export default function DuasScreen() {
     return (
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 16 }}>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    style={{ marginRight: 16 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
                     <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerLeft}>
@@ -134,7 +158,13 @@ export default function DuasScreen() {
                         onChangeText={setSearch}
                     />
                     {search.length > 0 && (
-                        <TouchableOpacity onPress={() => setSearch('')} style={{ marginLeft: 8 }}>
+                        <TouchableOpacity
+                            onPress={() => setSearch('')}
+                            style={{ marginLeft: 8 }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Clear search"
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
                             <Feather name="x" size={18} color={theme.textTertiary} />
                         </TouchableOpacity>
                     )}
@@ -152,38 +182,14 @@ export default function DuasScreen() {
                         ) : (
                             <View style={styles.categoriesGrid}>
                                 {categories.map((cat) => (
-                                    <TouchableOpacity
+                                    <CategoryCard
                                         key={cat.id}
-                                        // width/height applied inline — CARD_WIDTH is runtime-only
-                                        // (StyleSheet.create runs at module load, before the component body).
-                                        style={[styles.categoryCardWrapper, { width: CARD_WIDTH, height: CARD_WIDTH * 1.1 }]}
-                                        activeOpacity={0.8}
+                                        cat={cat}
+                                        cardWidth={CARD_WIDTH}
+                                        hasError={!!imgErrors[cat.id]}
+                                        onError={() => setImgErrors(prev => ({ ...prev, [cat.id]: true }))}
                                         onPress={() => router.push(`/duas/${cat.id}` as any)}
-                                    >
-                                        {imgErrors[cat.id] ? (
-                                            <View style={[styles.categoryImage, { backgroundColor: CATEGORY_FALLBACK_COLORS[cat.title] || '#7A9E7A', borderRadius: 20, justifyContent: 'flex-end' }]}>
-                                                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.5)']} style={styles.categoryGradient}>
-                                                    <Text style={styles.categoryName} numberOfLines={2}>{cat.title}</Text>
-                                                    <Text style={styles.categoryCount}>{cat.count} duas</Text>
-                                                </LinearGradient>
-                                            </View>
-                                        ) : (
-                                            <ImageBackground
-                                                source={{ uri: cat.image }}
-                                                style={styles.categoryImage}
-                                                imageStyle={{ borderRadius: 20 }}
-                                                onError={() => setImgErrors(prev => ({ ...prev, [cat.id]: true }))}
-                                            >
-                                                <LinearGradient
-                                                    colors={['transparent', 'rgba(0,0,0,0.8)']}
-                                                    style={styles.categoryGradient}
-                                                >
-                                                    <Text style={styles.categoryName} numberOfLines={2}>{cat.title}</Text>
-                                                    <Text style={styles.categoryCount}>{cat.count} duas</Text>
-                                                </LinearGradient>
-                                            </ImageBackground>
-                                        )}
-                                    </TouchableOpacity>
+                                    />
                                 ))}
                             </View>
                         )}
@@ -210,6 +216,8 @@ export default function DuasScreen() {
                         style={[styles.duaCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
                         activeOpacity={0.85}
                         onPress={() => router.push(`/duas/${dua.category_id || 1}?focus=${dua.id}` as any)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Dua: ${dua.title || 'Dua'}, category ${dua.category}`}
                     >
                         {/* Arabic Text */}
                         {dua.arabic_text ? (
@@ -246,6 +254,53 @@ export default function DuasScreen() {
         </View>
     );
 }
+
+// Per-category card extracted so the cached-image hook runs per-cat.
+// Hooks can't be called inside .map(), so this child component handles
+// the cache per item.
+const CategoryCard = React.memo(({ cat, cardWidth, hasError, onError, onPress }: {
+    cat: { id: string; title: string; count: number; image: string };
+    cardWidth: number;
+    hasError: boolean;
+    onError: () => void;
+    onPress: () => void;
+}) => {
+    const cachedUri = useCachedImageUri(cat.image);
+    return (
+        <TouchableOpacity
+            style={[styles.categoryCardWrapper, { width: cardWidth, height: cardWidth * 1.1 }]}
+            activeOpacity={0.8}
+            onPress={onPress}
+            accessibilityRole="button"
+            accessibilityLabel={`${cat.title}, ${cat.count} duas`}
+        >
+            {hasError ? (
+                <View style={[styles.categoryImage, { backgroundColor: CATEGORY_FALLBACK_COLORS[cat.title] || '#7A9E7A', borderRadius: 20, justifyContent: 'flex-end' }]}>
+                    <LinearGradient colors={['transparent', 'rgba(0,0,0,0.5)']} style={styles.categoryGradient}>
+                        <Text style={styles.categoryName} numberOfLines={2}>{cat.title}</Text>
+                        <Text style={styles.categoryCount}>{cat.count} duas</Text>
+                    </LinearGradient>
+                </View>
+            ) : (
+                <ImageBackground
+                    source={{ uri: cachedUri ?? cat.image }}
+                    style={styles.categoryImage}
+                    imageStyle={{ borderRadius: 20 }}
+                    onError={onError}
+                >
+                    <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.8)']}
+                        style={styles.categoryGradient}
+                    >
+                        <Text style={styles.categoryName} numberOfLines={2}>{cat.title}</Text>
+                        <Text style={styles.categoryCount}>{cat.count} duas</Text>
+                    </LinearGradient>
+                </ImageBackground>
+            )}
+        </TouchableOpacity>
+    );
+});
+CategoryCard.displayName = 'CategoryCard';
 
 const styles = StyleSheet.create({
     container: { flex: 1 },

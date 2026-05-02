@@ -73,7 +73,12 @@ export default function AiDeenScreen() {
         >
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: theme.border }]}>
-                <TouchableOpacity onPress={goBack} style={styles.backButton}>
+                <TouchableOpacity
+                    onPress={goBack}
+                    style={styles.backButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
@@ -95,6 +100,9 @@ export default function AiDeenScreen() {
                         ]}
                         onPress={() => setScope(s)}
                         activeOpacity={0.75}
+                        accessibilityRole="tab"
+                        accessibilityLabel={s.charAt(0).toUpperCase() + s.slice(1)}
+                        accessibilityState={{ selected: scope === s }}
                     >
                         <Feather
                             name={SCOPE_ICONS[s]}
@@ -133,6 +141,8 @@ export default function AiDeenScreen() {
                             style={[styles.chip, { backgroundColor: theme.accentLight, borderColor: theme.border }]}
                             onPress={() => navigateToSearch(s)}
                             activeOpacity={0.75}
+                            accessibilityRole="button"
+                            accessibilityLabel={s}
                         >
                             <Text style={[styles.chipText, { color: theme.gold }]}>{s}</Text>
                             <Feather name="arrow-up-right" size={13} color={theme.gold} />
@@ -159,6 +169,9 @@ export default function AiDeenScreen() {
                         onPress={() => navigateToSearch(message)}
                         disabled={!message.trim()}
                         activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel="Send search query"
+                        accessibilityState={{ disabled: !message.trim() }}
                     >
                         <Feather
                             name="search"

@@ -393,7 +393,12 @@ export default function IslamicLibraryScreen() {
 
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: theme.border }]}>
-                <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+                <TouchableOpacity
+                    onPress={goBack}
+                    style={styles.backBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
@@ -414,7 +419,12 @@ export default function IslamicLibraryScreen() {
                     onChangeText={setSearch}
                 />
                 {search.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearch('')}>
+                    <TouchableOpacity
+                        onPress={() => setSearch('')}
+                        accessibilityRole="button"
+                        accessibilityLabel="Clear search"
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
                         <Feather name="x-circle" size={16} color={theme.textSecondary} />
                     </TouchableOpacity>
                 )}
@@ -435,6 +445,9 @@ export default function IslamicLibraryScreen() {
                             contentType === tab.key && { borderBottomColor: theme.gold },
                         ]}
                         onPress={() => setContentType(tab.key)}
+                        accessibilityRole="tab"
+                        accessibilityLabel={`${tab.label}, ${tab.count} items`}
+                        accessibilityState={{ selected: contentType === tab.key }}
                     >
                         <Feather
                             name={tab.icon as any}
@@ -481,6 +494,9 @@ export default function IslamicLibraryScreen() {
                             language === lang.key && { backgroundColor: theme.textPrimary, borderColor: theme.textPrimary },
                         ]}
                         onPress={() => setLanguage(lang.key)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Filter by language: ${lang.label}`}
+                        accessibilityState={{ selected: language === lang.key }}
                     >
                         <Text style={[
                             styles.langPillText,
@@ -504,6 +520,9 @@ export default function IslamicLibraryScreen() {
                             activeCategory === cat && { backgroundColor: theme.gold, borderColor: theme.gold },
                         ]}
                         onPress={() => setActiveCategory(cat)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Category ${cat}`}
+                        accessibilityState={{ selected: activeCategory === cat }}
                     >
                         <Text style={[
                             styles.catText,
@@ -559,6 +578,8 @@ function BookCard({
             style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
             activeOpacity={0.85}
             onPress={() => onOpen(item)}
+            accessibilityRole="button"
+            accessibilityLabel={`${isAudio ? 'Audio' : 'Book'}: ${item.title} by ${item.author}, ${item.category}`}
         >
             {/* Top row */}
             <View style={styles.cardTop}>
@@ -638,6 +659,8 @@ function BookCard({
                 style={[styles.openBtn, { backgroundColor: theme.accentLight, borderColor: `${item.color}30` }]}
                 onPress={() => onOpen(item)}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={isAudio ? 'Listen in app' : 'Read PDF in app'}
             >
                 <Feather
                     name={isAudio ? 'play-circle' : 'book-open'}

@@ -9,8 +9,10 @@ import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { NetworkModeProvider } from '../context/NetworkModeContext';
 import { ReciterProvider } from '../context/ReciterContext';
 import MiniAudioPlayer from '../components/MiniAudioPlayer';
+import ErrorBoundary from '../components/ErrorBoundary';
 import * as Notifications from 'expo-notifications';
 import * as Haptics from 'expo-haptics';
+import moment from 'moment-hijri';
 import { useEffect } from 'react';
 
 // ─── Falah design fonts ───────────────────────────────────────────────────────
@@ -40,15 +42,23 @@ LogBox.ignoreLogs([
     'expo-notifications: Push notifications',
 ]);
 
-// Configure how notifications should behave when received while the app is in the foreground
+// Configure how notifications should behave when received while the app is in the foreground.
+// We deliberately drop `shouldShowAlert` (deprecated/redundant with banner on iOS 14+) and only
+// raise the in-app banner — alert+banner+list together produced an abrupt double-popup feel.
 Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-    }),
+    handleNotification: async (notification) => {
+        const id = notification.request?.identifier ?? '';
+        // Salah notifications carry the Adhan and are time-critical — keep sound on.
+        // Daily Ayah / Ramadan reminders use a softer presentation (no sound while in-app).
+        const isPrayer = id.startsWith('falah-prayer-');
+        return {
+            shouldShowAlert: false,
+            shouldPlaySound: isPrayer,
+            shouldSetBadge: false,
+            shouldShowBanner: true,
+            shouldShowList: true,
+        };
+    },
 });
 function ThemedApp() {
     const { theme } = useTheme();
@@ -97,7 +107,7 @@ export default function RootLayout() {
                 finalStatus = status;
             }
             if (finalStatus !== 'granted') {
-                console.warn('[Noor] Notification permission not granted.');
+                if (__DEV__) console.warn('[Noor] Notification permission not granted.');
                 return;
             }
 
@@ -110,32 +120,46 @@ export default function RootLayout() {
                     lightColor: '#C9A84C', // Gold
                 });
             }
+
+            // Outside the Hijri month of Ramadan, ensure no stale Sehri/Iftar alerts
+            // remain in the OS queue from a prior Ramadan or a previous install.
+            // moment-hijri iMonth is 0-indexed, so Ramadan = 8.
+            if (moment().iMonth() !== 8) {
+                await Notifications.cancelScheduledNotificationAsync('falah-ramadan-sehri').catch(() => {});
+                await Notifications.cancelScheduledNotificationAsync('falah-ramadan-iftar').catch(() => {});
+            }
         };
 
         setupNotifications();
 
-        // Haptic feedback when a prayer notification arrives while app is in foreground
-        const sub = Notifications.addNotificationReceivedListener(() => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // Haptic only for the Adhan / Salah notifications — Daily Ayah & Ramadan reminders
+        // were doubling-up with a haptic burst that read as "abrupt" to testers.
+        const sub = Notifications.addNotificationReceivedListener(n => {
+            const id = n.request?.identifier ?? '';
+            if (id.startsWith('falah-prayer-')) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
         });
         return () => sub.remove();
     }, []);
 
     return (
-        <SafeAreaProvider>
-            <NetworkModeProvider>
-                <ThemeProvider>
-                    <LanguageProvider>
-                        <DatabaseProvider>
-                            <AudioProvider>
-                                <ReciterProvider>
-                                    <ThemedApp />
-                                </ReciterProvider>
-                            </AudioProvider>
-                        </DatabaseProvider>
-                    </LanguageProvider>
-                </ThemeProvider>
-            </NetworkModeProvider>
-        </SafeAreaProvider>
+        <ErrorBoundary>
+            <SafeAreaProvider>
+                <NetworkModeProvider>
+                    <ThemeProvider>
+                        <LanguageProvider>
+                            <DatabaseProvider>
+                                <AudioProvider>
+                                    <ReciterProvider>
+                                        <ThemedApp />
+                                    </ReciterProvider>
+                                </AudioProvider>
+                            </DatabaseProvider>
+                        </LanguageProvider>
+                    </ThemeProvider>
+                </NetworkModeProvider>
+            </SafeAreaProvider>
+        </ErrorBoundary>
     );
 }

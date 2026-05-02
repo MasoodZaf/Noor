@@ -112,8 +112,16 @@ const fetchNearbyPlaces = async (
     const query = buildOverpassQuery(lat, lon, isMuslimCountry);
     const json = await fetchFromOverpass(query);
 
-    return (json.elements as any[])
-        .filter(el => el.tags?.name)
+    interface OverpassElement {
+        id: number | string;
+        lat?: number;
+        lon?: number;
+        center?: { lat: number; lon: number };
+        tags?: Record<string, string>;
+    }
+    type NamedElement = OverpassElement & { tags: Record<string, string> };
+    return ((json.elements ?? []) as OverpassElement[])
+        .filter((el): el is NamedElement => !!el.tags?.name)
         .map(el => {
             const elLat = el.lat ?? el.center?.lat;
             const elLon = el.lon ?? el.center?.lon;
@@ -381,7 +389,12 @@ export default function HalalPlacesScreen() {
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={goBack} style={styles.backButton}>
+                <TouchableOpacity
+                    onPress={goBack}
+                    style={styles.backButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="arrow-left" size={24} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Nearby Places</Text>
@@ -439,7 +452,12 @@ export default function HalalPlacesScreen() {
                 )}
 
                 {/* Recenter button */}
-                <TouchableOpacity style={[styles.recenterBtn, { backgroundColor: theme.bg }]} onPress={recenter}>
+                <TouchableOpacity
+                    style={[styles.recenterBtn, { backgroundColor: theme.bg }]}
+                    onPress={recenter}
+                    accessibilityRole="button"
+                    accessibilityLabel="Recenter map on your location"
+                >
                     <Feather name="crosshair" size={18} color={theme.accent} />
                 </TouchableOpacity>
 
@@ -478,7 +496,12 @@ export default function HalalPlacesScreen() {
                         autoCorrect={false}
                     />
                     {searchQuery.length > 0 && (
-                        <TouchableOpacity onPress={() => setSearchQuery('')}>
+                        <TouchableOpacity
+                            onPress={() => setSearchQuery('')}
+                            accessibilityRole="button"
+                            accessibilityLabel="Clear search"
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
                             <Feather name="x" size={16} color={theme.textTertiary} />
                         </TouchableOpacity>
                     )}
@@ -494,6 +517,9 @@ export default function HalalPlacesScreen() {
                         <TouchableOpacity
                             style={[styles.filterPill, { backgroundColor: theme.bgInput }, filter === item && { backgroundColor: theme.accent }]}
                             onPress={() => setFilter(item)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Filter ${item}`}
+                            accessibilityState={{ selected: filter === item }}
                         >
                             <Text style={[styles.filterText, { color: theme.textSecondary }, filter === item && { color: theme.textInverse }]}>
                                 {item}
@@ -541,6 +567,8 @@ export default function HalalPlacesScreen() {
                                         { text: 'Cancel', style: 'cancel' },
                                     ]
                                 )}
+                                accessibilityRole="button"
+                                accessibilityLabel="Suggest a halal place"
                             >
                                 <Text style={{ fontSize: 20 }}>🤝</Text>
                                 <View style={{ flex: 1, marginLeft: 10 }}>
@@ -561,6 +589,9 @@ export default function HalalPlacesScreen() {
                                 style={[styles.placeCard, { backgroundColor: theme.bgCard }, isSelected && { borderColor: theme.accent }]}
                                 onPress={() => onPlacePress(place)}
                                 activeOpacity={0.8}
+                                accessibilityRole="button"
+                                accessibilityLabel={`${place.name}, ${place.type}, ${formatDistance(place.distance)} away`}
+                                accessibilityState={{ selected: isSelected }}
                             >
                                 {/* Type icon badge */}
                                 <View style={[styles.placeIconBadge, { backgroundColor: markerColor + '18' }]}>
@@ -587,6 +618,8 @@ export default function HalalPlacesScreen() {
                                 <TouchableOpacity
                                     style={[styles.directionsBtn, { backgroundColor: markerColor + '18' }]}
                                     onPress={() => openDirections(place)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Get directions to ${place.name}`}
                                 >
                                     <Feather name="navigation" size={18} color={markerColor} />
                                 </TouchableOpacity>

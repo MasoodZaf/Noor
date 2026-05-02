@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
-    ActivityIndicator, Platform, Alert, BackHandler,
+    ActivityIndicator, Platform, Alert, BackHandler, Switch,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -38,25 +38,35 @@ const RAMADAN_NOTIF_IDS = {
     iftar: 'falah-ramadan-iftar',
 } as const;
 
+// User toggle — default on. Persists the user's preference; independent of the
+// Hijri-month gate (below) which controls whether alerts actually fire.
+const RAMADAN_NOTIF_PREF_KEY = '@noor/ramadan_notif';
+
 /**
  * Cancels Ramadan-scoped notifications (by identifier) and reschedules sehri/iftar
- * with the given language. Only acts when notification permission is granted and
- * the corresponding alert time hasn't already passed today.
+ * with the given language. Only acts when notification permission is granted, the
+ * user hasn't disabled them, and the current Hijri month is Ramadan.
  */
 async function scheduleRamadanNotifications(
     notifications: typeof import('expo-notifications') | null,
     sehriDate: Date,
     iftarDate: Date,
     lang: string,
+    enabled: boolean,
 ) {
     if (!notifications) return;
     const { status } = await notifications.getPermissionsAsync();
     if (status !== 'granted') return;
 
-    // Cancel existing Ramadan notifications first
+    // Cancel existing Ramadan notifications first — also handles the turn-off
+    // and "outside Ramadan" cases below.
     for (const id of Object.values(RAMADAN_NOTIF_IDS)) {
         await notifications.cancelScheduledNotificationAsync(id).catch(() => {});
     }
+
+    if (!enabled) return;
+    // moment-hijri iMonth is 0-indexed, so Ramadan = 8.
+    if (moment().iMonth() !== 8) return;
 
     const strings = RAMADAN_NOTIF[lang] ?? RAMADAN_NOTIF['english'];
     const nowMs = Date.now();
@@ -179,6 +189,9 @@ export default function RamadanScreen() {
     const [now, setNow] = useState(new Date());
     const [locationName, setLocationName] = useState('');
     const [notifsDenied, setNotifsDenied] = useState(false);
+    const [ramadanNotifEnabled, setRamadanNotifEnabled] = useState(true);
+    const ramadanNotifEnabledRef = useRef(true);
+    useEffect(() => { ramadanNotifEnabledRef.current = ramadanNotifEnabled; }, [ramadanNotifEnabled]);
 
     // Live clock tick
     useEffect(() => {
@@ -189,6 +202,11 @@ export default function RamadanScreen() {
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
+            // Load Ramadan notification toggle (default on)
+            const notifPref = await AsyncStorage.getItem(RAMADAN_NOTIF_PREF_KEY);
+            if (!mountedRef.current) return;
+            setRamadanNotifEnabled(notifPref !== 'false');
+
             // Load today's fasting status
             const fastedVal = await AsyncStorage.getItem(fastedKey());
             if (!mountedRef.current) return;
@@ -272,7 +290,7 @@ export default function RamadanScreen() {
                     const { status: notifStatus } = await Notifications.getPermissionsAsync();
                     if (!mountedRef.current) return;
                     if (notifStatus !== 'granted') setNotifsDenied(true);
-                    else await scheduleRamadanNotifications(Notifications, sehriDate, iftarDate, language);
+                    else await scheduleRamadanNotifications(Notifications, sehriDate, iftarDate, language, ramadanNotifEnabledRef.current);
                 }
             }
         } catch (e) {
@@ -289,9 +307,20 @@ export default function RamadanScreen() {
     useEffect(() => {
         if (!didMountRef.current) { didMountRef.current = true; return; }
         if (!timings) return;
-        scheduleRamadanNotifications(Notifications, timings.sehriDate, timings.iftarDate, language)
+        scheduleRamadanNotifications(Notifications, timings.sehriDate, timings.iftarDate, language, ramadanNotifEnabledRef.current)
             .catch(e => console.warn('[Noor/Ramadan] Language reschedule failed:', e));
     }, [language]);
+
+    const toggleRamadanNotif = async () => {
+        Haptics.selectionAsync();
+        const next = !ramadanNotifEnabled;
+        setRamadanNotifEnabled(next);
+        try { await AsyncStorage.setItem(RAMADAN_NOTIF_PREF_KEY, String(next)); } catch {}
+        if (timings) {
+            await scheduleRamadanNotifications(Notifications, timings.sehriDate, timings.iftarDate, language, next)
+                .catch(e => console.warn('[Noor/Ramadan] Toggle reschedule failed:', e));
+        }
+    };
 
     const toggleFasted = async () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -359,7 +388,12 @@ export default function RamadanScreen() {
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+                <TouchableOpacity
+                    onPress={goBack}
+                    style={styles.backBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <View>
@@ -415,8 +449,33 @@ export default function RamadanScreen() {
                     </View>
                 )}
 
+                {/* Sehri & Iftar alerts toggle — only fires during the Hijri month of Ramadan */}
+                <View style={[styles.notifToggleRow, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                    <Feather name="bell" size={18} color={ramadanNotifEnabled ? theme.gold : theme.textTertiary} />
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={{ color: theme.textPrimary, fontSize: 14, fontWeight: '500' }}>Sehri & Iftar alerts</Text>
+                        <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 2 }}>
+                            {isRamadan ? 'Active during Ramadan' : 'Activates when Ramadan begins'}
+                        </Text>
+                    </View>
+                    <Switch
+                        value={ramadanNotifEnabled}
+                        onValueChange={toggleRamadanNotif}
+                        trackColor={{ false: theme.border, true: theme.gold }}
+                        thumbColor={'#FFFFFF'}
+                        ios_backgroundColor={theme.border}
+                    />
+                </View>
+
                 {/* Today's Fast Toggle */}
-                <TouchableOpacity style={[styles.fastToggle, { borderColor: theme.borderStrong }, fasted && { backgroundColor: theme.gold, borderColor: theme.gold }]} onPress={toggleFasted} activeOpacity={0.8}>
+                <TouchableOpacity
+                    style={[styles.fastToggle, { borderColor: theme.borderStrong }, fasted && { backgroundColor: theme.gold, borderColor: theme.gold }]}
+                    onPress={toggleFasted}
+                    activeOpacity={0.8}
+                    accessibilityRole="checkbox"
+                    accessibilityLabel="Mark today as fasted"
+                    accessibilityState={{ checked: fasted }}
+                >
                     <Feather name={fasted ? 'check-circle' : 'circle'} size={24} color={fasted ? theme.textInverse : theme.gold} />
                     <Text style={[styles.fastToggleText, { color: theme.gold }, fasted && { color: theme.textInverse }]}>
                         {fasted ? 'Fasting today ✓' : 'Mark today as fasted'}
@@ -432,11 +491,23 @@ export default function RamadanScreen() {
                     </View>
                     <View style={[styles.statCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
                         <View style={styles.pagesRow}>
-                            <TouchableOpacity onPress={() => adjustPages(-1)} style={styles.pageBtn}>
+                            <TouchableOpacity
+                                onPress={() => adjustPages(-1)}
+                                style={styles.pageBtn}
+                                accessibilityRole="button"
+                                accessibilityLabel="Decrease pages read"
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
                                 <Feather name="minus" size={16} color={theme.textSecondary} />
                             </TouchableOpacity>
                             <Text style={[styles.statNumber, { color: theme.textPrimary }]}>{pagesRead}</Text>
-                            <TouchableOpacity onPress={() => adjustPages(1)} style={styles.pageBtn}>
+                            <TouchableOpacity
+                                onPress={() => adjustPages(1)}
+                                style={styles.pageBtn}
+                                accessibilityRole="button"
+                                accessibilityLabel="Increase pages read"
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
                                 <Feather name="plus" size={16} color={theme.gold} />
                             </TouchableOpacity>
                         </View>
@@ -474,6 +545,7 @@ const styles = StyleSheet.create({
     ringTime: { fontSize: 32, fontWeight: '300', marginVertical: 4 },
     ringSubLabel: { fontSize: 11 },
     timingsRow: { flexDirection: 'row', marginHorizontal: 20, borderRadius: 20, borderWidth: 1, padding: 20, marginBottom: 16 },
+    notifToggleRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, padding: 16, borderRadius: 20, borderWidth: 1, marginBottom: 16 },
     timingCard: { flex: 1, alignItems: 'center' },
     timingDivider: { width: 1 },
     timingLabel: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 },

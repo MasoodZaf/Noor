@@ -151,7 +151,12 @@ export default function DuaDetailScreen() {
                 <Feather name="database" size={48} color={theme.textTertiary} />
                 <Text style={{ color: theme.textPrimary, fontSize: 18, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>Could not load duas</Text>
                 <Text style={{ color: theme.textSecondary, fontSize: 14, marginTop: 8, textAlign: 'center', lineHeight: 20 }}>There was a problem reading from the database. Please try again.</Text>
-                <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16, backgroundColor: theme.accentLight }}>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    style={{ marginTop: 20, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16, backgroundColor: theme.accentLight }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Text style={{ color: theme.gold, fontWeight: '700' }}>Go Back</Text>
                 </TouchableOpacity>
             </View>
@@ -163,7 +168,12 @@ export default function DuaDetailScreen() {
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.bg, paddingTop: insets.top }}>
                 <Feather name="alert-circle" size={48} color={theme.textTertiary} />
                 <Text style={{ color: theme.textPrimary, fontSize: 18, fontWeight: '700', marginTop: 16 }}>Category not found</Text>
-                <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16, backgroundColor: theme.accentLight }}>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    style={{ marginTop: 20, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16, backgroundColor: theme.accentLight }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Text style={{ color: theme.gold, fontWeight: '700' }}>Go Back</Text>
                 </TouchableOpacity>
             </View>
@@ -250,7 +260,12 @@ export default function DuaDetailScreen() {
 
             {/* Custom Fixed Header */}
             <View style={[styles.fixedNav, { paddingTop: insets.top }]}>
-                <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { borderColor: theme.border }]}>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    style={[styles.backButton, { borderColor: theme.border }]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -259,6 +274,9 @@ export default function DuaDetailScreen() {
                         if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         setShowBookmarkedOnly(s => !s);
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel={showBookmarkedOnly ? 'Show all duas' : 'Show only bookmarked duas'}
+                    accessibilityState={{ selected: showBookmarkedOnly }}
                 >
                     <Feather
                         name="bookmark"
@@ -305,6 +323,9 @@ export default function DuaDetailScreen() {
                                 key={item.id}
                                 activeOpacity={0.9}
                                 onPress={() => toggleDua(item.id)}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Dua ${index + 1}${item.desc ? `, ${item.desc}` : ''}`}
+                                accessibilityState={{ expanded: isExpanded }}
                             >
                                 <LinearGradient
                                     colors={
@@ -356,7 +377,9 @@ export default function DuaDetailScreen() {
                                                     <TouchableOpacity
                                                         style={styles.iconOp}
                                                         onPress={() => handleCopy(item)}
+                                                        accessibilityRole="button"
                                                         accessibilityLabel="Copy dua"
+                                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                                     >
                                                         <Feather
                                                             name={justCopied ? 'check' : 'copy'}
@@ -367,7 +390,10 @@ export default function DuaDetailScreen() {
                                                     <TouchableOpacity
                                                         style={styles.iconOp}
                                                         onPress={() => toggleBookmark(item.id)}
+                                                        accessibilityRole="button"
                                                         accessibilityLabel={isBookmarked ? 'Remove bookmark' : 'Bookmark dua'}
+                                                        accessibilityState={{ selected: isBookmarked }}
+                                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                                     >
                                                         <Feather
                                                             name="bookmark"

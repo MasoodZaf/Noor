@@ -117,7 +117,13 @@ export default function QuranIndexScreen() {
             <View style={[styles.header, { borderBottomColor: theme.border }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                        <TouchableOpacity onPress={goBack} hitSlop={10} style={{ marginLeft: -6, marginRight: 4, paddingVertical: 4 }}>
+                        <TouchableOpacity
+                            onPress={goBack}
+                            hitSlop={10}
+                            style={{ marginLeft: -6, marginRight: 4, paddingVertical: 4 }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Go back"
+                        >
                             <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                         </TouchableOpacity>
                         <Text style={[styles.headerTitle, { marginBottom: 0, color: theme.textPrimary }]}>Al-Quran</Text>
@@ -125,6 +131,8 @@ export default function QuranIndexScreen() {
                     <TouchableOpacity
                         onPress={() => router.push('/search?scope=quran' as any)}
                         style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.bgInput, alignItems: 'center', justifyContent: 'center' }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Search Quran"
                     >
                         <Feather name="search" size={20} color={theme.textPrimary} />
                     </TouchableOpacity>
@@ -150,6 +158,9 @@ export default function QuranIndexScreen() {
                             key={tab}
                             style={[styles.tabBtn, activeTab === tab && [styles.tabBtnActive, { borderColor: theme.accent }]]}
                             onPress={() => setActiveTab(tab)}
+                            accessibilityRole="tab"
+                            accessibilityLabel={tab === 'surah' ? 'Surah' : tab === 'juz' ? 'Juz' : 'Tafseer'}
+                            accessibilityState={{ selected: activeTab === tab }}
                         >
                             <Text style={[styles.tabText, { color: theme.textSecondary }, activeTab === tab && { color: theme.textPrimary, fontWeight: 'bold' }]}>
                                 {tab === 'surah' ? 'Surah' : tab === 'juz' ? 'Juz' : 'Tafseer'}
@@ -178,6 +189,8 @@ export default function QuranIndexScreen() {
                             style={[styles.surahCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
                             onPress={() => router.push(`/quran/${surah.number}`)}
                             activeOpacity={0.75}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Surah ${surah.number}: ${surah.name_english}, ${surah.ayah_count || ''} verses`}
                         >
                             {/* Surah number */}
                             <Text style={[styles.surahNumber, { color: theme.textPrimary }]}>{surah.number}</Text>
@@ -200,16 +213,21 @@ export default function QuranIndexScreen() {
                         </TouchableOpacity>
                     ))
                 ) : activeTab === 'juz' ? (
-                    <View style={styles.juzGrid}>
+                    <View style={styles.juzList}>
                         {juzArray.map(juzNum => (
                             <TouchableOpacity
                                 key={juzNum}
                                 style={[styles.juzCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
                                 onPress={() => router.push(`/quran/juz/${juzNum}`)}
                                 activeOpacity={0.75}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Juz ${juzNum}`}
                             >
+                                <View style={[styles.juzNumBadge, { backgroundColor: theme.accentLight }]}>
+                                    <Text style={[styles.juzNumText, { color: theme.accent }]}>{juzNum}</Text>
+                                </View>
                                 <Text style={[styles.juzTitle, { color: theme.textPrimary }]}>Juz {juzNum}</Text>
-                                <Feather name="book-open" size={16} color={theme.accent} />
+                                <Feather name="chevron-right" size={18} color={theme.textSecondary} />
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -221,6 +239,8 @@ export default function QuranIndexScreen() {
                                 style={[styles.tafseerCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
                                 onPress={() => router.push(`/quran/tafseer/${tafseer.id}`)}
                                 activeOpacity={0.75}
+                                accessibilityRole="button"
+                                accessibilityLabel={`${tafseer.title} by ${tafseer.author}`}
                             >
                                 <View style={[styles.tafseerIconBox, { backgroundColor: theme.accentLight }]}>
                                     <Feather name="book" size={20} color={theme.accent} />
@@ -324,25 +344,35 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontFamily: fonts.body,
     },
-    // ── Juz grid ───────────────────────────────────────────────────────────────
-    juzGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
-    },
-    juzCard: {
-        width: '48%',
-        borderRadius: 16,
-        padding: 22,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 12,
-        borderWidth: 1,
+    // ── Juz list (single-column vertical) ──────────────────────────────────────
+    juzList: {
         gap: 10,
     },
+    juzCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 16,
+        paddingHorizontal: 18,
+        paddingVertical: 18,
+        borderWidth: 1,
+        gap: 14,
+    },
+    juzNumBadge: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    juzNumText: {
+        fontSize: 17,
+        fontFamily: fonts.mono,
+        fontWeight: '600',
+    },
     juzTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
+        flex: 1,
+        fontSize: 17,
+        fontFamily: fonts.serifBold,
     },
     // ── Tafseer ────────────────────────────────────────────────────────────────
     tafseerCard: {

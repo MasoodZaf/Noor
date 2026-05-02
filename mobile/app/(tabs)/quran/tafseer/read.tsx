@@ -127,7 +127,13 @@ const AyahPage = React.memo(({
                         </Text>
                         <Feather name="chevron-down" size={14} color={theme.textSecondary} style={{ marginLeft: 4, marginTop: 1 }} />
                     </View>
-                    <TouchableOpacity onPress={handleToggleTafseer} style={[styles.exegesisBtn, { backgroundColor: theme.accentLight, borderColor: theme.border }]}>
+                    <TouchableOpacity
+                        onPress={handleToggleTafseer}
+                        style={[styles.exegesisBtn, { backgroundColor: theme.accentLight, borderColor: theme.border }]}
+                        accessibilityRole="button"
+                        accessibilityLabel={expanded ? 'Hide exegesis' : 'Read exegesis'}
+                        accessibilityState={{ expanded }}
+                    >
                         <Text style={[styles.exegesisBtnText, { color: theme.accent }]}>
                             {expanded ? 'Hide Exegesis' : 'Read Exegesis'}
                         </Text>
@@ -171,7 +177,12 @@ const AyahPage = React.memo(({
                             {tafseerLoading ? (
                                 <ActivityIndicator color={theme.accent} style={{ alignSelf: 'flex-start', marginVertical: 16 }} />
                             ) : tafseerFailed ? (
-                                <TouchableOpacity onPress={handleToggleTafseer} style={{ marginVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <TouchableOpacity
+                                    onPress={handleToggleTafseer}
+                                    style={{ marginVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Failed to load, tap to retry"
+                                >
                                     <Feather name="refresh-cw" size={14} color={theme.accent} />
                                     <Text style={{ color: theme.accent, fontSize: 13 }}>Failed to load — tap to retry</Text>
                                 </TouchableOpacity>
@@ -276,13 +287,23 @@ export default function TafseerReadScreen() {
             {/* Header — matches Juz/Surah reader */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
-                    <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => router.back()}
+                        accessibilityRole="button"
+                        accessibilityLabel="Go back"
+                    >
                         <Feather name="arrow-left" size={24} color={theme.textPrimary} />
                     </TouchableOpacity>
                     <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>{meta.title}</Text>
                 </View>
                 <View style={styles.headerRight}>
-                    <TouchableOpacity style={styles.actionButton} onPress={() => setShowSettings(true)}>
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => setShowSettings(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Reading settings"
+                    >
                         <Feather name="settings" size={22} color={theme.textPrimary} />
                     </TouchableOpacity>
                 </View>
@@ -334,7 +355,12 @@ export default function TafseerReadScreen() {
                     <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20, backgroundColor: theme.bgCard }]}>
                         <View style={styles.modalHeader}>
                             <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Reading Settings</Text>
-                            <TouchableOpacity onPress={() => setShowSettings(false)}>
+                            <TouchableOpacity
+                                onPress={() => setShowSettings(false)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Close settings"
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
                                 <Feather name="x" size={24} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
@@ -346,6 +372,9 @@ export default function TafseerReadScreen() {
                                     key={font.id}
                                     style={[styles.settingOption, { borderBottomColor: theme.border }, selectedFont.id === font.id && styles.settingOptionActive]}
                                     onPress={() => setSelectedFont(font)}
+                                    accessibilityRole="radio"
+                                    accessibilityLabel={`Arabic font: ${font.name}`}
+                                    accessibilityState={{ selected: selectedFont.id === font.id, checked: selectedFont.id === font.id }}
                                 >
                                     <Text style={[styles.settingOptionText, { color: theme.textPrimary }, selectedFont.id === font.id && { color: theme.accent }]}>
                                         {font.name}
@@ -357,11 +386,21 @@ export default function TafseerReadScreen() {
 
                         <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Text Size ({fontSize}pt)</Text>
                         <View style={[styles.sizeControlGroup, { backgroundColor: theme.bgSecondary }]}>
-                            <TouchableOpacity style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]} onPress={() => setFontSize(Math.max(20, fontSize - 2))}>
+                            <TouchableOpacity
+                                style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]}
+                                onPress={() => setFontSize(Math.max(20, fontSize - 2))}
+                                accessibilityRole="button"
+                                accessibilityLabel="Decrease text size"
+                            >
                                 <Feather name="minus" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                             <Text style={[styles.sizePreviewIndicator, { color: theme.accent }]}>Aa</Text>
-                            <TouchableOpacity style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]} onPress={() => setFontSize(Math.min(56, fontSize + 2))}>
+                            <TouchableOpacity
+                                style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]}
+                                onPress={() => setFontSize(Math.min(56, fontSize + 2))}
+                                accessibilityRole="button"
+                                accessibilityLabel="Increase text size"
+                            >
                                 <Feather name="plus" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>

@@ -262,6 +262,8 @@ export default function QiblaScreen() {
                     <TouchableOpacity
                         style={[styles.settingsBtn, { backgroundColor: theme.gold }]}
                         onPress={() => Linking.openSettings()}
+                        accessibilityRole="button"
+                        accessibilityLabel="Open device settings"
                     >
                         <Feather name="settings" size={16} color={theme.textInverse} style={{ marginRight: 8 }} />
                         <Text style={[styles.settingsBtnText, { color: theme.textInverse }]}>Open Settings</Text>
@@ -288,7 +290,13 @@ export default function QiblaScreen() {
             {/* ── Header ── */}
             <View style={styles.header}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <TouchableOpacity onPress={goBack} hitSlop={10} style={{ marginLeft: -6, marginRight: 6, paddingVertical: 4 }}>
+                    <TouchableOpacity
+                        onPress={goBack}
+                        hitSlop={10}
+                        style={{ marginLeft: -6, marginRight: 6, paddingVertical: 4 }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Go back"
+                    >
                         <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                     </TouchableOpacity>
                     <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Qibla Compass</Text>
@@ -487,6 +495,8 @@ export default function QiblaScreen() {
                             ? { backgroundColor: theme.isDark ? '#1A1200' : 'rgba(201,168,76,0.08)', borderColor: theme.gold }
                             : { backgroundColor: theme.bgCard, borderColor: theme.border },
                     ]}
+                    accessibilityRole="text"
+                    accessibilityLabel={isAligned ? 'You are facing the Kaaba' : `Searching for Qibla, ${Math.round(normalizedDif)} degrees off`}
                 >
                     <Feather name={isAligned ? 'check-circle' : 'compass'} size={22} color={isAligned ? theme.gold : theme.textSecondary} />
                     <View style={styles.statusTextContainer}>

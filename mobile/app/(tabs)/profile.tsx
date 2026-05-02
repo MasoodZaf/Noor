@@ -182,6 +182,9 @@ export default function ProfileScreen() {
                                     borderWidth: active ? 2 : 1,
                                 },
                             ]}
+                            accessibilityRole="radio"
+                            accessibilityLabel={`${opt.label} theme, ${opt.desc}`}
+                            accessibilityState={{ selected: active, checked: active }}
                         >
                             <View style={themePickerStyles.cardLeft}>
                                 <View style={[themePickerStyles.iconBox, {
@@ -229,6 +232,9 @@ export default function ProfileScreen() {
                                     borderColor: on ? pal.base : theme.border,
                                 },
                             ]}
+                            accessibilityRole="radio"
+                            accessibilityLabel={`Accent ${opt.label}`}
+                            accessibilityState={{ selected: on, checked: on }}
                         >
                             {/* Colour dot — a small filled circle showing the hue */}
                             <View style={[tweaksStyles.swatchDot, { backgroundColor: pal.base, borderColor: on ? 'rgba(255,255,255,0.4)' : pal.deep }]} />
@@ -292,6 +298,9 @@ export default function ProfileScreen() {
                                     paddingHorizontal: 18,
                                 },
                             ]}
+                            accessibilityRole="radio"
+                            accessibilityLabel={`Madhab ${opt.label}, ${opt.desc}`}
+                            accessibilityState={{ selected: on, checked: on }}
                         >
                             <Text style={[tweaksStyles.pillText, { color: on ? '#fff' : theme.textPrimary }]}>{opt.label}</Text>
                         </Pressable>
@@ -316,6 +325,9 @@ export default function ProfileScreen() {
                                     paddingHorizontal: 14,
                                 },
                             ]}
+                            accessibilityRole="radio"
+                            accessibilityLabel={`Reciter ${r.label}`}
+                            accessibilityState={{ selected: on, checked: on }}
                         >
                             <Text style={[tweaksStyles.pillText, { color: on ? '#fff' : theme.textPrimary }]}>{r.label}</Text>
                         </Pressable>
@@ -327,7 +339,13 @@ export default function ProfileScreen() {
 
     const LanguagePickerModal = () => (
         <Modal visible={showLanguagePicker} transparent animationType="fade" onRequestClose={() => setShowLanguagePicker(false)}>
-            <TouchableOpacity style={langPickerStyles.overlay} activeOpacity={1} onPress={() => setShowLanguagePicker(false)}>
+            <TouchableOpacity
+                style={langPickerStyles.overlay}
+                activeOpacity={1}
+                onPress={() => setShowLanguagePicker(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close language picker"
+            >
                 <View style={[langPickerStyles.sheet, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
                     <Text style={[langPickerStyles.sheetTitle, { color: theme.textPrimary }]}>Translation Language</Text>
                     {LANGUAGES.map(lang => (
@@ -335,6 +353,9 @@ export default function ProfileScreen() {
                             key={lang}
                             style={[langPickerStyles.option, { borderBottomColor: theme.border }]}
                             onPress={() => { setLanguage(lang); setShowLanguagePicker(false); }}
+                            accessibilityRole="radio"
+                            accessibilityLabel={LANGUAGE_DISPLAY[lang]}
+                            accessibilityState={{ selected: language === lang, checked: language === lang }}
                         >
                             <Text style={[langPickerStyles.optionText, { color: theme.textPrimary }]}>{LANGUAGE_DISPLAY[lang]}</Text>
                             {language === lang && <Feather name="check" size={18} color={theme.gold} />}
@@ -359,7 +380,13 @@ export default function ProfileScreen() {
             <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
                 <LanguagePickerModal />
                 <View style={styles.topBar}>
-                    <TouchableOpacity onPress={goBack} hitSlop={10} style={styles.topBarBack}>
+                    <TouchableOpacity
+                        onPress={goBack}
+                        hitSlop={10}
+                        style={styles.topBarBack}
+                        accessibilityRole="button"
+                        accessibilityLabel="Go back"
+                    >
                         <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                     </TouchableOpacity>
                 </View>
@@ -378,6 +405,8 @@ export default function ProfileScreen() {
                         <TouchableOpacity
                             style={[styles.menuItem, { borderBottomColor: theme.border }]}
                             onPress={() => setShowLanguagePicker(true)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Translation language, currently ${LANGUAGE_DISPLAY[language] || 'English'}`}
                         >
                             <View style={styles.menuItemLeft}>
                                 <View style={[styles.menuIconBox, { backgroundColor: theme.gold + '1A' }]}>
@@ -446,10 +475,20 @@ export default function ProfileScreen() {
                         <ActivityIndicator size="large" color={theme.gold} style={{ marginVertical: 30 }} />
                     ) : (
                         <View style={styles.authActionRow}>
-                            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: theme.gold }]} onPress={handleLogin}>
+                            <TouchableOpacity
+                                style={[styles.primaryBtn, { backgroundColor: theme.gold }]}
+                                onPress={handleLogin}
+                                accessibilityRole="button"
+                                accessibilityLabel="Log in"
+                            >
                                 <Text style={[styles.primaryBtnText, { color: theme.textInverse }]}>Log In</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={[styles.secondaryBtn, { borderColor: theme.border }]} onPress={handleSignUp}>
+                            <TouchableOpacity
+                                style={[styles.secondaryBtn, { borderColor: theme.border }]}
+                                onPress={handleSignUp}
+                                accessibilityRole="button"
+                                accessibilityLabel="Create free account"
+                            >
                                 <Text style={[styles.secondaryBtnText, { color: theme.textPrimary }]}>Create Free Account</Text>
                             </TouchableOpacity>
                         </View>
@@ -459,14 +498,23 @@ export default function ProfileScreen() {
                     <View style={{ marginTop: 40 }}>
                         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>About</Text>
                         <View style={[styles.menuGroup, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-                            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={() => Alert.alert("About Falah", "Version 1.0.0\n\nA premium Islamic companion app for daily spiritual connection — Quran, Prayer Times, Qibla, Hadith, Duas, and more.\n\nBy MZ and MBZ")}>
+                            <TouchableOpacity
+                                style={[styles.menuItem, { borderBottomColor: theme.border }]}
+                                onPress={() => Alert.alert("About Falah", "Version 1.0.0\n\nA premium Islamic companion app for daily spiritual connection — Quran, Prayer Times, Qibla, Hadith, Duas, and more.\n\nBy MZ and MBZ")}
+                                accessibilityRole="button"
+                                accessibilityLabel="About Falah"
+                            >
                                 <View style={styles.menuItemLeft}>
                                     <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="info" size={18} color={theme.textPrimary} /></View>
                                     <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>About Falah</Text>
                                 </View>
                                 <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                             </TouchableOpacity>
-                            <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]}>
+                            <TouchableOpacity
+                                style={[styles.menuItem, { borderBottomWidth: 0 }]}
+                                accessibilityRole="button"
+                                accessibilityLabel="Privacy policy"
+                            >
                                 <View style={styles.menuItemLeft}>
                                     <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="shield" size={18} color={theme.textPrimary} /></View>
                                     <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>Privacy Policy</Text>
@@ -485,7 +533,13 @@ export default function ProfileScreen() {
         <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
             <LanguagePickerModal />
             <View style={[styles.header, { borderBottomColor: theme.border, flexDirection: 'row', alignItems: 'center' }]}>
-                <TouchableOpacity onPress={goBack} hitSlop={10} style={{ marginLeft: -6, marginRight: 6, paddingVertical: 4 }}>
+                <TouchableOpacity
+                    onPress={goBack}
+                    hitSlop={10}
+                    style={{ marginLeft: -6, marginRight: 6, paddingVertical: 4 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Settings</Text>
@@ -524,6 +578,8 @@ export default function ProfileScreen() {
                     <TouchableOpacity
                         style={[styles.menuItem, { borderBottomColor: theme.border }]}
                         onPress={() => setShowLanguagePicker(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Translation language, currently ${LANGUAGE_DISPLAY[language] || 'English'}`}
                     >
                         <View style={styles.menuItemLeft}>
                             <View style={[styles.menuIconBox, { backgroundColor: theme.gold + '1A' }]}>
@@ -572,6 +628,8 @@ export default function ProfileScreen() {
                             'Per-prayer adhan reminders are toggled from the bell icon on the Home tab.',
                             [{ text: 'Open Home', onPress: () => router.push('/(tabs)' as any) }, { text: 'Cancel', style: 'cancel' }]
                         )}
+                        accessibilityRole="button"
+                        accessibilityLabel="Adhan notifications"
                     >
                         <View style={styles.menuItemLeft}>
                             <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="bell" size={18} color={theme.textPrimary} /></View>
@@ -586,6 +644,8 @@ export default function ProfileScreen() {
                             'The prayer time calculation method is selected from the prayer card on the Home tab — tap the settings icon next to "Today\'s Prayers".',
                             [{ text: 'Open Home', onPress: () => router.push('/(tabs)' as any) }, { text: 'Cancel', style: 'cancel' }]
                         )}
+                        accessibilityRole="button"
+                        accessibilityLabel="Calculation method"
                     >
                         <View style={styles.menuItemLeft}>
                             <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="map-pin" size={18} color={theme.textPrimary} /></View>
@@ -600,6 +660,8 @@ export default function ProfileScreen() {
                             'The offline content database (114 surahs, 8 Qaida lessons, hadith collections, duas) is bundled with the app and updates with each app release.\n\nNo manual sync is required.',
                             [{ text: 'OK' }]
                         )}
+                        accessibilityRole="button"
+                        accessibilityLabel="Database status"
                     >
                         <View style={styles.menuItemLeft}>
                             <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="database" size={18} color={theme.textPrimary} /></View>
@@ -612,7 +674,12 @@ export default function ProfileScreen() {
                 {/* About & Legal Section */}
                 <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>About</Text>
                 <View style={[styles.menuGroup, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-                    <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={() => Alert.alert("About Falah", "Version 1.0.0\n\nA premium Islamic companion app for daily spiritual connection — Quran, Prayer Times, Qibla, Hadith, Duas, and more.\n\nBy MZ and MBZ")}>
+                    <TouchableOpacity
+                        style={[styles.menuItem, { borderBottomColor: theme.border }]}
+                        onPress={() => Alert.alert("About Falah", "Version 1.0.0\n\nA premium Islamic companion app for daily spiritual connection — Quran, Prayer Times, Qibla, Hadith, Duas, and more.\n\nBy MZ and MBZ")}
+                        accessibilityRole="button"
+                        accessibilityLabel="About Falah"
+                    >
                         <View style={styles.menuItemLeft}>
                             <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="info" size={18} color={theme.textPrimary} /></View>
                             <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>About Falah</Text>
@@ -627,6 +694,8 @@ export default function ProfileScreen() {
                                 'Falah collects no personal data. Prayer times use your location only to calculate adhan, and that location stays on your device.\n\nFull policy: https://falah.app/privacy'
                             )
                         )}
+                        accessibilityRole="link"
+                        accessibilityLabel="Privacy policy"
                     >
                         <View style={styles.menuItemLeft}>
                             <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="shield" size={18} color={theme.textPrimary} /></View>
@@ -644,6 +713,8 @@ export default function ProfileScreen() {
                         'Unlimited Hifz tracking, premium reciters, and offline audio packs are coming soon. We\'ll notify you when Falah Pro is available.',
                         [{ text: 'OK' }]
                     )}
+                    accessibilityRole="button"
+                    accessibilityLabel="Upgrade to Falah Pro"
                 >
                     <Feather name="star" size={24} color={theme.textInverse} style={{ marginRight: 16 }} />
                     <View style={{ flex: 1 }}>
@@ -662,6 +733,8 @@ export default function ProfileScreen() {
                             { text: 'Sign Out', style: 'destructive', onPress: () => supabase.auth.signOut() },
                         ]
                     )}
+                    accessibilityRole="button"
+                    accessibilityLabel="Sign out"
                 >
                     <Feather name="log-out" size={18} color="#E53E3E" style={{ marginRight: 8 }} />
                     <Text style={styles.logoutBtnText}>Sign Out Securely</Text>

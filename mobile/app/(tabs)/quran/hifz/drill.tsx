@@ -156,10 +156,20 @@ export default function DrillScreen() {
                 <Feather name="alert-circle" size={48} color={theme.accentLight} />
                 <Text style={[styles.errorTitle, { color: theme.textPrimary }]}>Failed to load</Text>
                 <Text style={[styles.errorDesc, { color: theme.textSecondary }]}>{error}</Text>
-                <TouchableOpacity style={[styles.retryBtn, { backgroundColor: theme.gold }]} onPress={() => { if (db && surahId) fetchAyahs(); }}>
+                <TouchableOpacity
+                    style={[styles.retryBtn, { backgroundColor: theme.gold }]}
+                    onPress={() => { if (db && surahId) fetchAyahs(); }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry loading"
+                >
                     <Text style={[styles.retryText, { color: theme.textInverse }]}>Retry</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={{ marginTop: 12 }} onPress={() => router.back()}>
+                <TouchableOpacity
+                    style={{ marginTop: 12 }}
+                    onPress={() => router.back()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Back to tracker"
+                >
                     <Text style={{ color: theme.textSecondary, fontSize: 14 }}>← Back to Tracker</Text>
                 </TouchableOpacity>
             </View>
@@ -178,7 +188,12 @@ export default function DrillScreen() {
         return (
             <View style={[styles.doneContainer, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
                 <LinearGradient colors={['rgba(201,168,76,0.12)', 'rgba(31,78,61,0.08)', 'transparent']} style={StyleSheet.absoluteFill} />
-                <TouchableOpacity style={[styles.headerBack, { marginTop: 10, marginLeft: 20, backgroundColor: theme.bgInput }]} onPress={() => router.back()}>
+                <TouchableOpacity
+                    style={[styles.headerBack, { marginTop: 10, marginLeft: 20, backgroundColor: theme.bgInput }]}
+                    onPress={() => router.back()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close"
+                >
                     <Feather name="x" size={24} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.doneContent}>
@@ -206,7 +221,12 @@ export default function DrillScreen() {
                         </View>
                     </View>
 
-                    <TouchableOpacity style={[styles.doneBtn, { backgroundColor: theme.gold }]} onPress={() => router.back()}>
+                    <TouchableOpacity
+                        style={[styles.doneBtn, { backgroundColor: theme.gold }]}
+                        onPress={() => router.back()}
+                        accessibilityRole="button"
+                        accessibilityLabel="Back to tracker"
+                    >
                         <Text style={[styles.doneBtnText, { color: theme.textInverse }]}>Back to Tracker</Text>
                     </TouchableOpacity>
                 </View>
@@ -233,6 +253,8 @@ export default function DrillScreen() {
                             style={[styles.ratingCard, { borderColor: r.color + '50', backgroundColor: theme.bgCard }]}
                             onPress={() => submitRating(r)}
                             activeOpacity={0.8}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${r.label}: ${r.desc}`}
                         >
                             <LinearGradient
                                 colors={[r.color + '15', 'transparent']}
@@ -256,7 +278,12 @@ export default function DrillScreen() {
         <View style={[styles.drillContainer, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={[styles.drillHeader, { borderBottomColor: theme.border }]}>
-                <TouchableOpacity style={[styles.headerBack, { backgroundColor: theme.bgInput }]} onPress={() => router.back()}>
+                <TouchableOpacity
+                    style={[styles.headerBack, { backgroundColor: theme.bgInput }]}
+                    onPress={() => router.back()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Exit drill"
+                >
                     <Feather name="x" size={22} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <View style={{ flex: 1, marginHorizontal: 12 }}>
@@ -289,7 +316,13 @@ export default function DrillScreen() {
 
                     {/* Arabic — revealed on tap */}
                     {!revealed ? (
-                        <TouchableOpacity style={styles.revealBtn} onPress={reveal} activeOpacity={0.8}>
+                        <TouchableOpacity
+                            style={styles.revealBtn}
+                            onPress={reveal}
+                            activeOpacity={0.8}
+                            accessibilityRole="button"
+                            accessibilityLabel="Reveal Arabic text"
+                        >
                             <LinearGradient colors={[theme.gold, theme.accent]} style={styles.revealBtnGradient}>
                                 <Feather name="eye" size={20} color={theme.textInverse} />
                                 <Text style={[styles.revealBtnText, { color: theme.textInverse }]}>Reveal Arabic</Text>
@@ -309,7 +342,12 @@ export default function DrillScreen() {
                     {/* Next button */}
                     {revealed && (
                         <Animated.View style={{ opacity: revealAnim }}>
-                            <TouchableOpacity style={[styles.nextBtn, { backgroundColor: theme.accent }]} onPress={nextAyah}>
+                            <TouchableOpacity
+                                style={[styles.nextBtn, { backgroundColor: theme.accent }]}
+                                onPress={nextAyah}
+                                accessibilityRole="button"
+                                accessibilityLabel={currentIdx + 1 < ayahs.length ? 'Next ayah' : 'Finish review'}
+                            >
                                 <Text style={[styles.nextBtnText, { color: theme.textInverse }]}>
                                     {currentIdx + 1 < ayahs.length ? 'Next Ayah' : 'Finish Review'}
                                 </Text>

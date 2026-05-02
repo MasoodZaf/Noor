@@ -338,11 +338,21 @@ export default function HifzTrackerScreen() {
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => router.back()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="arrow-left" size={24} color={theme.gold} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Hifz Memory Tracker</Text>
-                <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.bgInput }]} onPress={() => setShowAddModal(true)}>
+                <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: theme.bgInput }]}
+                    onPress={() => setShowAddModal(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add surah to track"
+                >
                     <Feather name="plus" size={24} color={theme.textPrimary} />
                 </TouchableOpacity>
             </View>
@@ -360,12 +370,18 @@ export default function HifzTrackerScreen() {
                 <TouchableOpacity
                     style={[styles.tabBtn, activeTab === 'dashboard' && [styles.tabBtnActive, { borderBottomColor: theme.gold }]]}
                     onPress={() => setActiveTab('dashboard')}
+                    accessibilityRole="tab"
+                    accessibilityLabel="Dashboard"
+                    accessibilityState={{ selected: activeTab === 'dashboard' }}
                 >
                     <Text style={[styles.tabText, { color: theme.textSecondary }, activeTab === 'dashboard' && [styles.tabTextActive, { color: theme.gold }]]}>Dashboard</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[styles.tabBtn, activeTab === 'review' && [styles.tabBtnActive, { borderBottomColor: theme.gold }]]}
                     onPress={() => setActiveTab('review')}
+                    accessibilityRole="tab"
+                    accessibilityLabel={`SRS Review${dueEntries.length > 0 ? `, ${dueEntries.length} due` : ''}`}
+                    accessibilityState={{ selected: activeTab === 'review' }}
                 >
                     <Text style={[styles.tabText, { color: theme.textSecondary }, activeTab === 'review' && [styles.tabTextActive, { color: theme.gold }]]}>
                         SRS Review
@@ -437,7 +453,12 @@ export default function HifzTrackerScreen() {
                                 <Feather name="book-open" size={48} color={theme.accentLight} />
                                 <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>Start Your Hifz Journey</Text>
                                 <Text style={[styles.emptyDesc, { color: theme.textSecondary }]}>Tap the + button to add your first surah and begin memorizing with spaced repetition.</Text>
-                                <TouchableOpacity style={[styles.emptyBtn, { backgroundColor: theme.gold }]} onPress={() => setShowAddModal(true)}>
+                                <TouchableOpacity
+                                    style={[styles.emptyBtn, { backgroundColor: theme.gold }]}
+                                    onPress={() => setShowAddModal(true)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Add surah"
+                                >
                                     <Feather name="plus" size={18} color={theme.textInverse} />
                                     <Text style={[styles.emptyBtnText, { color: theme.textInverse }]}>Add Surah</Text>
                                 </TouchableOpacity>
@@ -446,7 +467,12 @@ export default function HifzTrackerScreen() {
                             <>
                                 {/* Due Today Banner */}
                                 {dueEntries.length > 0 && (
-                                    <TouchableOpacity style={styles.dueBanner} onPress={() => setActiveTab('review')}>
+                                    <TouchableOpacity
+                                        style={styles.dueBanner}
+                                        onPress={() => setActiveTab('review')}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`${dueEntries.length} surah${dueEntries.length > 1 ? 's' : ''} due for review`}
+                                    >
                                         <View style={styles.dueBannerLeft}>
                                             <Feather name="alert-circle" size={20} color="#E53E3E" />
                                             <Text style={styles.dueBannerText}>
@@ -475,7 +501,13 @@ export default function HifzTrackerScreen() {
                                                     {STATUS_LABEL[entry.status]}
                                                 </Text>
                                             </View>
-                                            <TouchableOpacity onPress={() => removeEntry(entry.surahId)} style={styles.removeBtn}>
+                                            <TouchableOpacity
+                                                onPress={() => removeEntry(entry.surahId)}
+                                                style={styles.removeBtn}
+                                                accessibilityRole="button"
+                                                accessibilityLabel={`Remove ${entry.surahName} from tracker`}
+                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                            >
                                                 <Feather name="x" size={16} color={theme.textTertiary} />
                                             </TouchableOpacity>
                                         </View>
@@ -505,7 +537,13 @@ export default function HifzTrackerScreen() {
                             <>
                                 <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Due for Review ({dueEntries.length})</Text>
                                 {dueEntries.map((entry) => (
-                                    <TouchableOpacity key={entry.surahId} style={[styles.reviewCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]} onPress={() => startDrill(entry)}>
+                                    <TouchableOpacity
+                                        key={entry.surahId}
+                                        style={[styles.reviewCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
+                                        onPress={() => startDrill(entry)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Review ${entry.surahName}, ${entry.totalAyahs} ayahs, ${formatNextReview(entry.nextReview)}`}
+                                    >
                                         <LinearGradient
                                             colors={entry.nextReview < today
                                                 ? ['rgba(229,62,62,0.08)', 'transparent']
@@ -527,6 +565,9 @@ export default function HifzTrackerScreen() {
                                             <TouchableOpacity
                                                 style={[styles.startBtn, { backgroundColor: isOnline ? theme.gold : theme.textTertiary }]}
                                                 onPress={() => startDrill(entry)}
+                                                accessibilityRole="button"
+                                                accessibilityLabel={isOnline ? `Start drill for ${entry.surahName}` : 'Offline, drill unavailable'}
+                                                accessibilityState={{ disabled: !isOnline }}
                                             >
                                                 <Feather name={isOnline ? 'play' : 'wifi-off'} size={16} color={theme.textInverse} />
                                                 <Text style={[styles.startBtnText, { color: theme.textInverse }]}>
@@ -575,7 +616,12 @@ export default function HifzTrackerScreen() {
                 <View style={[styles.modalContainer, { backgroundColor: theme.bg }]}>
                     <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
                         <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Surah</Text>
-                        <TouchableOpacity onPress={() => { setShowAddModal(false); setAddSearch(''); }}>
+                        <TouchableOpacity
+                            onPress={() => { setShowAddModal(false); setAddSearch(''); }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Close add surah modal"
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
                             <Feather name="x" size={24} color={theme.textPrimary} />
                         </TouchableOpacity>
                     </View>
@@ -597,7 +643,12 @@ export default function HifzTrackerScreen() {
                         keyExtractor={s => String(s.id)}
                         contentContainerStyle={{ paddingBottom: 40 }}
                         renderItem={({ item }) => (
-                            <TouchableOpacity style={[styles.surahPickerRow, { borderBottomColor: theme.border }]} onPress={() => addSurah(item)}>
+                            <TouchableOpacity
+                                style={[styles.surahPickerRow, { borderBottomColor: theme.border }]}
+                                onPress={() => addSurah(item)}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Add Surah ${item.id}: ${item.name}, ${item.ayahs} ayahs`}
+                            >
                                 <View style={[styles.surahPickerNum, { backgroundColor: theme.accentLight }]}>
                                     <Text style={[styles.surahPickerNumText, { color: theme.gold }]}>{item.id}</Text>
                                 </View>
@@ -643,6 +694,7 @@ const styles = StyleSheet.create({
     },
     tabBtnActive: {},
     tabText: { fontSize: 15, fontWeight: '600' },
+    tabTextActive: {},
     badge: {
         backgroundColor: '#E53E3E', borderRadius: 10, minWidth: 18, height: 18,
         alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,

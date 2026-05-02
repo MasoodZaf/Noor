@@ -35,11 +35,11 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
                 const dbDirectory = `${FileSystem.documentDirectory}SQLite/`;
                 const dbFilePath = `${dbDirectory}${dbName}`;
 
-                console.log(`[Database] Initializing version ${dbVersion}...`);
+                if (__DEV__) console.log(`[Database] Initializing version ${dbVersion}...`);
                 const fileInfo = await FileSystem.getInfoAsync(dbFilePath);
 
                 if (!fileInfo.exists) {
-                    console.log(`[Database] ${dbName} not found. Preparing new copy...`);
+                    if (__DEV__) console.log(`[Database] ${dbName} not found. Preparing new copy...`);
 
                     // Create directory if missing
                     const dirInfo = await FileSystem.getInfoAsync(dbDirectory);
@@ -63,25 +63,25 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
                             to: dbFilePath
                         });
                     }
-                    console.log("[Database] Successfully copied master database to app storage.");
+                    if (__DEV__) console.log("[Database] Successfully copied master database to app storage.");
                 } else {
-                    console.log("[Database] Using existing offline vault at:", dbFilePath);
+                    if (__DEV__) console.log("[Database] Using existing offline vault at:", dbFilePath);
                 }
 
                 // In v15+, we specify the exact name
                 const database = await SQLite.openDatabaseAsync(dbName);
 
                 // Run a sanity check query
-                const check = await database.getFirstAsync('SELECT count(*) as count FROM surahs') as any;
-                const qCheck = await database.getFirstAsync('SELECT count(*) as count FROM qaida_lessons') as any;
-                console.log("[Database] Sanity check:", check?.count || 0, "surahs and", qCheck?.count || 0, "qaida lessons");
+                const check = await database.getFirstAsync<{ count: number }>('SELECT count(*) as count FROM surahs');
+                const qCheck = await database.getFirstAsync<{ count: number }>('SELECT count(*) as count FROM qaida_lessons');
+                if (__DEV__) console.log("[Database] Sanity check:", check?.count || 0, "surahs and", qCheck?.count || 0, "qaida lessons");
 
                 if (isMounted) {
                     setDb(database);
                     setIsReady(true);
                 }
             } catch (error: any) {
-                console.error("[Database] CRITICAL ERROR:", error);
+                if (__DEV__) console.error("[Database] CRITICAL ERROR:", error);
                 if (isMounted) {
                     setErrorMsg(`Init Failure: ${error.message}`);
                 }
@@ -103,7 +103,7 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
         try {
             await new Promise(resolve => setTimeout(resolve, 2000));
         } catch (error) {
-            console.error("Sync failed:", error);
+            if (__DEV__) console.error("[Database] Sync failed:", error);
         } finally {
             setIsSyncing(false);
         }

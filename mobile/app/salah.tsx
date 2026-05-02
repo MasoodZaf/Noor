@@ -132,7 +132,7 @@ const ARKAAN = [
     },
 ];
 
-const RULE_COLORS = {
+const RULE_COLORS: Record<string, string> = {
     niyyah:   '#7B4FA6',
     takbir:   '#C9A84C',
     qiyam:    '#2E7D50',
@@ -217,7 +217,7 @@ function AnimationModal({ visible, onClose, theme }: { visible: boolean; onClose
     }, [visible]);
 
     const rukun = ARKAAN[idx];
-    const color = (RULE_COLORS as any)[rukun.id] ?? '#7B4FA6';
+    const color = RULE_COLORS[rukun.id] ?? '#7B4FA6';
 
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
@@ -225,7 +225,12 @@ function AnimationModal({ visible, onClose, theme }: { visible: boolean; onClose
                 {/* Header */}
                 <View style={modalStyles.header}>
                     <Text style={[modalStyles.headerTitle, { color: theme.textPrimary }]}>Salah Positions</Text>
-                    <TouchableOpacity onPress={onClose} style={modalStyles.closeBtn}>
+                    <TouchableOpacity
+                        onPress={onClose}
+                        style={modalStyles.closeBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel="Close animated positions"
+                    >
                         <Feather name="x" size={22} color={theme.textPrimary} />
                     </TouchableOpacity>
                 </View>
@@ -253,7 +258,14 @@ function AnimationModal({ visible, onClose, theme }: { visible: boolean; onClose
                 {/* Dot indicators */}
                 <View style={modalStyles.dots}>
                     {ARKAAN.map((_, i) => (
-                        <TouchableOpacity key={i} onPress={() => setIdx(i)}>
+                        <TouchableOpacity
+                            key={i}
+                            onPress={() => setIdx(i)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Go to position ${i + 1}, ${ARKAAN[i].title}`}
+                            accessibilityState={{ selected: i === idx }}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
                             <View style={[modalStyles.dot, { backgroundColor: theme.border }, i === idx && { backgroundColor: color, width: 18 }]} />
                         </TouchableOpacity>
                     ))}
@@ -264,6 +276,9 @@ function AnimationModal({ visible, onClose, theme }: { visible: boolean; onClose
                     <TouchableOpacity
                         style={[modalStyles.navBtn, { backgroundColor: theme.bgCard, opacity: idx === 0 ? 0.35 : 1 }]}
                         onPress={() => setIdx(i => Math.max(0, i - 1))}
+                        accessibilityRole="button"
+                        accessibilityLabel="Previous position"
+                        accessibilityState={{ disabled: idx === 0 }}
                     >
                         <Feather name="chevron-left" size={22} color={theme.textPrimary} />
                         <Text style={[modalStyles.navText, { color: theme.textPrimary }]}>Prev</Text>
@@ -272,6 +287,9 @@ function AnimationModal({ visible, onClose, theme }: { visible: boolean; onClose
                     <TouchableOpacity
                         style={[modalStyles.navBtn, { backgroundColor: theme.bgCard, opacity: idx === ARKAAN.length - 1 ? 0.35 : 1 }]}
                         onPress={() => setIdx(i => Math.min(ARKAAN.length - 1, i + 1))}
+                        accessibilityRole="button"
+                        accessibilityLabel="Next position"
+                        accessibilityState={{ disabled: idx === ARKAAN.length - 1 }}
                     >
                         <Text style={[modalStyles.navText, { color: theme.textPrimary }]}>Next</Text>
                         <Feather name="chevron-right" size={22} color={theme.textPrimary} />
@@ -314,7 +332,7 @@ function RukunCard({ rukun, expanded, onToggle, theme }: {
     onToggle: () => void;
     theme: AppTheme;
 }) {
-    const color = (RULE_COLORS as any)[rukun.id] ?? '#7B4FA6';
+    const color = RULE_COLORS[rukun.id] ?? '#7B4FA6';
     const expandAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
@@ -330,7 +348,14 @@ function RukunCard({ rukun, expanded, onToggle, theme }: {
 
     return (
         <View style={[cardStyles.container, { borderLeftColor: color, backgroundColor: theme.bgCard }]}>
-            <TouchableOpacity onPress={onToggle} activeOpacity={0.8} style={cardStyles.header}>
+            <TouchableOpacity
+                onPress={onToggle}
+                activeOpacity={0.8}
+                style={cardStyles.header}
+                accessibilityRole="button"
+                accessibilityLabel={`${rukun.title}, ${rukun.subtitle}`}
+                accessibilityState={{ expanded }}
+            >
                 <View style={[cardStyles.numberBadge, { backgroundColor: color }]}>
                     <Text style={cardStyles.numberText}>{rukun.number}</Text>
                 </View>
@@ -430,7 +455,12 @@ export default function SalahScreen() {
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* ── Header ── */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={goBack} style={styles.headerBtn}>
+                <TouchableOpacity
+                    onPress={goBack}
+                    style={styles.headerBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="arrow-left" size={22} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
@@ -451,7 +481,13 @@ export default function SalahScreen() {
                         <Feather name="layers" size={13} color={theme.accent} />
                         <Text style={[styles.bannerBadgeText, { color: theme.accent }]}>9 Arkaan</Text>
                     </View>
-                    <TouchableOpacity style={[styles.bannerBadge, { backgroundColor: theme.accentLight }]} onPress={() => setShowAnimModal(true)} activeOpacity={0.75}>
+                    <TouchableOpacity
+                        style={[styles.bannerBadge, { backgroundColor: theme.accentLight }]}
+                        onPress={() => setShowAnimModal(true)}
+                        activeOpacity={0.75}
+                        accessibilityRole="button"
+                        accessibilityLabel="View animated salah positions"
+                    >
                         <Feather name="activity" size={13} color={theme.accent} />
                         <Text style={[styles.bannerBadgeText, { color: theme.accent }]}>Animated positions</Text>
                     </TouchableOpacity>

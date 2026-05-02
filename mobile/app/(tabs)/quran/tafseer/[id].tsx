@@ -57,7 +57,12 @@ export default function TafseerVolumesScreen() {
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    style={styles.backButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="arrow-left" size={24} color={theme.textPrimary} />
                 </TouchableOpacity>
             </View>
@@ -94,6 +99,8 @@ export default function TafseerVolumesScreen() {
                             onPress={() =>
                                 router.push(`/quran/tafseer/read?book=${tafseerId}&volume=${volNumber}`)
                             }
+                            accessibilityRole="button"
+                            accessibilityLabel={`Volume ${volNumber}`}
                         >
                             <View style={styles.volHeaderRow}>
                                 <Text style={[styles.volLabelText, { color: theme.textSecondary }]}>Vol</Text>

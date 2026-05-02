@@ -311,7 +311,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     const toggleTheme = () => {
         const order: ThemeMode[] = ['warm', 'forest', 'midnight'];
-        const idx = order.indexOf(mode as any);
+        // mode may be 'auto' which isn't part of the cycle; treat as warm.
+        const cycleMode: ThemeMode = mode === 'auto' ? 'warm' : mode;
+        const idx = order.indexOf(cycleMode);
         setThemeMode(order[(idx + 1) % order.length]);
     };
 

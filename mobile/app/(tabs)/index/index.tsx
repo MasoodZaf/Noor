@@ -12,6 +12,7 @@ import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDatabase } from '../../../context/DatabaseContext';
 import { sanitizeArabicText } from '../../../utils/arabic';
+import { getDailyVerseForDate, nextFridayAt } from '../../../utils/hijriContent';
 import { useTheme } from '../../../context/ThemeContext';
 import { useNetworkMode } from '../../../context/NetworkModeContext';
 import { useLanguage } from '../../../context/LanguageContext';
@@ -282,6 +283,135 @@ const PRAYER_NOTIF_IDS = {
     fajrTomorrow: 'falah-prayer-fajr-tomorrow',
 } as const;
 
+// ─── Daily Ayah notification ─────────────────────────────────────────────────
+const DAILY_AYA_NOTIF_KEY = '@noor/daily_aya_notif';
+const DEFAULT_DAILY_AYA_PREFS = { enabled: true, hour: 9, minute: 0 };
+// Pre-schedule 7 days forward so users still get alerts if they don't open the app
+// for a few days. Each mount re-schedules, wiping stale entries.
+const DAILY_AYA_NOTIF_IDS = Array.from({ length: 7 }, (_, i) => `noor-daily-aya-${i}`);
+
+const DAILY_AYA_TITLES: Record<string, string> = {
+    english:    "📖 Today's Ayah",
+    urdu:       '📖 آج کی آیت',
+    indonesian: '📖 Ayat Hari Ini',
+    french:     '📖 Verset du Jour',
+    bengali:    '📖 আজকের আয়াত',
+    turkish:    '📖 Günün Ayeti',
+};
+
+const translationColumnForLanguage = (lang: string): string => {
+    switch (lang) {
+        case 'urdu':       return 'text_urdu';
+        case 'indonesian': return 'text_ind';
+        case 'french':     return 'text_fra';
+        case 'bengali':    return 'text_ben';
+        case 'turkish':    return 'text_tur';
+        default:           return 'text_english';
+    }
+};
+
+async function cancelDailyAyaNotifications() {
+    for (const id of DAILY_AYA_NOTIF_IDS) {
+        await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+    }
+}
+
+async function scheduleDailyAyaNotifications(
+    db: import('expo-sqlite').SQLiteDatabase,
+    hour: number,
+    minute: number,
+    lang: string,
+) {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') return;
+
+    await cancelDailyAyaNotifications();
+
+    const baseTitle = DAILY_AYA_TITLES[lang] ?? DAILY_AYA_TITLES.english;
+    const translationCol = translationColumnForLanguage(lang);
+    const androidChannel = Platform.OS === 'android' ? { channelId: 'adhan' } : {};
+    const now = new Date();
+
+    for (let offset = 0; offset < DAILY_AYA_NOTIF_IDS.length; offset++) {
+        const fireAt = new Date(now);
+        fireAt.setDate(fireAt.getDate() + offset);
+        fireAt.setHours(hour, minute, 0, 0);
+        if (fireAt.getTime() <= now.getTime()) continue;
+
+        // Hijri-month-themed selection: pick a verse whose subject matches the month.
+        // Falls through to Al-Fatiha 1 only if the lookup somehow returns no row.
+        const { surah, ayah, monthName } = getDailyVerseForDate(fireAt);
+        const row = await db.getFirstAsync(
+            `SELECT a.surah_number, a.ayah_number, a.text_arabic, a.${translationCol} AS translation, a.text_english, s.name_english
+             FROM ayahs a JOIN surahs s ON s.number = a.surah_number
+             WHERE a.surah_number = ? AND a.ayah_number = ?
+             LIMIT 1`,
+            [surah, ayah]
+        ).catch(() => null) as any;
+        if (!row) continue;
+
+        const translation = row.translation || row.text_english || '';
+        const arabic = sanitizeArabicText(row.text_arabic || '');
+        const title = monthName ? `${baseTitle} · ${monthName}` : baseTitle;
+        const body = `${arabic}\n\n${translation}\n\n— ${row.name_english} ${row.surah_number}:${row.ayah_number}`;
+
+        try {
+            await Notifications.scheduleNotificationAsync({
+                identifier: DAILY_AYA_NOTIF_IDS[offset],
+                content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
+                trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireAt },
+            });
+        } catch { /* ignore */ }
+    }
+}
+
+// ─── Friday Surah al-Kahf reminder ───────────────────────────────────────────
+// The Prophet ﷺ encouraged reciting Surah al-Kahf every Friday. We pre-schedule
+// the next 4 Fridays at the user-set time so the reminder still fires even if
+// the app isn't opened weekly. Each app launch refreshes the queue.
+const FRIDAY_KAHF_NOTIF_KEY = '@noor/friday_kahf_notif';
+const DEFAULT_FRIDAY_KAHF_PREFS = { enabled: true, hour: 7, minute: 0 };
+const FRIDAY_KAHF_NOTIF_IDS = Array.from({ length: 4 }, (_, i) => `noor-friday-kahf-${i}`);
+
+const FRIDAY_KAHF_STRINGS: Record<string, { title: string; body: string }> = {
+    english:    { title: '🕌 Jumuʿah Mubarak',     body: 'It is Friday — recite Surah al-Kahf for blessings between this Friday and the next.' },
+    urdu:       { title: '🕌 جمعہ مبارک',           body: 'آج جمعہ ہے — اس جمعہ سے اگلے جمعہ تک کی برکتوں کے لیے سورۃ الکہف پڑھیں۔' },
+    indonesian: { title: '🕌 Jumʿah Mubarak',       body: 'Hari Jumat — bacalah Surah al-Kahfi untuk keberkahan hingga Jumat berikutnya.' },
+    french:     { title: '🕌 Joumouʿah Moubarak',   body: "C'est vendredi — récitez Sourate al-Kahf pour les bénédictions jusqu'à vendredi prochain." },
+    bengali:    { title: '🕌 জুমু’আহ মুবারক',         body: 'আজ শুক্রবার — পরবর্তী শুক্রবার পর্যন্ত বরকতের জন্য সূরা আল-কাহফ তিলাওয়াত করুন।' },
+    turkish:    { title: '🕌 Cuma Mübarek',         body: 'Bugün Cuma — bu Cumadan diğerine kadar bereket için Kehf Suresi’ni okuyun.' },
+};
+
+async function cancelFridayKahfNotifications() {
+    for (const id of FRIDAY_KAHF_NOTIF_IDS) {
+        await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+    }
+}
+
+async function scheduleFridayKahfNotifications(hour: number, minute: number, lang: string) {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') return;
+
+    await cancelFridayKahfNotifications();
+
+    const strings = FRIDAY_KAHF_STRINGS[lang] ?? FRIDAY_KAHF_STRINGS.english;
+    const androidChannel = Platform.OS === 'android' ? { channelId: 'adhan' } : {};
+    const now = new Date();
+
+    let next = nextFridayAt(hour, minute, now);
+    for (let i = 0; i < FRIDAY_KAHF_NOTIF_IDS.length; i++) {
+        try {
+            await Notifications.scheduleNotificationAsync({
+                identifier: FRIDAY_KAHF_NOTIF_IDS[i],
+                content: { title: strings.title, body: strings.body, sound: true, color: '#C9A84C', ...androidChannel },
+                trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: next },
+            });
+        } catch { /* ignore */ }
+        next = new Date(next);
+        next.setDate(next.getDate() + 7);
+    }
+}
+
 /**
  * Cancels all prayer-scoped notifications (by identifier) and reschedules
  * them with the given language. Safe to call whenever the set of prayers,
@@ -483,6 +613,8 @@ export default function HomeScreen() {
     const [showNotifModal, setShowNotifModal] = useState(false);
     const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>(DEFAULT_NOTIF_PREFS);
     const [notifPermDenied, setNotifPermDenied] = useState(false);
+    const [dailyAyaPrefs, setDailyAyaPrefs] = useState(DEFAULT_DAILY_AYA_PREFS);
+    const [fridayKahfPrefs, setFridayKahfPrefs] = useState(DEFAULT_FRIDAY_KAHF_PREFS);
 
     // IANA timezone for the prayer location (e.g. "America/Los_Angeles").
     // Comes from AlAdhan API meta.timezone — includes DST, unlike a raw longitude offset.
@@ -516,6 +648,28 @@ export default function HomeScreen() {
             await schedulePrayerNotifications(prayers, notifPrefs, tomorrowFajrRef.current, notifLang);
         })();
     }, [language]);
+
+    // Daily ayah notifications — independent of prayer notifs. Re-runs when the
+    // pref, time, or language changes. Schedules the next 7 days forward so alerts
+    // still fire if the app isn't opened every day; each mount refreshes the queue.
+    useEffect(() => {
+        if (!db) return;
+        if (!dailyAyaPrefs.enabled) {
+            cancelDailyAyaNotifications();
+            return;
+        }
+        scheduleDailyAyaNotifications(db, dailyAyaPrefs.hour, dailyAyaPrefs.minute, language);
+    }, [db, dailyAyaPrefs.enabled, dailyAyaPrefs.hour, dailyAyaPrefs.minute, language]);
+
+    // Friday Surah al-Kahf reminder — pre-schedules the next 4 Fridays so the alert
+    // still fires even if the app sits closed for a few weeks.
+    useEffect(() => {
+        if (!fridayKahfPrefs.enabled) {
+            cancelFridayKahfNotifications();
+            return;
+        }
+        scheduleFridayKahfNotifications(fridayKahfPrefs.hour, fridayKahfPrefs.minute, language);
+    }, [fridayKahfPrefs.enabled, fridayKahfPrefs.hour, fridayKahfPrefs.minute, language]);
 
     const pulseAnim = useRef(new Animated.Value(0)).current;
 
@@ -933,6 +1087,22 @@ export default function HomeScreen() {
             }
         }).catch(() => { });
 
+        // Load daily ayah notification pref
+        AsyncStorage.getItem(DAILY_AYA_NOTIF_KEY).then(saved => {
+            if (!mounted || !saved) return;
+            try { setDailyAyaPrefs({ ...DEFAULT_DAILY_AYA_PREFS, ...JSON.parse(saved) }); } catch {
+                AsyncStorage.removeItem(DAILY_AYA_NOTIF_KEY).catch(() => {});
+            }
+        }).catch(() => { });
+
+        // Load Friday Surah al-Kahf reminder pref
+        AsyncStorage.getItem(FRIDAY_KAHF_NOTIF_KEY).then(saved => {
+            if (!mounted || !saved) return;
+            try { setFridayKahfPrefs({ ...DEFAULT_FRIDAY_KAHF_PREFS, ...JSON.parse(saved) }); } catch {
+                AsyncStorage.removeItem(FRIDAY_KAHF_NOTIF_KEY).catch(() => {});
+            }
+        }).catch(() => { });
+
         // Location + prayer loading
         (async () => {
             // Check for a manually-picked city first — if the user previously chose
@@ -1066,6 +1236,42 @@ export default function HomeScreen() {
         await schedulePrayerNotifications(prayers, newPrefs, tomorrowFajrRef.current, currentNotifLang());
     };
 
+    const toggleDailyAyaNotif = async () => {
+        const next = { ...dailyAyaPrefs, enabled: !dailyAyaPrefs.enabled };
+        setDailyAyaPrefs(next);
+        try { await AsyncStorage.setItem(DAILY_AYA_NOTIF_KEY, JSON.stringify(next)); } catch { }
+        if (next.enabled) {
+            const { status } = await Notifications.getPermissionsAsync();
+            if (status !== 'granted') setNotifPermDenied(true);
+            else setNotifPermDenied(false);
+        }
+        // Scheduling itself is driven by the effect that watches dailyAyaPrefs.
+    };
+
+    const formatDailyAyaTime = () => {
+        const h = dailyAyaPrefs.hour % 12 || 12;
+        const m = dailyAyaPrefs.minute.toString().padStart(2, '0');
+        return `${h}:${m} ${dailyAyaPrefs.hour >= 12 ? 'PM' : 'AM'}`;
+    };
+
+    const toggleFridayKahfNotif = async () => {
+        const next = { ...fridayKahfPrefs, enabled: !fridayKahfPrefs.enabled };
+        setFridayKahfPrefs(next);
+        try { await AsyncStorage.setItem(FRIDAY_KAHF_NOTIF_KEY, JSON.stringify(next)); } catch { }
+        if (next.enabled) {
+            const { status } = await Notifications.getPermissionsAsync();
+            if (status !== 'granted') setNotifPermDenied(true);
+            else setNotifPermDenied(false);
+        }
+        // Scheduling driven by the effect that watches fridayKahfPrefs.
+    };
+
+    const formatFridayKahfTime = () => {
+        const h = fridayKahfPrefs.hour % 12 || 12;
+        const m = fridayKahfPrefs.minute.toString().padStart(2, '0');
+        return `Friday ${h}:${m} ${fridayKahfPrefs.hour >= 12 ? 'PM' : 'AM'}`;
+    };
+
     // Apply a city from the picker — persists to AsyncStorage and reloads prayers
     // so the user gets accurate times for the selected location immediately.
     const pickCity = async (city: typeof CITY_PRESETS[number]) => {
@@ -1158,10 +1364,20 @@ export default function HomeScreen() {
                     </View>
                 </View>
                 <View style={styles.headerRight}>
-                    <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/(tabs)/discover/ask' as any)}>
+                    <TouchableOpacity
+                        style={styles.iconBtn}
+                        onPress={() => router.push('/(tabs)/discover/ask' as any)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Ask AiDeen, Islamic search"
+                    >
                         <Feather name="search" size={20} color={theme.textPrimary} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.iconBtn, { marginLeft: 8 }]} onPress={() => setShowNotifModal(true)}>
+                    <TouchableOpacity
+                        style={[styles.iconBtn, { marginLeft: 8 }]}
+                        onPress={() => setShowNotifModal(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Adhan notification preferences"
+                    >
                         <Feather name="bell" size={20} color={theme.textPrimary} />
                         {Object.values(notifPrefs).some(v => v) && <View style={[styles.notificationDot, { borderColor: theme.bg }]} />}
                     </TouchableOpacity>
@@ -1178,6 +1394,8 @@ export default function HomeScreen() {
                         style={[styles.nowPlayingPill, { backgroundColor: theme.bgCard, borderColor: theme.gold }]}
                         onPress={() => router.push(`/(tabs)/quran/${audioState.sourceId}` as any)}
                         activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Now playing ${audioState.title || 'Quran'}, tap to open reader`}
                     >
                         <Feather
                             name={audioState.isPlaying ? 'volume-2' : 'pause'}
@@ -1248,6 +1466,9 @@ export default function HomeScreen() {
                                                 toggleNotif(nextPrayerId);
                                             }}
                                             disabled={!nextPrayerId}
+                                            accessibilityRole="switch"
+                                            accessibilityLabel={`${nextPrayerName} adhan alert`}
+                                            accessibilityState={{ checked: nextAlertOn, disabled: !nextPrayerId }}
                                         >
                                             <Feather
                                                 name={nextAlertOn ? 'bell' : 'bell-off'}
@@ -1275,7 +1496,12 @@ export default function HomeScreen() {
                     <View style={styles.quickActionsGrid}>
                         {QUICK_ACTIONS.map((tool, idx) => (
                             <View key={idx} style={styles.quickToolItem}>
-                                <TouchableOpacity onPress={() => router.push(tool.route as any)} activeOpacity={0.82}>
+                                <TouchableOpacity
+                                    onPress={() => router.push(tool.route as any)}
+                                    activeOpacity={0.82}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={tool.title}
+                                >
                                     <LinearGradient colors={tool.gradient} style={styles.quickToolIconBox} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                                         <Feather name={tool.icon as any} size={26} color="#FFFFFF" />
                                     </LinearGradient>
@@ -1292,7 +1518,13 @@ export default function HomeScreen() {
                         <Text style={[styles.prayerListTitle, { color: theme.textPrimary }]}>Prayer Times</Text>
                         {/* Location tag — tap to change city. Replaces the previous full-screen
                             "permission required" wall when GPS is denied (#4). */}
-                        <TouchableOpacity style={styles.locationTag} onPress={() => setShowCityPicker(true)} hitSlop={8}>
+                        <TouchableOpacity
+                            style={styles.locationTag}
+                            onPress={() => setShowCityPicker(true)}
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Change city, currently ${locationName}`}
+                        >
                             <Feather name="map-pin" size={12} color={envGradient[0]} style={{ marginRight: 4 }} />
                             <Text style={[styles.locationTagName, { color: envGradient[0] }]}>{locationName}</Text>
                             <Feather name="edit-2" size={11} color={envGradient[0]} style={{ marginLeft: 6 }} />
@@ -1300,7 +1532,12 @@ export default function HomeScreen() {
                     </View>
 
                     {/* Active calculation method pill */}
-                    <TouchableOpacity style={[styles.methodPill, { backgroundColor: theme.bgSecondary }]} onPress={openPrayerSettings}>
+                    <TouchableOpacity
+                        style={[styles.methodPill, { backgroundColor: theme.bgSecondary }]}
+                        onPress={openPrayerSettings}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Calculation method: ${currentMethodName}, tap to change`}
+                    >
                         <Feather name="sliders" size={11} color={theme.textSecondary} />
                         <Text style={[styles.methodPillText, { color: theme.textSecondary }]}>{currentMethodName}</Text>
                         <Feather name="chevron-right" size={11} color={theme.textTertiary} />
@@ -1338,6 +1575,9 @@ export default function HomeScreen() {
                                             }}
                                             style={styles.bellToggleBtn}
                                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                            accessibilityRole="switch"
+                                            accessibilityLabel={`${prayer.name} adhan alert`}
+                                            accessibilityState={{ checked: !!notifPrefs[prayer.id] }}
                                         >
                                             <Feather
                                                 name={notifPrefs[prayer.id] ? 'bell' : 'bell-off'}
@@ -1392,10 +1632,15 @@ export default function HomeScreen() {
                         <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
                         <View style={styles.sheetHeaderRow}>
                             <View>
-                                <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>Prayer Notifications</Text>
-                                <Text style={[styles.sheetSubtitle, { color: theme.textSecondary }]}>Toggle alerts for each prayer</Text>
+                                <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>Notifications</Text>
+                                <Text style={[styles.sheetSubtitle, { color: theme.textSecondary }]}>Prayer times and daily ayah</Text>
                             </View>
-                            <TouchableOpacity onPress={() => setShowNotifModal(false)} style={[styles.sheetCloseBtn, { backgroundColor: theme.bgSecondary }]}>
+                            <TouchableOpacity
+                                onPress={() => setShowNotifModal(false)}
+                                style={[styles.sheetCloseBtn, { backgroundColor: theme.bgSecondary }]}
+                                accessibilityRole="button"
+                                accessibilityLabel="Close notification settings"
+                            >
                                 <Feather name="x" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
@@ -1423,11 +1668,45 @@ export default function HomeScreen() {
                                 />
                             </View>
                         ))}
+                        <View style={[styles.notifRow, { borderBottomColor: theme.border, borderTopColor: theme.border, borderTopWidth: 1, marginTop: 8, paddingTop: 16 }]}>
+                            <View style={[styles.notifIcon, { backgroundColor: dailyAyaPrefs.enabled ? theme.accentLight : theme.bgSecondary }]}>
+                                <Feather name="book-open" size={18} color={dailyAyaPrefs.enabled ? theme.gold : theme.textTertiary} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.notifPrayerName, { color: theme.textPrimary }]}>Daily Ayah</Text>
+                                <Text style={[styles.notifPrayerTime, { color: theme.textSecondary }]}>{formatDailyAyaTime()}</Text>
+                            </View>
+                            <Switch
+                                value={dailyAyaPrefs.enabled}
+                                onValueChange={toggleDailyAyaNotif}
+                                trackColor={{ false: theme.border, true: theme.gold }}
+                                thumbColor={'#FFFFFF'}
+                                ios_backgroundColor={theme.border}
+                            />
+                        </View>
+                        <View style={[styles.notifRow, { borderBottomColor: theme.border }]}>
+                            <View style={[styles.notifIcon, { backgroundColor: fridayKahfPrefs.enabled ? theme.accentLight : theme.bgSecondary }]}>
+                                <Feather name="star" size={18} color={fridayKahfPrefs.enabled ? theme.gold : theme.textTertiary} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.notifPrayerName, { color: theme.textPrimary }]}>Friday Surah al-Kahf</Text>
+                                <Text style={[styles.notifPrayerTime, { color: theme.textSecondary }]}>{formatFridayKahfTime()}</Text>
+                            </View>
+                            <Switch
+                                value={fridayKahfPrefs.enabled}
+                                onValueChange={toggleFridayKahfNotif}
+                                trackColor={{ false: theme.border, true: theme.gold }}
+                                thumbColor={'#FFFFFF'}
+                                ios_backgroundColor={theme.border}
+                            />
+                        </View>
                         {notifPermDenied ? (
                             <TouchableOpacity
                                 style={[styles.notifFooter, { backgroundColor: theme.accentLight, borderRadius: 10, padding: 10 }]}
                                 onPress={() => Linking.openSettings()}
                                 activeOpacity={0.8}
+                                accessibilityRole="button"
+                                accessibilityLabel="Open settings to enable notifications"
                             >
                                 <Feather name="alert-circle" size={13} color={theme.gold} />
                                 <Text style={[styles.notifFooterText, { color: theme.gold }]}>Permission denied — tap to open Settings and enable notifications.</Text>
@@ -1460,7 +1739,12 @@ export default function HomeScreen() {
                                 <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>Prayer Time Settings</Text>
                                 <Text style={[styles.sheetSubtitle, { color: theme.textSecondary }]}>Tap × to save and close</Text>
                             </View>
-                            <TouchableOpacity onPress={applyPrayerSettings} style={[styles.sheetCloseBtn, { backgroundColor: theme.bgSecondary }]}>
+                            <TouchableOpacity
+                                onPress={applyPrayerSettings}
+                                style={[styles.sheetCloseBtn, { backgroundColor: theme.bgSecondary }]}
+                                accessibilityRole="button"
+                                accessibilityLabel="Save and close prayer settings"
+                            >
                                 <Feather name="x" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
@@ -1480,6 +1764,9 @@ export default function HomeScreen() {
                                         ]}
                                         onPress={() => setDraftMethod(m.id)}
                                         activeOpacity={0.7}
+                                        accessibilityRole="radio"
+                                        accessibilityLabel={`${m.name}, ${m.region}`}
+                                        accessibilityState={{ selected: isSelected, checked: isSelected }}
                                     >
                                         <View style={[styles.methodRadio, { borderColor: theme.border }, isSelected && [styles.methodRadioActive, { borderColor: theme.gold }]]}>
                                             {isSelected && <View style={[styles.methodRadioDot, { backgroundColor: theme.gold }]} />}
@@ -1508,6 +1795,9 @@ export default function HomeScreen() {
                                             draftSchool === 0 && [styles.asrOptionActive, { backgroundColor: theme.accentLight, borderColor: theme.gold }]
                                         ]}
                                         onPress={() => setDraftSchool(0)}
+                                        accessibilityRole="radio"
+                                        accessibilityLabel="Asr standard, Shafi'i Maliki Hanbali"
+                                        accessibilityState={{ selected: draftSchool === 0, checked: draftSchool === 0 }}
                                     >
                                         <Text style={[styles.asrOptionTitle, { color: theme.textSecondary }, draftSchool === 0 && [styles.asrOptionTitleActive, { color: theme.textPrimary }]]}>Standard</Text>
                                         <Text style={[styles.asrOptionSub, { color: theme.textTertiary }]}>Shafi'i · Maliki · Hanbali</Text>
@@ -1519,6 +1809,9 @@ export default function HomeScreen() {
                                             draftSchool === 1 && [styles.asrOptionActive, { backgroundColor: theme.accentLight, borderColor: theme.gold }]
                                         ]}
                                         onPress={() => setDraftSchool(1)}
+                                        accessibilityRole="radio"
+                                        accessibilityLabel="Asr Hanafi"
+                                        accessibilityState={{ selected: draftSchool === 1, checked: draftSchool === 1 }}
                                     >
                                         <Text style={[styles.asrOptionTitle, { color: theme.textSecondary }, draftSchool === 1 && [styles.asrOptionTitleActive, { color: theme.textPrimary }]]}>Hanafi</Text>
                                     </TouchableOpacity>
@@ -1548,7 +1841,12 @@ export default function HomeScreen() {
                                     {usingManualLocation ? 'Currently using a manual location' : 'Currently using your device location'}
                                 </Text>
                             </View>
-                            <TouchableOpacity onPress={() => setShowCityPicker(false)} style={[styles.sheetCloseBtn, { backgroundColor: theme.bgSecondary }]}>
+                            <TouchableOpacity
+                                onPress={() => setShowCityPicker(false)}
+                                style={[styles.sheetCloseBtn, { backgroundColor: theme.bgSecondary }]}
+                                accessibilityRole="button"
+                                accessibilityLabel="Close city picker"
+                            >
                                 <Feather name="x" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
@@ -1564,7 +1862,12 @@ export default function HomeScreen() {
                                 onChangeText={setCitySearchQuery}
                             />
                             {citySearchQuery.length > 0 && (
-                                <TouchableOpacity onPress={() => setCitySearchQuery('')} hitSlop={8}>
+                                <TouchableOpacity
+                                    onPress={() => setCitySearchQuery('')}
+                                    hitSlop={8}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Clear search"
+                                >
                                     <Feather name="x-circle" size={16} color={theme.textTertiary} />
                                 </TouchableOpacity>
                             )}
@@ -1574,6 +1877,9 @@ export default function HomeScreen() {
                         <TouchableOpacity
                             style={[styles.cityRow, { backgroundColor: theme.accentLight, borderColor: theme.gold }]}
                             onPress={useDeviceLocation}
+                            accessibilityRole="button"
+                            accessibilityLabel="Use my current location"
+                            accessibilityState={{ selected: !usingManualLocation }}
                         >
                             <Feather name="navigation" size={18} color={theme.gold} style={{ marginRight: 12 }} />
                             <View style={{ flex: 1 }}>
@@ -1603,6 +1909,9 @@ export default function HomeScreen() {
                                             ]}
                                             onPress={() => pickCity(c)}
                                             activeOpacity={0.75}
+                                            accessibilityRole="button"
+                                            accessibilityLabel={`${c.name}, ${c.country}`}
+                                            accessibilityState={{ selected: isSelected }}
                                         >
                                             <View style={{ flex: 1 }}>
                                                 <Text style={[styles.cityName, { color: theme.textPrimary }]}>{c.name}</Text>

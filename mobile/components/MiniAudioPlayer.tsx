@@ -48,15 +48,34 @@ export default function MiniAudioPlayer() {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.bgCard, borderTopColor: theme.border, bottom: tabBarHeight }]}>
-            <TouchableOpacity style={styles.infoContainer} onPress={handleInfoPress} activeOpacity={0.7}>
+            <TouchableOpacity
+                style={styles.infoContainer}
+                onPress={handleInfoPress}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Now playing ${title || 'Quran'} by ${reciter}`}
+                accessibilityHint="Opens the full audio player"
+            >
                 <Text style={[styles.title, { color: theme.textPrimary }]} numberOfLines={1}>{title || 'Quran'}</Text>
                 <Text style={[styles.reciter, { color: theme.textSecondary }]} numberOfLines={1}>{reciter}</Text>
             </TouchableOpacity>
             <View style={styles.controls}>
-                <TouchableOpacity style={styles.controlButton} onPress={togglePlay}>
+                <TouchableOpacity
+                    style={styles.controlButton}
+                    onPress={togglePlay}
+                    accessibilityRole="button"
+                    accessibilityLabel={isPlaying ? 'Pause audio' : 'Play audio'}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
                     <Feather name={isPlaying ? 'pause' : 'play'} size={22} color={theme.gold} />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.controlButton} onPress={stopAudio}>
+                <TouchableOpacity
+                    style={styles.controlButton}
+                    onPress={stopAudio}
+                    accessibilityRole="button"
+                    accessibilityLabel="Stop audio"
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
                     <Feather name="x" size={20} color={theme.textTertiary} />
                 </TouchableOpacity>
             </View>

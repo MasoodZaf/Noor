@@ -11,7 +11,7 @@ import { useNetworkMode } from '../../../context/NetworkModeContext';
 
 // ─── Fawaz Hadith API (no auth required) ──────────────────────────────────────
 // Same CDN as the Quran API already integrated. 440+ editions, 90+ languages.
-const FAWAZ_HADITH = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1';
+import { FAWAZ_HADITH } from '../../../utils/apis';
 
 // Arabic script editions per collection
 const ARA_EDITIONS: Record<string, string> = {
@@ -396,12 +396,20 @@ export default function HadithCollectionScreen() {
                     </Text>
 
                     <View style={[styles.actionRow, { borderTopColor: theme.border }]}>
-                        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.bgInput }]} onPress={() => shareHadith(item)}>
+                        <TouchableOpacity
+                            style={[styles.actionBtn, { backgroundColor: theme.bgInput }]}
+                            onPress={() => shareHadith(item)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Share hadith"
+                        >
                             <Feather name="share-2" size={18} color={theme.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.actionBtn, { backgroundColor: isBookmarked(item) ? theme.accentLight : theme.bgInput }]}
                             onPress={() => toggleBookmark(item)}
+                            accessibilityRole="button"
+                            accessibilityLabel={isBookmarked(item) ? 'Remove bookmark' : 'Bookmark hadith'}
+                            accessibilityState={{ selected: isBookmarked(item) }}
                         >
                             <Feather name="bookmark" size={18} color={isBookmarked(item) ? theme.accent : theme.textSecondary} />
                         </TouchableOpacity>
@@ -424,7 +432,12 @@ export default function HadithCollectionScreen() {
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: theme.border }]}>
-                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => router.back()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="arrow-left" size={24} color={meta.color} />
                 </TouchableOpacity>
                 <View style={{ alignItems: 'center' }}>
@@ -438,7 +451,9 @@ export default function HadithCollectionScreen() {
                 <TouchableOpacity
                     style={styles.filterButton}
                     onPress={toggleBookmarkedOnly}
+                    accessibilityRole="button"
                     accessibilityLabel={showBookmarkedOnly ? 'Show all hadiths' : 'Show bookmarked only'}
+                    accessibilityState={{ selected: showBookmarkedOnly }}
                 >
                     <Feather
                         name="bookmark"

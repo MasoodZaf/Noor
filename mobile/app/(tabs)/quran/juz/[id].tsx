@@ -26,9 +26,7 @@ const fetchWithTimeout = async (url: string, timeoutMs = 10000): Promise<Respons
 };
 
 // ─── APIs ─────────────────────────────────────────────────────────────────────
-const QURAN_API = 'https://api.quran.com/api/v4';
-const AUDIO_API = 'https://api.alquran.cloud/v1';
-const FAWAZ_API = 'https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1';
+import { QURAN_API, ALQURAN_CLOUD_API as AUDIO_API, FAWAZ_QURAN as FAWAZ_API } from '../../../../utils/apis';
 
 const FAWAZ_EDITIONS: Record<string, string> = {
     english:    'eng-muftitaqiusmani',
@@ -493,14 +491,24 @@ export default function JuzReaderScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
-                    <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => router.back()}
+                        accessibilityRole="button"
+                        accessibilityLabel="Go back"
+                    >
                         <Feather name="arrow-left" size={24} color={theme.textPrimary} />
                     </TouchableOpacity>
                     <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Juz {id}</Text>
                 </View>
                 <View style={styles.headerRight}>
                     {translationLoading && <ActivityIndicator size="small" color={theme.gold} style={{ marginRight: 8 }} />}
-                    <TouchableOpacity style={styles.actionButton} onPress={() => setShowSettings(true)}>
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => setShowSettings(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Reading settings"
+                    >
                         <Feather name="settings" size={22} color={theme.textPrimary} />
                     </TouchableOpacity>
                 </View>
@@ -535,7 +543,12 @@ export default function JuzReaderScreen() {
                     <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20, backgroundColor: theme.bgCard }]}>
                         <View style={styles.modalHeader}>
                             <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Reading Settings</Text>
-                            <TouchableOpacity onPress={() => setShowSettings(false)}>
+                            <TouchableOpacity
+                                onPress={() => setShowSettings(false)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Close settings"
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
                                 <Feather name="x" size={24} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
@@ -548,6 +561,9 @@ export default function JuzReaderScreen() {
                                     style={[styles.settingOption, { borderBottomColor: theme.border },
                                         selectedFont.id === font.id && { backgroundColor: `${theme.accent}0D` }]}
                                     onPress={() => setSelectedFont(font)}
+                                    accessibilityRole="radio"
+                                    accessibilityLabel={`Arabic font: ${font.name}`}
+                                    accessibilityState={{ selected: selectedFont.id === font.id, checked: selectedFont.id === font.id }}
                                 >
                                     <Text style={[styles.settingOptionText, { color: theme.textPrimary },
                                         selectedFont.id === font.id && { color: theme.accent }]}>
@@ -560,11 +576,21 @@ export default function JuzReaderScreen() {
 
                         <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Text Size ({fontSize}pt)</Text>
                         <View style={[styles.sizeRow, { backgroundColor: theme.bgSecondary }]}>
-                            <TouchableOpacity style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]} onPress={() => setFontSize(f => Math.max(20, f - 2))}>
+                            <TouchableOpacity
+                                style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]}
+                                onPress={() => setFontSize(f => Math.max(20, f - 2))}
+                                accessibilityRole="button"
+                                accessibilityLabel="Decrease text size"
+                            >
                                 <Feather name="minus" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                             <Text style={[styles.sizeSample, { color: theme.accent }]}>Aa</Text>
-                            <TouchableOpacity style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]} onPress={() => setFontSize(f => Math.min(56, f + 2))}>
+                            <TouchableOpacity
+                                style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]}
+                                onPress={() => setFontSize(f => Math.min(56, f + 2))}
+                                accessibilityRole="button"
+                                accessibilityLabel="Increase text size"
+                            >
                                 <Feather name="plus" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>

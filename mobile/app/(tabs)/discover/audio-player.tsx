@@ -223,7 +223,13 @@ export default function AudioPlayerScreen() {
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: theme.border, backgroundColor: theme.bgCard }]}>
-                <TouchableOpacity onPress={goBack} style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity
+                    onPress={goBack}
+                    style={styles.backBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="chevron-left" size={26} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
@@ -241,6 +247,9 @@ export default function AudioPlayerScreen() {
                         style={styles.speedBtn}
                         onPress={cycleSpeed}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Playback speed ${SPEEDS[speedIdx]} times`}
+                        accessibilityHint="Tap to cycle playback speed"
                     >
                         <Text style={[styles.speedText, { color: theme.textSecondary }]}>
                             {SPEEDS[speedIdx]}×
@@ -251,6 +260,8 @@ export default function AudioPlayerScreen() {
                         style={styles.speedBtn}
                         onPress={() => { setWebLoading(true); setWebReload(k => k + 1); }}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Reload"
                     >
                         <Feather name="refresh-cw" size={18} color={theme.textSecondary} />
                     </TouchableOpacity>
@@ -325,6 +336,9 @@ export default function AudioPlayerScreen() {
                                     seek(locationX / seekTrackWidth.current);
                                 }}
                                 activeOpacity={1}
+                                accessibilityRole="adjustable"
+                                accessibilityLabel="Audio progress"
+                                accessibilityValue={{ min: 0, max: 100, now: durationMs > 0 ? Math.round((positionMs / durationMs) * 100) : 0 }}
                             >
                                 <View
                                     style={[
@@ -365,13 +379,23 @@ export default function AudioPlayerScreen() {
                     {!avLoading && !avError && (
                         <View style={styles.controls}>
                             {/* −30s */}
-                            <TouchableOpacity style={styles.controlBtn} onPress={() => skipSeconds(-30)}>
+                            <TouchableOpacity
+                                style={styles.controlBtn}
+                                onPress={() => skipSeconds(-30)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Rewind 30 seconds"
+                            >
                                 <Feather name="rotate-ccw" size={22} color={theme.textSecondary} />
                                 <Text style={[styles.controlLabel, { color: theme.textSecondary }]}>30</Text>
                             </TouchableOpacity>
 
                             {/* −10s */}
-                            <TouchableOpacity style={styles.controlBtn} onPress={() => skipSeconds(-10)}>
+                            <TouchableOpacity
+                                style={styles.controlBtn}
+                                onPress={() => skipSeconds(-10)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Skip back 10 seconds"
+                            >
                                 <Feather name="skip-back" size={22} color={theme.textPrimary} />
                             </TouchableOpacity>
 
@@ -380,6 +404,9 @@ export default function AudioPlayerScreen() {
                                 style={[styles.playBtn, { backgroundColor: accentColor }]}
                                 onPress={togglePlay}
                                 disabled={!!buffering}
+                                accessibilityRole="button"
+                                accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
+                                accessibilityState={{ disabled: !!buffering, busy: !!buffering }}
                             >
                                 {buffering
                                     ? <ActivityIndicator color={theme.textInverse} />
@@ -393,12 +420,22 @@ export default function AudioPlayerScreen() {
                             </TouchableOpacity>
 
                             {/* +10s */}
-                            <TouchableOpacity style={styles.controlBtn} onPress={() => skipSeconds(10)}>
+                            <TouchableOpacity
+                                style={styles.controlBtn}
+                                onPress={() => skipSeconds(10)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Skip forward 10 seconds"
+                            >
                                 <Feather name="skip-forward" size={22} color={theme.textPrimary} />
                             </TouchableOpacity>
 
                             {/* +30s */}
-                            <TouchableOpacity style={styles.controlBtn} onPress={() => skipSeconds(30)}>
+                            <TouchableOpacity
+                                style={styles.controlBtn}
+                                onPress={() => skipSeconds(30)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Forward 30 seconds"
+                            >
                                 <Feather name="rotate-cw" size={22} color={theme.textSecondary} />
                                 <Text style={[styles.controlLabel, { color: theme.textSecondary }]}>30</Text>
                             </TouchableOpacity>

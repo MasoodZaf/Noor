@@ -168,13 +168,25 @@ export default function TasbihScreen() {
 
             {/* ── Header ── */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={goBack} style={styles.headerBtn}>
+                <TouchableOpacity
+                    onPress={goBack}
+                    style={styles.headerBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="arrow-left" size={22} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Tasbih</Text>
                 <View style={styles.headerActionsRow}>
                     {/* Sound toggle (#9) */}
-                    <TouchableOpacity onPress={toggleSound} style={styles.headerBtnSmall} hitSlop={6}>
+                    <TouchableOpacity
+                        onPress={toggleSound}
+                        style={styles.headerBtnSmall}
+                        hitSlop={6}
+                        accessibilityRole="switch"
+                        accessibilityLabel="Tap sound"
+                        accessibilityState={{ checked: soundEnabled }}
+                    >
                         <Feather
                             name={soundEnabled ? 'volume-2' : 'volume-x'}
                             size={18}
@@ -182,7 +194,14 @@ export default function TasbihScreen() {
                         />
                     </TouchableOpacity>
                     {/* Haptics toggle (#9) */}
-                    <TouchableOpacity onPress={toggleHaptics} style={styles.headerBtnSmall} hitSlop={6}>
+                    <TouchableOpacity
+                        onPress={toggleHaptics}
+                        style={styles.headerBtnSmall}
+                        hitSlop={6}
+                        accessibilityRole="switch"
+                        accessibilityLabel="Haptic feedback"
+                        accessibilityState={{ checked: hapticsEnabled }}
+                    >
                         <Feather
                             name={hapticsEnabled ? 'smartphone' : 'slash'}
                             size={18}
@@ -208,6 +227,9 @@ export default function TasbihScreen() {
                             activePreset.id === preset.id && { backgroundColor: theme.gold, borderColor: theme.gold },
                         ]}
                         onPress={() => setActivePreset(preset)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${preset.label}, target ${preset.target}`}
+                        accessibilityState={{ selected: activePreset.id === preset.id }}
                     >
                         <Text style={[
                             styles.pillText,
@@ -221,7 +243,12 @@ export default function TasbihScreen() {
             </ScrollView>
 
             {/* ── Tap area (ring + digital counter) ── */}
-            <TouchableWithoutFeedback onPress={handlePress}>
+            <TouchableWithoutFeedback
+                onPress={handlePress}
+                accessibilityRole="button"
+                accessibilityLabel={`Increment count, currently ${inRoundCount} of ${activePreset.target}`}
+                accessibilityHint="Tap anywhere in this area to increment the tasbih counter"
+            >
                 <View style={styles.mainArea}>
 
                     {/* Arabic dhikr */}
@@ -277,6 +304,8 @@ export default function TasbihScreen() {
                     style={[styles.resetBtn, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
                     onPress={handleReset}
                     activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Reset counter"
                 >
                     <Feather name="refresh-cw" size={16} color={theme.textPrimary} />
                     <Text style={[styles.resetBtnText, { color: theme.textPrimary }]}>Reset Counter</Text>

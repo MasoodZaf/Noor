@@ -19,14 +19,10 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useNetworkMode } from '../../../context/NetworkModeContext';
 
 // ─── APIs ─────────────────────────────────────────────────────────────────────
-// Arabic text — Quran.com v4 API (verified against King Fahd Complex Medina Mushaf)
-const QURAN_API = 'https://api.quran.com/api/v4';
+import { QURAN_API, ALQURAN_CLOUD_API as AUDIO_API } from '../../../utils/apis';
 
 // Audio CDN — verses.quran.com (download.quranicaudio.com no longer serves these paths)
 const AUDIO_CDN = 'https://verses.quran.com/';
-
-// Translations — AlQuran Cloud (urdu) + Fawaz CDN (others)
-const AUDIO_API = 'https://api.alquran.cloud/v1';
 const FAWAZ_API = 'https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1';
 
 const FAWAZ_EDITIONS: Record<string, string> = {
@@ -467,7 +463,7 @@ export default function QuranReaderScreen() {
             if (isOfflineMode) {
                 try {
                     if (db) {
-                        const surah = await db.getFirstAsync('SELECT * FROM surahs WHERE number = ?', [surahId]) as any;
+                        const surah = await db.getFirstAsync<{ number: number; name_english: string; name_arabic: string; ayah_count: number; revelation_place: string }>('SELECT * FROM surahs WHERE number = ?', [surahId]);
                         if (!mounted) return;
                         setSurahInfo({
                             ...surah,
@@ -566,7 +562,7 @@ export default function QuranReaderScreen() {
                 setIsOffline(isOfflineMode);
                 if (db) {
                     try {
-                        const surah = await db.getFirstAsync('SELECT * FROM surahs WHERE number = ?', [surahId]) as any;
+                        const surah = await db.getFirstAsync<{ number: number; name_english: string; name_arabic: string; ayah_count: number; revelation_place: string }>('SELECT * FROM surahs WHERE number = ?', [surahId]);
                         if (!mounted) return;
                         setSurahInfo({
                             ...surah,
@@ -1004,7 +1000,12 @@ export default function QuranReaderScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
-                    <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => router.back()}
+                        accessibilityRole="button"
+                        accessibilityLabel="Go back"
+                    >
                         <Feather name="arrow-left" size={24} color={theme.textPrimary} />
                     </TouchableOpacity>
                     <Text style={[styles.surahTitle, { color: theme.textPrimary }]}>{surahInfo?.name_english || 'Al-Fatihah'}</Text>
@@ -1012,10 +1013,20 @@ export default function QuranReaderScreen() {
                 </View>
                 <View style={styles.headerRight}>
                     {/* Bookmarks list (#21) — opens a modal showing all saved ayahs. */}
-                    <TouchableOpacity style={styles.actionButton} onPress={() => setShowBookmarks(true)}>
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => setShowBookmarks(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`View bookmarks${bookmarks.length > 0 ? `, ${bookmarks.length} saved` : ''}`}
+                    >
                         <Feather name="bookmark" size={22} color={bookmarks.length > 0 ? QURAN_GOLD : theme.textPrimary} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton} onPress={() => setShowSettings(true)}>
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => setShowSettings(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Reading settings"
+                    >
                         <Feather name="settings" size={22} color={theme.textPrimary} />
                     </TouchableOpacity>
                 </View>
@@ -1090,6 +1101,9 @@ export default function QuranReaderScreen() {
                                 <TouchableOpacity
                                     style={[styles.ayahPillBadge, { backgroundColor: theme.bgSecondary }, isCurrent && { backgroundColor: QURAN_ACCENT }]}
                                     onPress={() => { autoPlayRef.current = false; playNextAyah(index); }}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Play ayah ${ayah.surah_number}:${ayah.ayah_number}`}
+                                    accessibilityState={{ selected: isCurrent }}
                                 >
                                     <Text style={[styles.ayahPillText, { color: theme.textSecondary }, isCurrent && { color: '#FFFFFF' }]}>
                                         {ayah.surah_number}:{ayah.ayah_number}
@@ -1107,6 +1121,9 @@ export default function QuranReaderScreen() {
                                     style={styles.bookmarkBtn}
                                     onPress={() => toggleBookmark(ayah)}
                                     hitSlop={8}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={isBookmarked(ayah.surah_number, ayah.ayah_number) ? 'Remove bookmark' : 'Bookmark ayah'}
+                                    accessibilityState={{ selected: isBookmarked(ayah.surah_number, ayah.ayah_number) }}
                                 >
                                     <Feather
                                         name="bookmark"
@@ -1197,6 +1214,8 @@ export default function QuranReaderScreen() {
                                     style={styles.urduPickerBtn}
                                     onPress={() => setShowUrduPicker(true)}
                                     activeOpacity={0.75}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Change Urdu translation edition"
                                 >
                                     <Text style={[styles.urduPickerLabel, { color: QURAN_ACCENT }]}>
                                         {URDU_EDITIONS.find(e => e.id === urduEdition)?.name ?? 'Translation'}
@@ -1215,6 +1234,9 @@ export default function QuranReaderScreen() {
                                     style={styles.ayahActionBtn}
                                     onPress={() => toggleTafseer(ayah.id, ayah.surah_number, ayah.ayah_number)}
                                     activeOpacity={0.7}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Show tafsir"
+                                    accessibilityState={{ expanded: openTafseers.has(ck) }}
                                 >
                                     <Feather name="book-open" size={13} color={openTafseers.has(ck) ? QURAN_ACCENT : theme.textTertiary} />
                                     <Text style={[styles.ayahActionLabel, { color: openTafseers.has(ck) ? QURAN_ACCENT : theme.textTertiary }]}>
@@ -1263,12 +1285,22 @@ export default function QuranReaderScreen() {
                             : `Continue to Ayah ${ayahs[pendingNextIndex]?.ayah_number}?`}
                     </Text>
                     <View style={styles.continuePromptButtons}>
-                        <TouchableOpacity style={styles.stopButton} onPress={handleStop}>
+                        <TouchableOpacity
+                            style={styles.stopButton}
+                            onPress={handleStop}
+                            accessibilityRole="button"
+                            accessibilityLabel="Stop playback"
+                        >
                             <Feather name="square" size={14} color="#8C4B40" />
                             <Text style={styles.stopButtonText}>Stop</Text>
                         </TouchableOpacity>
                         {pendingNextIndex < ayahs.length && (
-                            <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
+                            <TouchableOpacity
+                                style={styles.continueButton}
+                                onPress={handleContinue}
+                                accessibilityRole="button"
+                                accessibilityLabel="Continue to next ayah"
+                            >
                                 <Text style={styles.continueButtonText}>Continue</Text>
                                 <Feather name="play" size={14} color="#FFFFFF" style={{ marginLeft: 4 }} />
                             </TouchableOpacity>
@@ -1280,7 +1312,12 @@ export default function QuranReaderScreen() {
             {/* Docked Audio Player */}
             <View style={[styles.audioPlayerContainer, { paddingBottom: Math.max(insets.bottom, 20), backgroundColor: theme.bg, borderTopColor: theme.border }]}>
                 <View style={[styles.audioPlayerPanel, { backgroundColor: theme.bgCard }]}>
-                    <TouchableOpacity style={[styles.playButton, { backgroundColor: theme.bgSecondary }]} onPress={togglePlay}>
+                    <TouchableOpacity
+                        style={[styles.playButton, { backgroundColor: theme.bgSecondary }]}
+                        onPress={togglePlay}
+                        accessibilityRole="button"
+                        accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
+                    >
                         <Feather name={isPlaying ? 'pause' : 'play'} size={22} color={theme.textPrimary} style={{ marginLeft: isPlaying ? 0 : 2 }} />
                     </TouchableOpacity>
                     <View style={styles.audioInfo}>
@@ -1289,6 +1326,8 @@ export default function QuranReaderScreen() {
                             onPress={() => setShowReciterPicker(true)}
                             style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
                             activeOpacity={0.7}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Reciter ${selectedReciter.name}, tap to change`}
                         >
                             <Text style={[styles.audioSubtitle, { color: theme.accent }]} numberOfLines={1}>
                                 {isPlaying || positionMillis > 0
@@ -1299,13 +1338,29 @@ export default function QuranReaderScreen() {
                         </TouchableOpacity>
                     </View>
                     <View style={styles.audioControlsRight}>
-                        <TouchableOpacity onPress={cycleSpeed} style={[styles.speedBtn, { backgroundColor: theme.bgSecondary }]}>
+                        <TouchableOpacity
+                            onPress={cycleSpeed}
+                            style={[styles.speedBtn, { backgroundColor: theme.bgSecondary }]}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Playback speed ${playbackSpeed} times`}
+                            accessibilityHint="Tap to cycle playback speed"
+                        >
                             <Text style={[styles.audioSpeed, { color: theme.textPrimary }]}>{playbackSpeed}x</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.skipBtn} onPress={skipBack}>
+                        <TouchableOpacity
+                            style={styles.skipBtn}
+                            onPress={skipBack}
+                            accessibilityRole="button"
+                            accessibilityLabel="Previous ayah"
+                        >
                             <Feather name="skip-back" size={20} color={theme.textSecondary} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.skipBtn} onPress={skipForward}>
+                        <TouchableOpacity
+                            style={styles.skipBtn}
+                            onPress={skipForward}
+                            accessibilityRole="button"
+                            accessibilityLabel="Next ayah"
+                        >
                             <Feather name="skip-forward" size={20} color={theme.textSecondary} />
                         </TouchableOpacity>
                     </View>
@@ -1323,7 +1378,12 @@ export default function QuranReaderScreen() {
                     <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20, backgroundColor: theme.bgCard }]}>
                         <View style={styles.modalHeader}>
                             <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Choose Reciter</Text>
-                            <TouchableOpacity onPress={() => setShowReciterPicker(false)}>
+                            <TouchableOpacity
+                                onPress={() => setShowReciterPicker(false)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Close reciter picker"
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
                                 <Feather name="x" size={24} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
@@ -1346,6 +1406,9 @@ export default function QuranReaderScreen() {
                                     setShowReciterPicker(false);
                                 }}
                                 activeOpacity={0.75}
+                                accessibilityRole="radio"
+                                accessibilityLabel={`${reciter.name}, ${reciter.country}`}
+                                accessibilityState={{ selected: selectedReciter.id === reciter.id, checked: selectedReciter.id === reciter.id }}
                             >
                                 <View style={{ flex: 1 }}>
                                     <Text style={[styles.urduEditionName, { color: theme.textPrimary }]}>{reciter.name}</Text>
@@ -1372,7 +1435,12 @@ export default function QuranReaderScreen() {
                         {/* Sticky header — stays above scroll area */}
                         <View style={[styles.modalHeader, { paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: theme.border, marginBottom: 0 }]}>
                             <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Reading Settings</Text>
-                            <TouchableOpacity onPress={() => setShowSettings(false)}>
+                            <TouchableOpacity
+                                onPress={() => setShowSettings(false)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Close settings"
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
                                 <Feather name="x" size={24} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
@@ -1388,6 +1456,9 @@ export default function QuranReaderScreen() {
                                         const globalMatch = GLOBAL_RECITERS.find(g => g.id === reciter.id);
                                         if (globalMatch) setSelectedReciter(globalMatch);
                                     }}
+                                    accessibilityRole="radio"
+                                    accessibilityLabel={`${reciter.name}, ${reciter.country}`}
+                                    accessibilityState={{ selected: selectedReciter.id === reciter.id, checked: selectedReciter.id === reciter.id }}
                                 >
                                     <View style={{ flex: 1 }}>
                                         <Text style={[styles.settingOptionText, { color: theme.textPrimary }, selectedReciter.id === reciter.id && { color: QURAN_ACCENT }]}>
@@ -1407,6 +1478,9 @@ export default function QuranReaderScreen() {
                                     key={font.id}
                                     style={[styles.settingOption, { borderBottomColor: theme.border }, selectedFont.id === font.id && styles.settingOptionActive]}
                                     onPress={() => setSelectedFont(font)}
+                                    accessibilityRole="radio"
+                                    accessibilityLabel={`Arabic font: ${font.name}`}
+                                    accessibilityState={{ selected: selectedFont.id === font.id, checked: selectedFont.id === font.id }}
                                 >
                                     <Text style={[styles.settingOptionText, { color: theme.textPrimary }, selectedFont.id === font.id && { color: QURAN_ACCENT }]}>
                                         {font.name}
@@ -1418,11 +1492,21 @@ export default function QuranReaderScreen() {
 
                         <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Text Size ({fontSize}pt)</Text>
                         <View style={[styles.sizeControlGroup, { backgroundColor: theme.bgSecondary }]}>
-                            <TouchableOpacity style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]} onPress={() => setFontSize(Math.max(20, fontSize - 2))}>
+                            <TouchableOpacity
+                                style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]}
+                                onPress={() => setFontSize(Math.max(20, fontSize - 2))}
+                                accessibilityRole="button"
+                                accessibilityLabel="Decrease text size"
+                            >
                                 <Feather name="minus" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                             <Text style={styles.sizePreviewIndicator}>Aa</Text>
-                            <TouchableOpacity style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]} onPress={() => setFontSize(Math.min(56, fontSize + 2))}>
+                            <TouchableOpacity
+                                style={[styles.sizeBtn, { backgroundColor: theme.bgInput }]}
+                                onPress={() => setFontSize(Math.min(56, fontSize + 2))}
+                                accessibilityRole="button"
+                                accessibilityLabel="Increase text size"
+                            >
                                 <Feather name="plus" size={20} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
@@ -1445,6 +1529,9 @@ export default function QuranReaderScreen() {
                                     setTajweedEnabled(v => !v);
                                 }}
                                 activeOpacity={selectedFont.id !== 'uthmani' ? 1 : 0.7}
+                                accessibilityRole="switch"
+                                accessibilityLabel="Tajweed colour coding"
+                                accessibilityState={{ checked: tajweedEnabled && selectedFont.id === 'uthmani', disabled: selectedFont.id !== 'uthmani' }}
                             >
                                 <Text style={[styles.tajweedToggleText, { color: theme.textSecondary }, tajweedEnabled && selectedFont.id === 'uthmani' && styles.tajweedToggleTextOn]}>
                                     {tajweedEnabled && selectedFont.id === 'uthmani' ? 'ON' : 'OFF'}
@@ -1466,6 +1553,9 @@ export default function QuranReaderScreen() {
                                         ]}
                                         onPress={() => fontOk && tajweedEnabled && toggleTajweedRule(rule.id)}
                                         activeOpacity={fontOk && tajweedEnabled ? 0.7 : 1}
+                                        accessibilityRole="checkbox"
+                                        accessibilityLabel={`Tajweed rule ${rule.label}`}
+                                        accessibilityState={{ checked: active, disabled: !tajweedEnabled || !fontOk }}
                                     >
                                         <View style={[styles.tajweedDot, { backgroundColor: rule.color }]} />
                                         <Text style={[styles.tajweedChipText, { color: theme.textSecondary }, active && { color: rule.color }]}>
@@ -1491,7 +1581,12 @@ export default function QuranReaderScreen() {
                     <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20, backgroundColor: theme.bgCard }]}>
                         <View style={styles.modalHeader}>
                             <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>اردو ترجمہ</Text>
-                            <TouchableOpacity onPress={() => setShowUrduPicker(false)}>
+                            <TouchableOpacity
+                                onPress={() => setShowUrduPicker(false)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Close Urdu translation picker"
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
                                 <Feather name="x" size={22} color={theme.textSecondary} />
                             </TouchableOpacity>
                         </View>
@@ -1508,6 +1603,9 @@ export default function QuranReaderScreen() {
                                 ]}
                                 onPress={() => { setUrduEdition(ed.id); setShowUrduPicker(false); }}
                                 activeOpacity={0.75}
+                                accessibilityRole="radio"
+                                accessibilityLabel={`Urdu edition: ${ed.name}`}
+                                accessibilityState={{ selected: urduEdition === ed.id, checked: urduEdition === ed.id }}
                             >
                                 <View style={{ flex: 1 }}>
                                     <Text style={[styles.urduEditionName, { color: theme.textPrimary }]}>{ed.name}</Text>
@@ -1533,7 +1631,12 @@ export default function QuranReaderScreen() {
                     <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20, backgroundColor: theme.bgCard, maxHeight: '80%' }]}>
                         <View style={styles.modalHeader}>
                             <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Bookmarks</Text>
-                            <TouchableOpacity onPress={() => setShowBookmarks(false)}>
+                            <TouchableOpacity
+                                onPress={() => setShowBookmarks(false)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Close bookmarks"
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
                                 <Feather name="x" size={24} color={theme.textPrimary} />
                             </TouchableOpacity>
                         </View>
@@ -1554,6 +1657,8 @@ export default function QuranReaderScreen() {
                                         style={[styles.urduEditionRow, { borderColor: theme.border }]}
                                         onPress={() => jumpToBookmark(b)}
                                         activeOpacity={0.75}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Jump to ${b.surah_name} ayah ${b.surah_number}:${b.ayah_number}`}
                                     >
                                         <View style={{ flex: 1 }}>
                                             <Text style={[styles.urduEditionName, { color: theme.textPrimary }]}>
@@ -1565,7 +1670,12 @@ export default function QuranReaderScreen() {
                                                 </Text>
                                             )}
                                         </View>
-                                        <TouchableOpacity onPress={() => toggleBookmark({ surah_number: b.surah_number, ayah_number: b.ayah_number })} hitSlop={10}>
+                                        <TouchableOpacity
+                                            onPress={() => toggleBookmark({ surah_number: b.surah_number, ayah_number: b.ayah_number })}
+                                            hitSlop={10}
+                                            accessibilityRole="button"
+                                            accessibilityLabel="Remove bookmark"
+                                        >
                                             <Feather name="trash-2" size={18} color={theme.textTertiary} />
                                         </TouchableOpacity>
                                     </TouchableOpacity>

@@ -168,6 +168,8 @@ export default function CalendarScreen() {
                         hasHoliday && !day.isToday && { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' },
                     ]}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Day ${day.hijriDay}${day.isToday ? ', today' : ''}${hasHoliday ? `, ${day.holidays.join(', ')}` : ''}`}
                 >
                     <Text style={[
                         styles.dayText,
@@ -187,7 +189,12 @@ export default function CalendarScreen() {
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: theme.border }]}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    style={styles.backButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Hijri Calendar</Text>
@@ -198,7 +205,14 @@ export default function CalendarScreen() {
 
                 {/* Month Selector */}
                 <View style={styles.monthSelector}>
-                    <TouchableOpacity onPress={goToPrev} style={styles.navBtn} disabled={loading}>
+                    <TouchableOpacity
+                        onPress={goToPrev}
+                        style={styles.navBtn}
+                        disabled={loading}
+                        accessibilityRole="button"
+                        accessibilityLabel="Previous month"
+                        accessibilityState={{ disabled: loading }}
+                    >
                         <Feather name="chevron-left" size={24} color={theme.textSecondary} />
                     </TouchableOpacity>
 
@@ -218,7 +232,14 @@ export default function CalendarScreen() {
                         </View>
                     </View>
 
-                    <TouchableOpacity onPress={goToNext} style={styles.navBtn} disabled={loading}>
+                    <TouchableOpacity
+                        onPress={goToNext}
+                        style={styles.navBtn}
+                        disabled={loading}
+                        accessibilityRole="button"
+                        accessibilityLabel="Next month"
+                        accessibilityState={{ disabled: loading }}
+                    >
                         <Feather name="chevron-right" size={24} color={theme.textSecondary} />
                     </TouchableOpacity>
                 </View>

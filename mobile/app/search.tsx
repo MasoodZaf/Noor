@@ -12,7 +12,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useNetworkMode } from '../context/NetworkModeContext';
 
 // ─── APIs ─────────────────────────────────────────────────────────────────────
-const QURANI_BASE = 'https://api.qurani.ai/gw/qh/v1';
+import { QURANI_BASE, FAWAZ_HADITH } from '../utils/apis';
 
 type Scope = 'quran' | 'hadith' | 'fiqh';
 
@@ -43,7 +43,7 @@ const SCOPE_ICONS: Record<Scope, React.ComponentProps<typeof Feather>['name']> =
 };
 
 // ─── Fawaz Hadith API ─────────────────────────────────────────────────────────
-const FAWAZ_HADITH = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1';
+// (imported above)
 
 const LANG_EDITIONS: Record<string, Record<string, string>> = {
     bukhari:  { english: 'eng-bukhari',  urdu: 'urd-bukhari',  indonesian: 'ind-bukhari',  french: 'fra-bukhari',  bengali: 'ben-bukhari',  turkish: 'tur-bukhari'  },
@@ -245,11 +245,12 @@ export default function SearchScreen() {
                     );
                     if (validAyahs.length === 0) { setResults([]); return; }
                     const refs = validAyahs.map((a: any) => `(${a.surah.number},${a.numberInSurah})`).join(',');
-                    const transRows = await db.getAllAsync<any>(
+                    type TransRow = { surah_number: number; ayah_number: number; translation: string };
+                    const transRows: TransRow[] = await db.getAllAsync<TransRow>(
                         `SELECT surah_number, ayah_number, ${col} AS translation
                          FROM ayahs
                          WHERE (surah_number, ayah_number) IN (VALUES ${refs})`
-                    ).catch(() => [] as any[]);
+                    ).catch(() => []);
                     const transMap: Record<string, string> = {};
                     for (const r of transRows) {
                         transMap[`${r.surah_number}:${r.ayah_number}`] = r.translation ?? '';
@@ -374,6 +375,10 @@ export default function SearchScreen() {
                 activeOpacity={0.85}
                 onPress={() => toggleExpanded(cardId)}
                 style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
+                accessibilityRole="button"
+                accessibilityLabel={`Quran ${item.ref}, Surah ${item.surahName}`}
+                accessibilityHint={expanded ? 'Tap to collapse' : 'Tap to read full verse'}
+                accessibilityState={{ expanded }}
             >
                 <View style={styles.cardTopRow}>
                     <View style={[styles.badge, { backgroundColor: theme.accentLight }]}>
@@ -406,6 +411,10 @@ export default function SearchScreen() {
                 activeOpacity={0.85}
                 onPress={() => toggleExpanded(cardId)}
                 style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
+                accessibilityRole="button"
+                accessibilityLabel={`${collectionLabel(item.collection)} hadith ${item.number}`}
+                accessibilityHint={expanded ? 'Tap to collapse' : 'Tap to read full hadith'}
+                accessibilityState={{ expanded }}
             >
                 <View style={styles.cardTopRow}>
                     <View style={[styles.badge, {
@@ -455,7 +464,12 @@ export default function SearchScreen() {
         >
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: theme.border, backgroundColor: theme.bg }]}>
-                <TouchableOpacity onPress={goBack} style={[styles.backBtn, { backgroundColor: theme.bgInput }]}>
+                <TouchableOpacity
+                    onPress={goBack}
+                    style={[styles.backBtn, { backgroundColor: theme.bgInput }]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="arrow-left" size={24} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <View style={[styles.searchBar, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
@@ -475,7 +489,12 @@ export default function SearchScreen() {
                         <ActivityIndicator size="small" color={theme.accent} style={{ marginLeft: 8 }} />
                     )}
                     {!loading && query.length > 0 && (
-                        <TouchableOpacity onPress={() => { setQuery(''); setResults([]); }}>
+                        <TouchableOpacity
+                            onPress={() => { setQuery(''); setResults([]); }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Clear search"
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
                             <Feather name="x" size={18} color={theme.textSecondary} />
                         </TouchableOpacity>
                     )}
@@ -490,6 +509,9 @@ export default function SearchScreen() {
                         style={[styles.tab, { backgroundColor: theme.bgInput }, scope === s && [styles.tabActive, { backgroundColor: theme.accentLight, borderColor: theme.accentLight }]]}
                         onPress={() => setScope(s)}
                         activeOpacity={0.75}
+                        accessibilityRole="tab"
+                        accessibilityLabel={`Search ${SCOPE_LABELS[s]}`}
+                        accessibilityState={{ selected: scope === s }}
                     >
                         <Feather
                             name={SCOPE_ICONS[s]}
@@ -527,6 +549,8 @@ export default function SearchScreen() {
                                 key={ex}
                                 style={[styles.exampleChip, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
                                 onPress={() => setQuery(ex)}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Search for ${ex}`}
                             >
                                 <Text style={[styles.exampleChipText, { color: theme.textPrimary }]}>{ex}</Text>
                             </TouchableOpacity>

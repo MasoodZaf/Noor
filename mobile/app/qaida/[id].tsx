@@ -165,10 +165,10 @@ export default function QaidaLessonScreen() {
                 setLesson(lessonRow);
 
                 // Get content
-                const contentRow = await db.getFirstAsync(
+                const contentRow = await db.getFirstAsync<{ content_json: string }>(
                     'SELECT content_json FROM qaida_content WHERE lesson_id = ?',
                     [lessonIdStr]
-                ) as any;
+                );
 
                 if (contentRow) {
                     setContent(JSON.parse(contentRow.content_json));
@@ -217,7 +217,12 @@ export default function QaidaLessonScreen() {
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: theme.border }]}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    style={styles.backButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                >
                     <Feather name="arrow-left" size={24} color={theme.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerText}>
@@ -239,6 +244,9 @@ export default function QaidaLessonScreen() {
                             ]}
                             activeOpacity={0.7}
                             onPress={() => playSound(item, index)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${item.text}, ${playingId === index ? 'tap to stop' : 'tap to hear pronunciation'}`}
+                            accessibilityState={{ selected: playingId === index }}
                         >
                             <Text style={[
                                 styles.arabicChar,
@@ -258,7 +266,12 @@ export default function QaidaLessonScreen() {
                     ))}
                 </View>
 
-                <TouchableOpacity style={[styles.completeButton, { backgroundColor: theme.accent }]} onPress={handleComplete}>
+                <TouchableOpacity
+                    style={[styles.completeButton, { backgroundColor: theme.accent }]}
+                    onPress={handleComplete}
+                    accessibilityRole="button"
+                    accessibilityLabel="Finish lesson"
+                >
                     <Text style={[styles.completeButtonText, { color: theme.textInverse }]}>Finish Lesson</Text>
                 </TouchableOpacity>
             </ScrollView>
