@@ -159,6 +159,15 @@ export default function SearchScreen() {
     const [results, setResults] = useState<Result[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchFailed, setSearchFailed] = useState(false);
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+    const toggleExpanded = (id: string) => {
+        setExpandedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
 
     // Auto-run search if a query was passed via params
     useEffect(() => {
@@ -357,50 +366,80 @@ export default function SearchScreen() {
     };
 
     // ── Render helpers ────────────────────────────────────────────────────────
-    const renderQuranCard = ({ item }: { item: QuranResult }) => (
-        <View style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-            <View style={styles.cardTopRow}>
-                <View style={[styles.badge, { backgroundColor: theme.accentLight }]}>
-                    <Text style={[styles.badgeText, { color: theme.accent }]}>{item.ref}</Text>
+    const renderQuranCard = ({ item }: { item: QuranResult }) => {
+        const cardId = `q-${item.ref}`;
+        const expanded = expandedIds.has(cardId);
+        return (
+            <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => toggleExpanded(cardId)}
+                style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
+            >
+                <View style={styles.cardTopRow}>
+                    <View style={[styles.badge, { backgroundColor: theme.accentLight }]}>
+                        <Text style={[styles.badgeText, { color: theme.accent }]}>{item.ref}</Text>
+                    </View>
+                    <Text style={[styles.surahName, { color: theme.textSecondary }]}>{item.surahName}</Text>
                 </View>
-                <Text style={[styles.surahName, { color: theme.textSecondary }]}>{item.surahName}</Text>
-            </View>
-            {!!item.arabic && (
-                <Text style={[styles.arabicText, { color: theme.textPrimary }]}>{item.arabic}</Text>
-            )}
-            {!!item.english && (
-                <Text style={[styles.englishText, { color: theme.textSecondary }]}>{item.english}</Text>
-            )}
-        </View>
-    );
-
-    const renderHadithCard = ({ item }: { item: HadithResult }) => (
-        <View style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-            <View style={styles.cardTopRow}>
-                <View style={[styles.badge, {
-                    backgroundColor: item.type === 'fiqh'
-                        ? 'rgba(201,168,76,0.12)'
-                        : theme.accentLight,
-                }]}>
-                    <Text style={[styles.badgeText, {
-                        color: item.type === 'fiqh' ? theme.gold : theme.accent,
-                    }]}>
-                        {collectionLabel(item.collection)} · {item.number}
+                {!!item.arabic && (
+                    <Text style={[styles.arabicText, { color: theme.textPrimary }]} numberOfLines={expanded ? undefined : 4}>
+                        {item.arabic}
                     </Text>
-                </View>
-                {!!item.narrator && (
-                    <Text style={[styles.narratorText, { color: theme.textSecondary }]} numberOfLines={1}>{item.narrator}</Text>
                 )}
-            </View>
-            {!!item.arabic && (
-                <Text style={[styles.arabicText, { color: theme.textPrimary }]}>{item.arabic}</Text>
-            )}
-            {!!item.arabic && !!item.english && <View style={[styles.divider, { backgroundColor: theme.border }]} />}
-            {!!item.english && (
-                <Text style={[styles.englishText, { color: theme.textSecondary }]} numberOfLines={6}>{item.english}</Text>
-            )}
-        </View>
-    );
+                {!!item.english && (
+                    <Text style={[styles.englishText, { color: theme.textSecondary }]} numberOfLines={expanded ? undefined : 4}>
+                        {item.english}
+                    </Text>
+                )}
+                <Text style={[styles.expandHint, { color: theme.textTertiary }]}>
+                    {expanded ? 'Tap to collapse' : 'Tap to read full'}
+                </Text>
+            </TouchableOpacity>
+        );
+    };
+
+    const renderHadithCard = ({ item }: { item: HadithResult }) => {
+        const cardId = `h-${item.collection}-${item.number}`;
+        const expanded = expandedIds.has(cardId);
+        return (
+            <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => toggleExpanded(cardId)}
+                style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
+            >
+                <View style={styles.cardTopRow}>
+                    <View style={[styles.badge, {
+                        backgroundColor: item.type === 'fiqh'
+                            ? 'rgba(201,168,76,0.12)'
+                            : theme.accentLight,
+                    }]}>
+                        <Text style={[styles.badgeText, {
+                            color: item.type === 'fiqh' ? theme.gold : theme.accent,
+                        }]}>
+                            {collectionLabel(item.collection)} · {item.number}
+                        </Text>
+                    </View>
+                    {!!item.narrator && (
+                        <Text style={[styles.narratorText, { color: theme.textSecondary }]} numberOfLines={1}>{item.narrator}</Text>
+                    )}
+                </View>
+                {!!item.arabic && (
+                    <Text style={[styles.arabicText, { color: theme.textPrimary }]} numberOfLines={expanded ? undefined : 4}>
+                        {item.arabic}
+                    </Text>
+                )}
+                {!!item.arabic && !!item.english && <View style={[styles.divider, { backgroundColor: theme.border }]} />}
+                {!!item.english && (
+                    <Text style={[styles.englishText, { color: theme.textSecondary }]} numberOfLines={expanded ? undefined : 6}>
+                        {item.english}
+                    </Text>
+                )}
+                <Text style={[styles.expandHint, { color: theme.textTertiary }]}>
+                    {expanded ? 'Tap to collapse' : 'Tap to read full'}
+                </Text>
+            </TouchableOpacity>
+        );
+    };
 
     const renderItem = ({ item }: { item: Result }) => {
         if (item.type === 'quran') return renderQuranCard({ item });
@@ -672,4 +711,5 @@ const styles = StyleSheet.create({
     },
     divider: { height: 1, marginVertical: 12 },
     englishText: { fontSize: 14, lineHeight: 22 },
+    expandHint: { fontSize: 11, fontWeight: '500', marginTop: 10, letterSpacing: 0.3 },
 });

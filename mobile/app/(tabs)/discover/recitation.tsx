@@ -44,6 +44,8 @@ interface QRCResult {
     score: number;        // 0–100
     mistakes: Mistake[];
     feedback: string;
+    noAudio?: boolean;    // true when no audio was captured (simulator / mic blocked) — suppresses fake score
+    isDemo?: boolean;     // true when result is illustrative only (no API key)
 }
 
 // Tajweed rule colour coding
@@ -242,10 +244,11 @@ export default function RecitationScreen() {
 
         setRecStateSafe('processing');
 
-        // No real recording (e.g. simulator) — go straight to demo result
+        // No real recording captured (e.g. simulator without mic) — show no-audio state
+        // rather than a fake score the tester might mistake for a real assessment.
         if (!recordingRef.current) {
-            await new Promise(r => setTimeout(r, 1200));
-            setResult(getMockResult());
+            await new Promise(r => setTimeout(r, 600));
+            setResult(getNoAudioResult());
             setRecStateSafe('done');
             return;
         }
@@ -277,33 +280,48 @@ export default function RecitationScreen() {
                 // Timeout fallback if WS doesn't respond — use ref to avoid stale closure
                 setTimeout(() => {
                     if (recStateRef.current === 'processing') {
-                        setResult(getMockResult());
+                        setResult(getTimeoutResult());
                         setRecStateSafe('done');
                     }
                 }, 8000);
             } else {
-                // No API key → show demo result
-                await new Promise(r => setTimeout(r, 1200)); // brief "processing" delay
-                setResult(getMockResult());
+                // No API key → show demo result (clearly labelled, real recording captured)
+                await new Promise(r => setTimeout(r, 1200));
+                setResult(getDemoResult());
                 setRecStateSafe('done');
             }
         } catch (e) {
             console.warn('Recording stop failed:', e);
-            setResult(getMockResult());
+            setResult(getNoAudioResult());
             setRecStateSafe('done');
         }
     };
 
-    // Demo result shown when no API key is set
-    const getMockResult = (): QRCResult => ({
+    // No audio captured — render a clear "nothing to score" state instead of a fake number
+    const getNoAudioResult = (): QRCResult => ({
+        score: 0,
+        mistakes: [],
+        feedback: 'No audio was captured. Make sure your microphone is enabled and try recording again.',
+        noAudio: true,
+    });
+
+    // WS timeout — recording sent but no response in 8s
+    const getTimeoutResult = (): QRCResult => ({
+        score: 0,
+        mistakes: [],
+        feedback: 'Tajweed analysis timed out. Check your connection and try again.',
+        noAudio: true,
+    });
+
+    // Real recording, no API key — illustrative tajweed feedback marked clearly as demo
+    const getDemoResult = (): QRCResult => ({
         score: 72,
         mistakes: [
             { word: 'ٱلرَّحْمَٰنِ', correction: 'Extend the Madd for 2 counts', rule: 'Madd' },
             { word: 'ٱلرَّحِيمِ',   correction: 'Apply Ghunnah on the Noon', rule: 'Ghunnah' },
         ],
-        feedback: QRC_KEY
-            ? 'Tajweed analysis complete. Review the highlighted words.'
-            : 'Demo mode — add EXPO_PUBLIC_QURANI_API_KEY for live Qurani.ai QRC analysis.',
+        feedback: 'Demo result — add EXPO_PUBLIC_QURANI_API_KEY for live Qurani.ai QRC analysis.',
+        isDemo: true,
     });
 
     const formatDuration = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -429,24 +447,36 @@ export default function RecitationScreen() {
                 {result && recState === 'done' && (
                     <View style={styles.resultsSection}>
 
-                        {/* Score */}
-                        <View style={[styles.scoreCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-                            <View style={[styles.scoreCircle, { borderColor: scoreColor(result.score) }]}>
-                                <Text style={[styles.scoreNumber, { color: scoreColor(result.score) }]}>
-                                    {result.score}
+                        {/* No-audio state — explicit, no fake score */}
+                        {result.noAudio ? (
+                            <View style={[styles.scoreCard, { backgroundColor: theme.bgCard, borderColor: theme.border, flexDirection: 'column', alignItems: 'center', padding: 24 }]}>
+                                <Feather name="mic-off" size={36} color={theme.textTertiary} style={{ marginBottom: 12 }} />
+                                <Text style={[styles.scoreTitle, { color: theme.textPrimary, textAlign: 'center', marginBottom: 8 }]}>
+                                    No audio captured
                                 </Text>
-                                <Text style={[styles.scoreLabel, { color: theme.textSecondary }]}>/ 100</Text>
-                            </View>
-                            <View style={styles.scoreInfo}>
-                                <Text style={[styles.scoreTitle, { color: theme.textPrimary }]}>
-                                    {result.score >= 85 ? 'Excellent!' : result.score >= 60 ? 'Good effort' : 'Needs practice'}
+                                <Text style={[styles.scoreFeedback, { color: theme.textSecondary, textAlign: 'center' }]}>
+                                    {result.feedback}
                                 </Text>
-                                <Text style={[styles.scoreFeedback, { color: theme.textSecondary }]}>{result.feedback}</Text>
                             </View>
-                        </View>
+                        ) : (
+                            <View style={[styles.scoreCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                                <View style={[styles.scoreCircle, { borderColor: scoreColor(result.score) }]}>
+                                    <Text style={[styles.scoreNumber, { color: scoreColor(result.score) }]}>
+                                        {result.score}
+                                    </Text>
+                                    <Text style={[styles.scoreLabel, { color: theme.textSecondary }]}>/ 100</Text>
+                                </View>
+                                <View style={styles.scoreInfo}>
+                                    <Text style={[styles.scoreTitle, { color: theme.textPrimary }]}>
+                                        {result.isDemo ? 'Demo score' : result.score >= 85 ? 'Excellent!' : result.score >= 60 ? 'Good effort' : 'Needs practice'}
+                                    </Text>
+                                    <Text style={[styles.scoreFeedback, { color: theme.textSecondary }]}>{result.feedback}</Text>
+                                </View>
+                            </View>
+                        )}
 
-                        {/* Mistakes */}
-                        {result.mistakes.length > 0 && (
+                        {/* Mistakes — only when there's an actual analysis */}
+                        {!result.noAudio && result.mistakes.length > 0 && (
                             <>
                                 <Text style={[styles.mistakesTitle, { color: theme.textPrimary }]}>Tajweed Notes</Text>
                                 {result.mistakes.map((m, i) => (
@@ -461,7 +491,7 @@ export default function RecitationScreen() {
                             </>
                         )}
 
-                        {result.mistakes.length === 0 && (
+                        {!result.noAudio && !result.isDemo && result.mistakes.length === 0 && (
                             <View style={[styles.perfectCard, { backgroundColor: theme.accentLight, borderColor: theme.accent + '33' }]}>
                                 <Feather name="check-circle" size={28} color={theme.accent} />
                                 <Text style={[styles.perfectText, { color: theme.accent }]}>No tajweed mistakes detected. MashaAllah!</Text>

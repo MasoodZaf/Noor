@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
-    ActivityIndicator, Platform, Modal, ScrollView, Dimensions,
+    ActivityIndicator, Platform, Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,8 +10,6 @@ import { useDatabase } from '../../../../context/DatabaseContext';
 import { useLanguage } from '../../../../context/LanguageContext';
 import { sanitizeArabicText } from '../../../../utils/arabic';
 import { useTheme } from '../../../../context/ThemeContext';
-
-const { width } = Dimensions.get('window');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TAFSEER_META: Record<string, { title: string; author: string; totalVolumes: number; ids?: { english?: number; urdu?: number; arabic?: number } }> = {
@@ -105,11 +103,7 @@ const AyahPage = React.memo(({
     const isUrdu = language === 'urdu';
 
     return (
-        <ScrollView
-            style={{ width, backgroundColor: theme.bg }}
-            contentContainerStyle={styles.pageContent}
-            showsVerticalScrollIndicator={false}
-        >
+        <View style={[styles.pageContent, { backgroundColor: theme.bg }]}>
             {/* Surah divider on first ayah of surah */}
             {isFirstInSurah && (
                 <View style={styles.surahDivider}>
@@ -198,7 +192,7 @@ const AyahPage = React.memo(({
                     </View>
                 )}
             </View>
-        </ScrollView>
+        </View>
     );
 });
 
@@ -302,12 +296,10 @@ export default function TafseerReadScreen() {
                 </Text>
             </View>
 
-            {/* Horizontal paginated FlatList */}
+            {/* Vertical FlatList — matches Surah/Juz reader UX */}
             <FlatList
                 data={ayahs}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={false}
                 style={{ flex: 1 }}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
@@ -405,8 +397,8 @@ const styles = StyleSheet.create({
     subHeaderText: { fontSize: 13 },
     subHeaderRight: { fontSize: 13 },
 
-    // Page content
-    pageContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 60 },
+    // Per-ayah row
+    pageContent: { paddingHorizontal: 20, paddingVertical: 16 },
 
     // Surah divider
     surahDivider: { alignItems: 'center', paddingVertical: 20, marginBottom: 8 },
@@ -480,10 +472,10 @@ const styles = StyleSheet.create({
     },
     tafseerAuthor: { fontWeight: '700' },
 
-    // Completion footer page
+    // Completion footer
     completionPage: {
-        width, alignItems: 'center', justifyContent: 'center',
-        paddingTop: 80, paddingHorizontal: 32,
+        alignItems: 'center', justifyContent: 'center',
+        paddingTop: 60, paddingBottom: 80, paddingHorizontal: 32,
     },
     completionText: { fontSize: 18, fontWeight: '600', marginTop: 16, marginBottom: 6 },
     completionSub: { fontSize: 14, textAlign: 'center' },

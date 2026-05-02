@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Platform, Share, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Platform, Share } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -135,6 +135,7 @@ export default function HadithCollectionScreen() {
     const [displayOffset, setDisplayOffset] = useState(0);
     const [langSwitchFailed, setLangSwitchFailed] = useState(false);
     const [bookmarks, setBookmarks] = useState<HadithItem[]>([]);
+    const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false);
 
     // Load bookmarks on mount
     useEffect(() => {
@@ -172,9 +173,8 @@ export default function HadithCollectionScreen() {
         } catch (_) {}
     };
 
-    const showFilterInfo = () => {
-        Alert.alert('Filter', 'Advanced filtering is coming soon.', [{ text: 'OK' }]);
-    };
+    // Filter button toggles a "bookmarked only" view — same pattern as Duas.
+    const toggleBookmarkedOnly = () => setShowBookmarkedOnly(s => !s);
 
     // Full in-memory collection — avoids refetch on pagination / language switch
     const allHadithsRef  = useRef<HadithItem[]>([]);
@@ -435,8 +435,16 @@ export default function HadithCollectionScreen() {
                             : `${meta.count.toLocaleString()} Hadiths · Offline`}
                     </Text>
                 </View>
-                <TouchableOpacity style={styles.filterButton} onPress={showFilterInfo}>
-                    <Feather name="filter" size={22} color={theme.textPrimary} />
+                <TouchableOpacity
+                    style={styles.filterButton}
+                    onPress={toggleBookmarkedOnly}
+                    accessibilityLabel={showBookmarkedOnly ? 'Show all hadiths' : 'Show bookmarked only'}
+                >
+                    <Feather
+                        name="bookmark"
+                        size={22}
+                        color={showBookmarkedOnly ? meta.color : theme.textPrimary}
+                    />
                 </TouchableOpacity>
             </View>
 
@@ -459,14 +467,24 @@ export default function HadithCollectionScreen() {
                         </View>
                     )}
                     <FlatList
-                        data={hadiths}
+                        data={showBookmarkedOnly ? hadiths.filter(isBookmarked) : hadiths}
                         keyExtractor={(item, i) => `${item.id}-${i}`}
                         renderItem={renderHadith}
                         contentContainerStyle={styles.listContent}
                         showsVerticalScrollIndicator={false}
-                        onEndReached={handleLoadMore}
+                        onEndReached={showBookmarkedOnly ? undefined : handleLoadMore}
                         onEndReachedThreshold={0.5}
-                        ListFooterComponent={renderFooter}
+                        ListFooterComponent={showBookmarkedOnly ? null : renderFooter}
+                        ListEmptyComponent={
+                            showBookmarkedOnly ? (
+                                <View style={{ alignItems: 'center', paddingTop: 60 }}>
+                                    <Feather name="bookmark" size={32} color={theme.textTertiary} />
+                                    <Text style={{ color: theme.textSecondary, marginTop: 12, fontSize: 14 }}>
+                                        No bookmarked hadiths yet
+                                    </Text>
+                                </View>
+                            ) : null
+                        }
                     />
                 </>
             )}

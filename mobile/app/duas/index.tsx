@@ -116,9 +116,9 @@ export default function DuasScreen() {
                     <Text style={[styles.greeting, { color: theme.textSecondary }]}>Assalamu Alaikum</Text>
                     <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Falah Duas</Text>
                 </View>
-                <TouchableOpacity style={[styles.notificationBtn, { backgroundColor: theme.bgInput }]}>
-                    <Feather name="bell" size={20} color={theme.textPrimary} />
-                </TouchableOpacity>
+                {/* Notification preferences live on the Home tab (single source of truth).
+                    Removed redundant bell here that had no handler. */}
+                <View style={{ width: 44 }} />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
@@ -209,7 +209,7 @@ export default function DuasScreen() {
                         key={dua.id}
                         style={[styles.duaCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
                         activeOpacity={0.85}
-                        onPress={() => router.push(`/duas/${dua.category_id || 1}` as any)}
+                        onPress={() => router.push(`/duas/${dua.category_id || 1}?focus=${dua.id}` as any)}
                     >
                         {/* Arabic Text */}
                         {dua.arabic_text ? (
@@ -218,7 +218,7 @@ export default function DuasScreen() {
 
                         {/* Transliteration */}
                         {dua.transliteration ? (
-                            <Text style={[styles.duaTranslit, { color: theme.textTertiary }]} numberOfLines={2}>{dua.transliteration}</Text>
+                            <Text style={[styles.duaTranslit, { color: theme.textTertiary }]}>{dua.transliteration}</Text>
                         ) : null}
 
                         {/* Divider */}

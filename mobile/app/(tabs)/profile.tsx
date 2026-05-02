@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, ActivityIndicator, Alert, Pressable, Switch, Modal, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, ActivityIndicator, Alert, Pressable, Switch, Modal, FlatList, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -523,7 +523,7 @@ export default function ProfileScreen() {
                 <View style={[styles.menuGroup, { backgroundColor: theme.bgCard, borderColor: theme.border, marginBottom: 20 }]}>
                     <TouchableOpacity
                         style={[styles.menuItem, { borderBottomColor: theme.border }]}
-                        onPress={cycleLanguage}
+                        onPress={() => setShowLanguagePicker(true)}
                     >
                         <View style={styles.menuItemLeft}>
                             <View style={[styles.menuIconBox, { backgroundColor: theme.gold + '1A' }]}>
@@ -565,24 +565,45 @@ export default function ProfileScreen() {
                 {/* Settings Menu */}
                 <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Account</Text>
                 <View style={[styles.menuGroup, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-                    <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]}>
+                    <TouchableOpacity
+                        style={[styles.menuItem, { borderBottomColor: theme.border }]}
+                        onPress={() => Alert.alert(
+                            'Adhan Notifications',
+                            'Per-prayer adhan reminders are toggled from the bell icon on the Home tab.',
+                            [{ text: 'Open Home', onPress: () => router.push('/(tabs)' as any) }, { text: 'Cancel', style: 'cancel' }]
+                        )}
+                    >
                         <View style={styles.menuItemLeft}>
                             <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="bell" size={18} color={theme.textPrimary} /></View>
                             <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>Adhan Notifications</Text>
                         </View>
                         <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]}>
+                    <TouchableOpacity
+                        style={[styles.menuItem, { borderBottomColor: theme.border }]}
+                        onPress={() => Alert.alert(
+                            'Calculation Method',
+                            'The prayer time calculation method is selected from the prayer card on the Home tab — tap the settings icon next to "Today\'s Prayers".',
+                            [{ text: 'Open Home', onPress: () => router.push('/(tabs)' as any) }, { text: 'Cancel', style: 'cancel' }]
+                        )}
+                    >
                         <View style={styles.menuItemLeft}>
                             <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="map-pin" size={18} color={theme.textPrimary} /></View>
-                            <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>Calculation Method (Karachi)</Text>
+                            <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>Calculation Method</Text>
                         </View>
                         <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]}>
+                    <TouchableOpacity
+                        style={[styles.menuItem, { borderBottomWidth: 0 }]}
+                        onPress={() => Alert.alert(
+                            'Database',
+                            'The offline content database (114 surahs, 8 Qaida lessons, hadith collections, duas) is bundled with the app and updates with each app release.\n\nNo manual sync is required.',
+                            [{ text: 'OK' }]
+                        )}
+                    >
                         <View style={styles.menuItemLeft}>
-                            <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="download-cloud" size={18} color={theme.textPrimary} /></View>
-                            <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>Force Sync Database</Text>
+                            <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="database" size={18} color={theme.textPrimary} /></View>
+                            <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>Database Status</Text>
                         </View>
                         <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                     </TouchableOpacity>
@@ -598,7 +619,15 @@ export default function ProfileScreen() {
                         </View>
                         <Feather name="chevron-right" size={20} color={theme.textSecondary} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]}>
+                    <TouchableOpacity
+                        style={[styles.menuItem, { borderBottomWidth: 0 }]}
+                        onPress={() => Linking.openURL('https://falah.app/privacy').catch(() =>
+                            Alert.alert(
+                                'Privacy Policy',
+                                'Falah collects no personal data. Prayer times use your location only to calculate adhan, and that location stays on your device.\n\nFull policy: https://falah.app/privacy'
+                            )
+                        )}
+                    >
                         <View style={styles.menuItemLeft}>
                             <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}><Feather name="shield" size={18} color={theme.textPrimary} /></View>
                             <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>Privacy Policy</Text>
@@ -608,7 +637,14 @@ export default function ProfileScreen() {
                 </View>
 
                 {/* Premium Teaser */}
-                <TouchableOpacity style={[styles.premiumBanner, { backgroundColor: theme.gold }]}>
+                <TouchableOpacity
+                    style={[styles.premiumBanner, { backgroundColor: theme.gold }]}
+                    onPress={() => Alert.alert(
+                        'Falah Pro',
+                        'Unlimited Hifz tracking, premium reciters, and offline audio packs are coming soon. We\'ll notify you when Falah Pro is available.',
+                        [{ text: 'OK' }]
+                    )}
+                >
                     <Feather name="star" size={24} color={theme.textInverse} style={{ marginRight: 16 }} />
                     <View style={{ flex: 1 }}>
                         <Text style={[styles.premiumBannerTitle, { color: theme.textInverse }]}>Upgrade to Falah Pro</Text>

@@ -1,13 +1,17 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Animated } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useDatabase } from '../../context/DatabaseContext';
 import { useTheme } from '../../context/ThemeContext';
+
+const BOOKMARK_KEY = '@dua_bookmarks';
 
 // Legacy Mock Data left intact for backward compatibility if needed, but overridden when db is active
 const DUA_DATABASE: Record<string, { title: string, icon: string, desc: string, items: any[] }> = {
@@ -91,11 +95,12 @@ const DUA_DATABASE: Record<string, { title: string, icon: string, desc: string, 
 };
 
 export default function DuaDetailScreen() {
-    const { id } = useLocalSearchParams();
+    const { id, focus } = useLocalSearchParams();
     const router = useRouter();
     const insets = useSafeAreaInsets();
 
     const categoryId = typeof id === 'string' ? id : 'morning';
+    const focusId = typeof focus === 'string' ? focus : null;
     const { db } = useDatabase();
     const { theme } = useTheme();
 
@@ -170,14 +175,60 @@ export default function DuaDetailScreen() {
     // Animations for interactive scroll
     const scrollY = useRef(new Animated.Value(0)).current;
 
-    // Expand state for each dua
-    const [expandedDua, setExpandedDua] = useState<string | null>(null);
+    // Expand state for each dua — pre-expands the focused dua if navigated with ?focus=<id>
+    const [expandedDua, setExpandedDua] = useState<string | null>(focusId);
+    const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
+    const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false);
+    const [copiedId, setCopiedId] = useState<string | null>(null);
+
+    useEffect(() => {
+        AsyncStorage.getItem(BOOKMARK_KEY)
+            .then(raw => {
+                if (raw) {
+                    try { setBookmarks(new Set(JSON.parse(raw))); } catch { /* corrupted, ignore */ }
+                }
+            })
+            .catch(() => { /* missing key on first run, ignore */ });
+    }, []);
+
+    const persistBookmarks = (next: Set<string>) => {
+        AsyncStorage.setItem(BOOKMARK_KEY, JSON.stringify([...next])).catch(e =>
+            console.warn('[Noor/Duas] bookmark persist failed', e)
+        );
+    };
 
     const toggleDua = (duaId: string) => {
         if (Platform.OS !== 'web') {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
         setExpandedDua(expandedDua === duaId ? null : duaId);
+    };
+
+    const toggleBookmark = (duaId: string) => {
+        if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        setBookmarks(prev => {
+            const next = new Set(prev);
+            if (next.has(duaId)) next.delete(duaId); else next.add(duaId);
+            persistBookmarks(next);
+            return next;
+        });
+    };
+
+    const handleCopy = async (item: any) => {
+        const lines = [
+            item.arabic,
+            item.transliteration,
+            item.translation,
+            item.reference ? `— ${item.reference}` : null,
+        ].filter(Boolean);
+        try {
+            await Clipboard.setStringAsync(lines.join('\n\n'));
+            if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setCopiedId(item.id);
+            setTimeout(() => setCopiedId(prev => (prev === item.id ? null : prev)), 1500);
+        } catch (e) {
+            console.warn('[Noor/Duas] copy failed', e);
+        }
     };
 
     // Parallax Header scaling
@@ -202,8 +253,18 @@ export default function DuaDetailScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { borderColor: theme.border }]}>
                     <Feather name="chevron-left" size={28} color={theme.textPrimary} />
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, { borderColor: theme.border }]}>
-                    <Feather name="bookmark" size={22} color={theme.textPrimary} />
+                <TouchableOpacity
+                    style={[styles.actionBtn, { borderColor: showBookmarkedOnly ? theme.gold : theme.border }]}
+                    onPress={() => {
+                        if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setShowBookmarkedOnly(s => !s);
+                    }}
+                >
+                    <Feather
+                        name="bookmark"
+                        size={22}
+                        color={showBookmarkedOnly ? theme.gold : theme.textPrimary}
+                    />
                 </TouchableOpacity>
             </View>
 
@@ -231,8 +292,13 @@ export default function DuaDetailScreen() {
 
                 {/* Duas List */}
                 <View style={styles.listContainer}>
-                    {data.items.map((item: any, index: number) => {
+                    {(showBookmarkedOnly
+                        ? data.items.filter((it: any) => bookmarks.has(it.id))
+                        : data.items
+                    ).map((item: any, index: number) => {
                         const isExpanded = expandedDua === item.id;
+                        const isBookmarked = bookmarks.has(item.id);
+                        const justCopied = copiedId === item.id;
 
                         return (
                             <TouchableOpacity
@@ -283,12 +349,32 @@ export default function DuaDetailScreen() {
 
                                             <View style={[styles.actionsRow, { borderTopColor: theme.border }]}>
                                                 <Text style={[styles.refText, { color: theme.textSecondary }]}>{item.reference}</Text>
-                                                <View style={{ flexDirection: 'row', gap: 16 }}>
-                                                    <TouchableOpacity style={styles.iconOp}>
-                                                        <Feather name="copy" size={20} color={theme.textSecondary} />
+                                                <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
+                                                    {justCopied && (
+                                                        <Text style={{ color: theme.gold, fontSize: 12, fontWeight: '600' }}>Copied</Text>
+                                                    )}
+                                                    <TouchableOpacity
+                                                        style={styles.iconOp}
+                                                        onPress={() => handleCopy(item)}
+                                                        accessibilityLabel="Copy dua"
+                                                    >
+                                                        <Feather
+                                                            name={justCopied ? 'check' : 'copy'}
+                                                            size={20}
+                                                            color={justCopied ? theme.gold : theme.textSecondary}
+                                                        />
                                                     </TouchableOpacity>
-                                                    <TouchableOpacity style={styles.iconOp}>
-                                                        <Feather name="bookmark" size={20} color={theme.textSecondary} />
+                                                    <TouchableOpacity
+                                                        style={styles.iconOp}
+                                                        onPress={() => toggleBookmark(item.id)}
+                                                        accessibilityLabel={isBookmarked ? 'Remove bookmark' : 'Bookmark dua'}
+                                                    >
+                                                        <Feather
+                                                            name="bookmark"
+                                                            size={20}
+                                                            color={isBookmarked ? theme.gold : theme.textSecondary}
+                                                            style={isBookmarked ? { opacity: 1 } : undefined}
+                                                        />
                                                     </TouchableOpacity>
                                                 </View>
                                             </View>

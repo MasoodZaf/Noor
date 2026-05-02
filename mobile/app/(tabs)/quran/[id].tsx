@@ -49,6 +49,34 @@ const URDU_EDITIONS = [
     { id: 'ur.maududi',   name: "Maariful Qur'an",     nameUrdu: 'معارف القرآن' },
 ];
 
+// Quran.com v4 caps `per_page` at 50 — surahs longer than that (Al-Fatiha is fine, but
+// e.g. Al-Baqarah/286, Ash-Shu'ara/227, Al-A'raf/206) lost ayahs from #51 onward. Loop
+// until `meta.total_count` is reached so every verse is fetched.
+const fetchAllSurahVerses = async (
+    surahId: number,
+    reciterId: number,
+    signal?: AbortSignal,
+): Promise<any[]> => {
+    const PAGE_SIZE = 50; // Quran.com v4 hard cap
+    let page = 1;
+    let allVerses: any[] = [];
+    while (true) {
+        const res = await fetch(
+            `${QURAN_API}/verses/by_chapter/${surahId}?words=true&word_fields=text_uthmani&fields=text_uthmani&audio=${reciterId}&per_page=${PAGE_SIZE}&page=${page}`,
+            { signal }
+        );
+        if (!res.ok) throw new Error(`Quran.com ${res.status}`);
+        const json = await res.json();
+        const verses: any[] = json.verses || [];
+        allVerses = allVerses.concat(verses);
+        const total = json.meta?.total_count ?? json.pagination?.total_records ?? 0;
+        if (allVerses.length >= total || verses.length < PAGE_SIZE) break;
+        page++;
+        if (page > 20) break; // safety: longest surah Al-Baqarah needs 6 pages at 50/page
+    }
+    return allVerses;
+};
+
 const fetchTranslationTexts = async (surahId: number, language: string, editionOverride?: string): Promise<string[]> => {
     const alquranEdition = editionOverride || ALQURAN_EDITIONS[language];
     if (alquranEdition) {
@@ -351,10 +379,6 @@ export default function QuranReaderScreen() {
     const [openTafseers, setOpenTafseers] = useState<Set<string>>(new Set());
     const [loadingTafseers, setLoadingTafseers] = useState<Set<string>>(new Set());
 
-    // Hadith (per-ayah)
-    const [hadithItems, setHadithItems] = useState<Record<string, any[]>>({});
-    const [openHadiths, setOpenHadiths] = useState<Set<string>>(new Set());
-    const [loadingHadiths, setLoadingHadiths] = useState<Set<string>>(new Set());
 
     // Language → Quran.com tafsir ID + display name
     // ID 169 = Ibn Kathir Abridged (English)
@@ -404,31 +428,6 @@ export default function QuranReaderScreen() {
         }
     };
 
-    const toggleHadith = async (ayahKey: string, surahNum: number, ayahNum: number) => {
-        if (openHadiths.has(ayahKey)) {
-            setOpenHadiths(prev => { const s = new Set(prev); s.delete(ayahKey); return s; });
-            return;
-        }
-        if (hadithItems[ayahKey]) {
-            setOpenHadiths(prev => new Set(prev).add(ayahKey));
-            return;
-        }
-        setLoadingHadiths(prev => new Set(prev).add(ayahKey));
-        try {
-            const res = await fetch(
-                `${QURAN_API}/hadiths?verse_key=${surahNum}:${ayahNum}&language=en&fields=text_en,collection_key,hadith_number`
-            );
-            const json = await res.json();
-            setHadithItems(prev => ({ ...prev, [ayahKey]: json.hadiths || [] }));
-            setOpenHadiths(prev => new Set(prev).add(ayahKey));
-        } catch {
-            setHadithItems(prev => ({ ...prev, [ayahKey]: [] }));
-            setOpenHadiths(prev => new Set(prev).add(ayahKey));
-        } finally {
-            setLoadingHadiths(prev => { const s = new Set(prev); s.delete(ayahKey); return s; });
-        }
-    };
-
     // Settings
     const [showSettings, setShowSettings] = useState(false);
     const [selectedFont, setSelectedFont] = useState(ARABIC_FONTS[0]);
@@ -458,10 +457,6 @@ export default function QuranReaderScreen() {
         setTafseerTexts({});
         setOpenTafseers(new Set());
         setLoadingTafseers(new Set());
-        setHadithItems({});
-        setOpenHadiths(new Set());
-        setLoadingHadiths(new Set());
-
         let mounted = true;
 
         const loadSurah = async () => {
@@ -510,7 +505,7 @@ export default function QuranReaderScreen() {
                 const fetchTimeout = setTimeout(() => controller.abort(), 20000);
                 const [chapterResult, versesResult, translationResult, indopakResult] = await Promise.allSettled([
                     fetch(`${QURAN_API}/chapters/${surahId}`, { signal: controller.signal }),
-                    fetch(`${QURAN_API}/verses/by_chapter/${surahId}?words=true&word_fields=text_uthmani&fields=text_uthmani&audio=${selectedReciter.id}&per_page=300&page=1`, { signal: controller.signal }),
+                    fetchAllSurahVerses(surahId, selectedReciter.id, controller.signal),
                     fetchTranslationTexts(surahId, language),
                     fetch(`${AUDIO_API}/surah/${surahId}/quran-indopak`, { signal: controller.signal }),
                 ]);
@@ -533,9 +528,8 @@ export default function QuranReaderScreen() {
                 }
 
                 let verses: any[] = [];
-                if (versesResult.status === 'fulfilled' && versesResult.value.ok) {
-                    const json = await versesResult.value.json();
-                    verses = json.verses || [];
+                if (versesResult.status === 'fulfilled') {
+                    verses = versesResult.value;
                 }
 
                 let translationTexts: string[] = [];
@@ -696,14 +690,9 @@ export default function QuranReaderScreen() {
             try {
                 const ctl = new AbortController();
                 const t = setTimeout(() => ctl.abort(), 20000);
-                const res = await fetch(
-                    `${QURAN_API}/verses/by_chapter/${surahId}?words=true&word_fields=text_uthmani&fields=text_uthmani&audio=${selectedReciter.id}&per_page=300&page=1`,
-                    { signal: ctl.signal }
-                ).finally(() => clearTimeout(t));
-                if (!res.ok) throw new Error(`Verse fetch ${res.status}`);
-                const json = await res.json();
+                const newVerses = await fetchAllSurahVerses(surahId, selectedReciter.id, ctl.signal)
+                    .finally(() => clearTimeout(t));
                 if (cancelled) return;
-                const newVerses: any[] = json.verses || [];
                 // Merge new audio URLs + segments into existing ayahs (preserve translations)
                 setAyahs(prev => prev.map((ayah, i) => ({
                     ...ayah,
@@ -1234,20 +1223,6 @@ export default function QuranReaderScreen() {
                                     {loadingTafseers.has(ck) && <ActivityIndicator size="small" color={QURAN_ACCENT} style={{ marginLeft: 3 }} />}
                                 </TouchableOpacity>
 
-                                <View style={[styles.ayahActionDivider, { backgroundColor: theme.border }]} />
-
-                                {/* Hadith */}
-                                <TouchableOpacity
-                                    style={styles.ayahActionBtn}
-                                    onPress={() => toggleHadith(ayah.id, ayah.surah_number, ayah.ayah_number)}
-                                    activeOpacity={0.7}
-                                >
-                                    <Feather name="list" size={13} color={openHadiths.has(ayah.id) ? QURAN_ACCENT : theme.textTertiary} />
-                                    <Text style={[styles.ayahActionLabel, { color: openHadiths.has(ayah.id) ? QURAN_ACCENT : theme.textTertiary }]}>
-                                        Hadith
-                                    </Text>
-                                    {loadingHadiths.has(ayah.id) && <ActivityIndicator size="small" color={QURAN_ACCENT} style={{ marginLeft: 3 }} />}
-                                </TouchableOpacity>
                             </View>
                                 );
                             })()}
@@ -1271,31 +1246,6 @@ export default function QuranReaderScreen() {
                                 </View>
                             )}
 
-                            {/* Hadith expandable box */}
-                            {openHadiths.has(ayah.id) && (
-                                <View style={[styles.tafseerBox, { backgroundColor: theme.bgSecondary, borderColor: theme.border }]}>
-                                    <View style={styles.tafseerBoxHeader}>
-                                        <Feather name="list" size={13} color={QURAN_ACCENT} />
-                                        <Text style={styles.tafseerBoxTitle}>Hadith — {ayah.surah_number}:{ayah.ayah_number}</Text>
-                                    </View>
-                                    {(hadithItems[ayah.id] ?? []).length === 0 ? (
-                                        <Text style={[styles.tafseerBoxText, { color: theme.textTertiary, fontStyle: 'italic' }]}>
-                                            No hadith found for this ayah.
-                                        </Text>
-                                    ) : (
-                                        (hadithItems[ayah.id] ?? []).map((h: any, hi: number) => (
-                                            <View key={hi} style={hi > 0 ? [styles.hadithDivider, { borderTopColor: theme.border }] : undefined}>
-                                                <Text style={[styles.hadithCollection, { color: QURAN_GOLD }]}>
-                                                    {h.collection_key ? `${h.collection_key} #${h.hadith_number}` : `Hadith ${hi + 1}`}
-                                                </Text>
-                                                <Text style={[styles.tafseerBoxText, { color: theme.textSecondary }]}>
-                                                    {h.text_en?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()}
-                                                </Text>
-                                            </View>
-                                        ))
-                                    )}
-                                </View>
-                            )}
                         </View>
                     );
                 }}
@@ -1836,18 +1786,6 @@ const styles = StyleSheet.create({
     ayahActionDivider: {
         width: StyleSheet.hairlineWidth,
         height: 18,
-    },
-    hadithDivider: {
-        marginTop: 14,
-        paddingTop: 14,
-        borderTopWidth: StyleSheet.hairlineWidth,
-    },
-    hadithCollection: {
-        fontSize: 11,
-        fontWeight: '700',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-        marginBottom: 6,
     },
     // ── Tafseer ───────────────────────────────────────────────────────────────
     tafseerBox: {
