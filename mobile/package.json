@@ -11,8 +11,9 @@
     "test": "jest",
     "test:unit": "jest",
     "test:coverage": "jest --coverage",
+    "test:a11y": "bash .maestro/a11y-audit.sh",
     "typecheck": "tsc --noEmit",
-    "verify": "tsc --noEmit && jest"
+    "verify": "tsc --noEmit && jest && bash .maestro/a11y-audit.sh"
   },
   "dependencies": {
     "@expo-google-fonts/cormorant-garamond": "^0.4.1",

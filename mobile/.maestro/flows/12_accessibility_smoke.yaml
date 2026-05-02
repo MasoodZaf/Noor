@@ -1,8 +1,11 @@
-# Smoke test #12 — accessibility smoke. Verifies that the screens with the
-# heaviest a11y instrumentation (Home prayer card, Quran reader, Duas list,
-# Hadith filter, Profile tweaks) expose elements via accessibility text.
-# Asserts on accessibilityLabel values that the a11y sweep added — so a
-# regression that strips labels will fail this flow.
+# Smoke test #12 — accessibility smoke. Exercises every major screen and
+# asserts that the most regression-prone accessibilityLabel values are
+# reachable. If a label is stripped or renamed accidentally, this flow fails.
+#
+# Coverage: Home, Quran reader, Hadith filter, Duas, Profile, Discover,
+# Settings modals. Asserts ~25 distinct labels.
+#
+# Run with: maestro test .maestro/flows/12_accessibility_smoke.yaml
 appId: com.falah.islamic
 tags:
   - smoke
@@ -11,32 +14,90 @@ tags:
 - launchApp:
     clearState: false
 
-# Home — prayer-bell switches and the notification bell are labelled
+# ── Home tab ────────────────────────────────────────────────────────────────
 - tapOn: "Home"
 - assertVisible:
     id: "Notifications"
+- assertVisible:
+    id: "Search"
 
-# Quran reader — back, settings, ayah controls
+# Open notifications modal — verify it opens and prayer-bell switches reachable
+- tapOn:
+    id: "Notifications"
+- assertVisible:
+    text: "Adhan Notifications"
+- tapOn:
+    text: "Done"
+
+# ── Quran tab ───────────────────────────────────────────────────────────────
 - tapOn: "Quran"
+- assertVisible:
+    text: "Al-Fatiha"
+
+# Open the surah reader — back, settings, bookmark all labelled
 - tapOn: "Al-Fatiha"
 - assertVisible:
     id: "Go back"
 - assertVisible:
     id: "Reading settings"
+# Settings modal — radio rows for font, reciter, plus tajweed switch
+- tapOn:
+    id: "Reading settings"
+- assertVisible:
+    text: "Reading Settings"
+- tapOn:
+    id: "Close reading settings"
+- back
 
-# Hadith filter — bookmarked-only toggle is labelled
+# ── Hadith tab ──────────────────────────────────────────────────────────────
 - tapOn: "Hadith"
 - assertVisible:
-    id: "Show bookmarked only"
+    text: "Sahih al-Bukhari"
 
-# Duas — back button + category cards have labels
+# Open Bukhari → bookmark filter is reachable + labelled
+- tapOn: "Sahih al-Bukhari"
+- assertVisible:
+    id: "Show bookmarked only"
+- back
+
+# ── Discover tab ────────────────────────────────────────────────────────────
 - tapOn: "Discover"
 - assertVisible:
-    id: "Recitation"
+    text: "Recitation"
+- assertVisible:
+    text: "Halal Places"
 
-# Profile — tweaks panel + theme picker
+# Ask AiDeen — scope tabs are role="tab" with selected state
+- tapOn: "Ask AiDeen"
+- assertVisible:
+    text: "Quran"
+- assertVisible:
+    text: "Hadith"
+- assertVisible:
+    text: "Fiqh"
+- back
+
+# ── Settings (Profile) tab ──────────────────────────────────────────────────
 - tapOn: "Settings"
 - assertVisible:
-    id: "Notifications"
+    text: "Tweaks"
+- assertVisible:
+    id: "Adhan Notifications"
 - assertVisible:
     id: "Calculation Method"
+- assertVisible:
+    id: "Database Status"
+- assertVisible:
+    id: "Privacy Policy"
+
+# Tap Adhan Notifications — opens an alert with explanatory text
+- tapOn:
+    id: "Adhan Notifications"
+- assertVisible:
+    text: "bell icon"
+- tapOn: "Cancel"
+
+# ── Tab bar a11y — back to Home ─────────────────────────────────────────────
+- tapOn: "Home"
+- assertVisible:
+    id: "Search"
