@@ -561,15 +561,26 @@ export default function SearchScreen() {
                 <View style={styles.placeholder}>
                     {searchFailed ? (
                         <>
-                            <Feather name="wifi-off" size={40} color={theme.textTertiary} />
+                            <Feather name="alert-circle" size={40} color={theme.textTertiary} />
                             <Text style={[styles.placeholderTitle, { color: theme.textPrimary }]}>Search unavailable</Text>
                             <Text style={[styles.placeholderSub, { color: theme.textSecondary }]}>Check your connection and try again</Text>
+                            <TouchableOpacity
+                                onPress={() => runSearch(query, scope)}
+                                style={[styles.retryBtn, { backgroundColor: theme.accentLight, borderColor: theme.accent + '44' }]}
+                                accessibilityRole="button"
+                                accessibilityLabel="Try again"
+                            >
+                                <Feather name="refresh-cw" size={14} color={theme.accent} style={{ marginRight: 6 }} />
+                                <Text style={[styles.retryText, { color: theme.accent }]}>Try again</Text>
+                            </TouchableOpacity>
                         </>
                     ) : (
                         <>
-                            <Feather name="inbox" size={40} color={theme.textTertiary} />
-                            <Text style={[styles.placeholderTitle, { color: theme.textPrimary }]}>No results for "{query}"</Text>
-                            <Text style={[styles.placeholderSub, { color: theme.textSecondary }]}>Try a shorter keyword or different phrase</Text>
+                            <Feather name="search" size={40} color={theme.textTertiary} />
+                            <Text style={[styles.placeholderTitle, { color: theme.textPrimary }]}>No results yet</Text>
+                            <Text style={[styles.placeholderSub, { color: theme.textSecondary }]}>
+                                Nothing matched “{query}”. Try a shorter keyword or different phrase.
+                            </Text>
                         </>
                     )}
                 </View>
@@ -696,6 +707,12 @@ const styles = StyleSheet.create({
         elevation: 1,
     },
     exampleChipText: { fontSize: 13, fontWeight: '500' },
+    retryBtn: {
+        flexDirection: 'row', alignItems: 'center',
+        paddingHorizontal: 16, paddingVertical: 9,
+        borderRadius: 20, borderWidth: 1, marginTop: 14,
+    },
+    retryText: { fontSize: 13, fontWeight: '600' },
 
     // List
     listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 60, gap: 12 },

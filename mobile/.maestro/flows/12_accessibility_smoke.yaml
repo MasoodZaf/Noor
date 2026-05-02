@@ -1,0 +1,42 @@
+# Smoke test #12 — accessibility smoke. Verifies that the screens with the
+# heaviest a11y instrumentation (Home prayer card, Quran reader, Duas list,
+# Hadith filter, Profile tweaks) expose elements via accessibility text.
+# Asserts on accessibilityLabel values that the a11y sweep added — so a
+# regression that strips labels will fail this flow.
+appId: com.falah.islamic
+tags:
+  - smoke
+  - a11y
+---
+- launchApp:
+    clearState: false
+
+# Home — prayer-bell switches and the notification bell are labelled
+- tapOn: "Home"
+- assertVisible:
+    id: "Notifications"
+
+# Quran reader — back, settings, ayah controls
+- tapOn: "Quran"
+- tapOn: "Al-Fatiha"
+- assertVisible:
+    id: "Go back"
+- assertVisible:
+    id: "Reading settings"
+
+# Hadith filter — bookmarked-only toggle is labelled
+- tapOn: "Hadith"
+- assertVisible:
+    id: "Show bookmarked only"
+
+# Duas — back button + category cards have labels
+- tapOn: "Discover"
+- assertVisible:
+    id: "Recitation"
+
+# Profile — tweaks panel + theme picker
+- tapOn: "Settings"
+- assertVisible:
+    id: "Notifications"
+- assertVisible:
+    id: "Calculation Method"

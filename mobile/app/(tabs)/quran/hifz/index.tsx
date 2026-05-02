@@ -133,58 +133,12 @@ const SURAHS: { id: number; name: string; arabic: string; ayahs: number }[] = [
     { id: 114, name: 'An-Nas', arabic: 'الناس', ayahs: 6 },
 ];
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-export interface HifzEntry {
-    surahId: number;
-    surahName: string;
-    arabicName: string;
-    totalAyahs: number;
-    status: 'learning' | 'memorized' | 'needs_review';
-    easeFactor: number;
-    interval: number;
-    repetitions: number;
-    nextReview: string; // YYYY-MM-DD
-    lastReview: string | null;
-    addedAt: string; // YYYY-MM-DD
-}
+// ─── Types & SM-2 — extracted to utils/sm2.ts for testability ────────────────
+import { applySM2, toIsoDate, type HifzEntry } from '../../../../utils/sm2';
+export { applySM2 };
+export type { HifzEntry };
 
-// ─── SM-2 helpers ────────────────────────────────────────────────────────────
-export function applySM2(entry: HifzEntry, quality: 0 | 3 | 4 | 5): HifzEntry {
-    let { easeFactor, interval, repetitions } = entry;
-    const newEF = Math.max(1.3, easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)));
-
-    let newInterval: number;
-    let newReps: number;
-
-    if (quality < 3) {
-        newReps = 0;
-        newInterval = 1;
-    } else {
-        newReps = repetitions + 1;
-        if (repetitions === 0) newInterval = 1;
-        else if (repetitions === 1) newInterval = 6;
-        else newInterval = Math.round(interval * newEF);
-    }
-
-    const next = new Date();
-    next.setDate(next.getDate() + newInterval);
-
-    const status: HifzEntry['status'] =
-        quality < 3 ? 'needs_review' :
-            newReps >= 4 && newInterval >= 21 ? 'memorized' : 'learning';
-
-    return {
-        ...entry,
-        easeFactor: newEF,
-        interval: newInterval,
-        repetitions: newReps,
-        nextReview: next.toISOString().split('T')[0],
-        lastReview: new Date().toISOString().split('T')[0],
-        status,
-    };
-}
-
-function todayStr() { return new Date().toISOString().split('T')[0]; }
+function todayStr() { return toIsoDate(new Date()); }
 
 function formatNextReview(dateStr: string): string {
     const today = todayStr();

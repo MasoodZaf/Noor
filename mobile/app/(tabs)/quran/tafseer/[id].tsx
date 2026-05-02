@@ -52,6 +52,7 @@ export default function TafseerVolumesScreen() {
     const tafseerId = typeof id === 'string' ? id : 'ibn_kathir';
     const book = TAFSEER_META[tafseerId] || TAFSEER_META['ibn_kathir'];
     const volumes = Array.from({ length: book.totalVolumes }, (_, i) => i + 1);
+    const hasVolumes = volumes.length > 0;
 
     return (
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
@@ -90,6 +91,12 @@ export default function TafseerVolumesScreen() {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
+                {!hasVolumes && (
+                    <View style={styles.emptyState}>
+                        <Feather name="folder" size={40} color={theme.textTertiary} />
+                        <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No volumes available</Text>
+                    </View>
+                )}
                 <View style={styles.volumesGrid}>
                     {volumes.map((volNumber) => (
                         <TouchableOpacity
@@ -222,5 +229,14 @@ const styles = StyleSheet.create({
     orbText: {
         fontSize: 17,
         fontWeight: 'bold',
+    },
+    emptyState: {
+        alignItems: 'center',
+        paddingVertical: 60,
+        gap: 12,
+    },
+    emptyText: {
+        fontSize: 15,
+        fontWeight: '500',
     },
 });

@@ -261,57 +261,52 @@ export default function HalalPlacesScreen() {
         return buildLeafletHtml(places, location.lat, location.lon);
     }, [places, location]);
 
-    // Fetch location + places on mount
-    useEffect(() => {
-        let mounted = true;
-        (async () => {
-            setLoading(true);
-            try {
-                const { status } = await Location.requestForegroundPermissionsAsync();
-                if (!mounted) return;
-                if (status !== 'granted') {
-                    setError('Location permission denied. Cannot show nearby places.');
-                    setLoading(false);
-                    return;
-                }
-                // Try high-accuracy first, fall back to last known position if unavailable
-                let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
-                    .catch(() => Location.getLastKnownPositionAsync());
-                if (!mounted) return;
-                if (!loc) throw new Error('Location unavailable');
-                const { latitude, longitude } = loc.coords;
-                setLocation({ lat: latitude, lon: longitude });
-                setRegion({
-                    latitude,
-                    longitude,
-                    latitudeDelta: 0.05,
-                    longitudeDelta: 0.05,
-                });
-
-                // Reverse geocode to determine if user is in a Muslim-majority country
-                let muslimCountry = false;
-                try {
-                    const [geo] = await Location.reverseGeocodeAsync({ latitude, longitude });
-                    const countryCode = geo?.isoCountryCode ?? '';
-                    muslimCountry = MUSLIM_MAJORITY_COUNTRIES.has(countryCode);
-                    setIsMuslimCountry(muslimCountry);
-                } catch {
-                    // Default to strict halal-only if geocoding fails
-                }
-
-                const nearby = await fetchNearbyPlaces(latitude, longitude, muslimCountry);
-                if (!mounted) return;
-                setPlaces(nearby);
-            } catch (e: any) {
-                if (!mounted) return;
-                setError('Could not load nearby places. Check your connection.');
-                console.warn('[Noor/Halal] Places fetch failed:', e);
-            } finally {
-                if (mounted) setLoading(false);
+    // Fetch location + places — extracted so retry button can re-run
+    const loadPlaces = useCallback(async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                setError('Location permission denied. Cannot show nearby places.');
+                setLoading(false);
+                return;
             }
-        })();
-        return () => { mounted = false; };
+            // Try high-accuracy first, fall back to last known position if unavailable
+            let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+                .catch(() => Location.getLastKnownPositionAsync());
+            if (!loc) throw new Error('Location unavailable');
+            const { latitude, longitude } = loc.coords;
+            setLocation({ lat: latitude, lon: longitude });
+            setRegion({
+                latitude,
+                longitude,
+                latitudeDelta: 0.05,
+                longitudeDelta: 0.05,
+            });
+
+            // Reverse geocode to determine if user is in a Muslim-majority country
+            let muslimCountry = false;
+            try {
+                const [geo] = await Location.reverseGeocodeAsync({ latitude, longitude });
+                const countryCode = geo?.isoCountryCode ?? '';
+                muslimCountry = MUSLIM_MAJORITY_COUNTRIES.has(countryCode);
+                setIsMuslimCountry(muslimCountry);
+            } catch {
+                // Default to strict halal-only if geocoding fails
+            }
+
+            const nearby = await fetchNearbyPlaces(latitude, longitude, muslimCountry);
+            setPlaces(nearby);
+        } catch (e: any) {
+            setError('Could not load nearby places. Check your connection.');
+            console.warn('[Noor/Halal] Places fetch failed:', e);
+        } finally {
+            setLoading(false);
+        }
     }, []);
+
+    useEffect(() => { loadPlaces(); }, [loadPlaces]);
 
     const filteredPlaces = places.filter(p => {
         const matchesFilter = filter === 'All' || p.type === filter;
@@ -538,7 +533,16 @@ export default function HalalPlacesScreen() {
             ) : error ? (
                 <View style={styles.centerState}>
                     <Feather name="alert-circle" size={36} color={theme.textTertiary} />
-                    <Text style={[styles.stateText, { color: theme.textSecondary }]}>{error}</Text>
+                    <Text style={[styles.stateText, { color: theme.textSecondary }]}>Couldn’t load nearby places</Text>
+                    <TouchableOpacity
+                        onPress={loadPlaces}
+                        style={[styles.retryBtn, { backgroundColor: theme.accentLight, borderColor: theme.accent + '44' }]}
+                        accessibilityRole="button"
+                        accessibilityLabel="Try again"
+                    >
+                        <Feather name="refresh-cw" size={14} color={theme.accent} style={{ marginRight: 6 }} />
+                        <Text style={[styles.retryText, { color: theme.accent }]}>Try again</Text>
+                    </TouchableOpacity>
                 </View>
             ) : filteredPlaces.length === 0 ? (
                 <View style={styles.centerState}>
@@ -701,6 +705,12 @@ const styles = StyleSheet.create({
     // States
     centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingBottom: 60 },
     stateText: { fontSize: 14, textAlign: 'center', paddingHorizontal: 40 },
+    retryBtn: {
+        flexDirection: 'row', alignItems: 'center',
+        paddingHorizontal: 16, paddingVertical: 9,
+        borderRadius: 20, borderWidth: 1, marginTop: 4,
+    },
+    retryText: { fontSize: 13, fontWeight: '600' },
 
     // List
     listContent: { paddingHorizontal: 16, paddingBottom: 40 },
