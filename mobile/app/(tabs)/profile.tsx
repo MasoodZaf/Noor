@@ -618,6 +618,45 @@ export default function ProfileScreen() {
                 </View>
                 <ThemePickerSection />
 
+                {/* Backup Status — sets honest expectations about cross-device sync.
+                    Sync isn't implemented yet (only Supabase auth is wired); this
+                    card is what tells the user their bookmarks/progress are local. */}
+                <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Backup</Text>
+                <TouchableOpacity
+                    style={[styles.menuGroup, { backgroundColor: theme.bgCard, borderColor: theme.border, padding: 16, marginBottom: 30 }]}
+                    onPress={() => Alert.alert(
+                        session ? 'Cross-device sync' : 'Local data',
+                        session
+                            ? `You\'re signed in as ${session.user?.email ?? 'your account'}.\n\nCross-device sync is coming soon — your bookmarks, Hifz progress, and preferences will mirror automatically once it ships. For now, your data still lives only on this device.`
+                            : 'Your bookmarks, Hifz progress, prayer settings, and other preferences are stored on this device only.\n\nUninstalling the app or wiping the device will erase them — unless you have iCloud Backup (iOS) or Auto-Backup (Android) enabled.\n\nSign in below to be notified when cross-device sync ships.',
+                        [{ text: 'OK' }]
+                    )}
+                    accessibilityRole="button"
+                    accessibilityLabel={session ? 'Backup status, signed in' : 'Backup status, your data is on this device'}
+                    accessibilityHint="Shows details about how your data is stored"
+                >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={[styles.menuIconBox, { backgroundColor: theme.bgInput }]}>
+                            <Feather
+                                name={session ? 'shield' : 'smartphone'}
+                                size={18}
+                                color={session ? theme.gold : theme.textPrimary}
+                            />
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                            <Text style={{ color: theme.textPrimary, fontSize: 15, fontWeight: '600', marginBottom: 2 }}>
+                                {session ? 'Signed in' : 'Your data is on this device'}
+                            </Text>
+                            <Text style={{ color: theme.textSecondary, fontSize: 12, lineHeight: 18 }}>
+                                {session
+                                    ? `${session.user?.email ?? 'Account'} · cross-device sync coming soon`
+                                    : 'Sign in below to enable cross-device sync (coming soon)'}
+                            </Text>
+                        </View>
+                        <Feather name="info" size={18} color={theme.textTertiary} />
+                    </View>
+                </TouchableOpacity>
+
                 {/* Settings Menu */}
                 <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Account</Text>
                 <View style={[styles.menuGroup, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
