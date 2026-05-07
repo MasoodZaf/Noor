@@ -14,7 +14,7 @@ import { useTheme } from '../../../../context/ThemeContext';
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TAFSEER_META: Record<string, { title: string; author: string; totalVolumes: number; ids?: { english?: number; urdu?: number; arabic?: number } }> = {
     ibn_kathir: { title: 'Tafsir Ibn Kathir', author: "Isma'il ibn Kathir", totalVolumes: 10, ids: { english: 169, urdu: 160, arabic: 14 } },
-    jalalayn: { title: 'Tafsir al-Jalalayn', author: 'Al-Mahalli & As-Suyuti', totalVolumes: 1, ids: { arabic: 16 } },
+    jalalayn: { title: 'Tafsir al-Jalalayn', author: 'Al-Mahalli & As-Suyuti', totalVolumes: 2, ids: { arabic: 16 } },
     sadi: { title: "Tafsir As-Sa'di", author: "Abdur-Rahman as-Sa'di", totalVolumes: 10, ids: { arabic: 91, english: 169 } },
     maarif: { title: "Ma'ariful Qur'an", author: 'Muhammad Shafi Usmani', totalVolumes: 8, ids: { english: 168, urdu: 159 } },
     tabari: { title: 'Tafsir al-Tabari', author: 'Muhammad ibn Jarir al-Tabari', totalVolumes: 24, ids: { arabic: 15, english: 169, urdu: 160 } },
@@ -234,9 +234,18 @@ export default function TafseerReadScreen() {
         const load = async () => {
             setLoading(true);
             try {
-                const surahsPerVol = Math.ceil(114 / meta.totalVolumes);
-                const startSurah = (volumeIndex - 1) * surahsPerVol + 1;
-                const endSurah = Math.min(startSurah + surahsPerVol - 1, 114);
+                // Jalalayn uses the historical As-Suyuti / Al-Mahalli split rather
+                // than an even partition, since each volume reflects a distinct author.
+                let startSurah: number;
+                let endSurah: number;
+                if (tafseerId === 'jalalayn') {
+                    if (volumeIndex === 1) { startSurah = 1;  endSurah = 17;  }
+                    else                   { startSurah = 18; endSurah = 114; }
+                } else {
+                    const surahsPerVol = Math.ceil(114 / meta.totalVolumes);
+                    startSurah = (volumeIndex - 1) * surahsPerVol + 1;
+                    endSurah   = Math.min(startSurah + surahsPerVol - 1, 114);
+                }
 
                 const surahsData: any[] = await db.getAllAsync(
                     'SELECT number, name_english FROM surahs WHERE number >= ? AND number <= ?',

@@ -18,7 +18,8 @@ const TAFSEER_META: Record<string, { title: string; author: string; desc: string
         title: 'Tafsir al-Jalalayn',
         author: 'Al-Mahalli & As-Suyuti',
         desc: 'Concise and brief, excellent for beginners.',
-        totalVolumes: 1,
+        // Two-volume split: As-Suyuti (Surahs 1–17) and Al-Mahalli (Surahs 18–114).
+        totalVolumes: 2,
     },
     sadi: {
         title: "Tafsir As-Sa'di",

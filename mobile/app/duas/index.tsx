@@ -6,7 +6,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useDatabase } from '../../context/DatabaseContext';
 import { useTheme, fonts } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { useCachedImageUri } from '../../components/CachedImage';
+import { useTranslatedTexts } from '../../utils/translateText';
+import { isRtl, type Language } from '../../utils/language';
 
 // CARD_WIDTH computed inside component via useWindowDimensions (see DuasScreen)
 
@@ -24,6 +27,7 @@ interface DuaListRow {
     arabic_text: string;
     transliteration: string;
     translation_en: string;
+    translation_ur: string | null;
     category: string;
 }
 
@@ -40,7 +44,7 @@ const CATEGORY_IMAGES: Record<string, string> = {
     'Prayer (Salah)': 'https://images.unsplash.com/photo-1564121211835-e88c852648ab?q=80&w=500&auto=format&fit=crop',
     'Travel': 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=500&auto=format&fit=crop',
     'Anxiety & Sorrow': 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=500&auto=format&fit=crop',
-    'Eating & Drinking': 'https://images.unsplash.com/photo-1581006852262-e4307cf6283a?q=80&w=500&auto=format&fit=crop',
+    'Eating & Drinking': 'https://images.unsplash.com/photo-1614061811858-dde54a522f5e?q=80&w=500&auto=format&fit=crop',
 };
 
 export default function DuasScreen() {
@@ -48,7 +52,9 @@ export default function DuasScreen() {
     const insets = useSafeAreaInsets();
     const { db } = useDatabase();
     const { theme } = useTheme();
+    const { language } = useLanguage();
     const { width } = useWindowDimensions();
+    const isUrdu = language === 'urdu';
     const CARD_WIDTH = (width - 48 - 12) / 2; // 2 columns with 12px gap, 24px padding on sides
     const [categories, setCategories] = useState<DuaCategoryRow[]>([]);
     const [popularDuas, setPopularDuas] = useState<DuaListRow[]>([]);
@@ -76,7 +82,7 @@ export default function DuasScreen() {
                 setCategories(mappedCats);
 
                 const duaResults = await db?.getAllAsync<DuaListRow>(`
-                    SELECT d.id, d.category_id, d.title, d.arabic_text, d.transliteration, d.translation_en, c.name_english as category
+                    SELECT d.id, d.category_id, d.title, d.arabic_text, d.transliteration, d.translation_en, d.translation_ur, c.name_english as category
                     FROM duas d
                     JOIN dua_categories c ON d.category_id = c.id
                     ORDER BY d.sort_order ASC
@@ -104,13 +110,13 @@ export default function DuasScreen() {
             setSearching(true);
             try {
                 const results = await db?.getAllAsync<DuaListRow>(`
-                    SELECT d.id, d.category_id, d.title, d.arabic_text, d.transliteration, d.translation_en, c.name_english as category
+                    SELECT d.id, d.category_id, d.title, d.arabic_text, d.transliteration, d.translation_en, d.translation_ur, c.name_english as category
                     FROM duas d
                     JOIN dua_categories c ON d.category_id = c.id
-                    WHERE d.title LIKE ? OR d.translation_en LIKE ? OR d.transliteration LIKE ?
+                    WHERE d.title LIKE ? OR d.translation_en LIKE ? OR d.translation_ur LIKE ? OR d.transliteration LIKE ?
                     ORDER BY d.sort_order ASC
                     LIMIT 30
-                `, [`%${query}%`, `%${query}%`, `%${query}%`]);
+                `, [`%${query}%`, `%${query}%`, `%${query}%`, `%${query}%`]);
                 setSearchResults(results ?? []);
             } catch (e) {
                 console.error('Dua search error:', e);
@@ -123,6 +129,16 @@ export default function DuasScreen() {
 
     const isSearching = search.trim().length > 0;
     const displayedDuas = isSearching ? searchResults : popularDuas;
+
+    // Translation source per dua: seeded UR when language=urdu, otherwise English source.
+    // The hook below auto-translates the English sources for indonesian/french/bengali/turkish.
+    const translationSources = displayedDuas.map(d =>
+        isUrdu && d.translation_ur ? d.translation_ur : d.translation_en
+    );
+    // Skip the API call when language is english or urdu (already final).
+    const targetLang: Language = (language === 'english' || language === 'urdu') ? 'english' : (language as Language);
+    const translatedTexts = useTranslatedTexts(translationSources, targetLang);
+    const useRtl = isUrdu;
 
     return (
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.bg }]}>
@@ -210,7 +226,7 @@ export default function DuasScreen() {
                     <ActivityIndicator color={theme.gold} style={{ marginTop: 20 }} />
                 ) : displayedDuas.length === 0 && isSearching ? (
                     <Text style={{ color: theme.textTertiary, textAlign: 'center', marginTop: 16 }}>No duas found for "{search}"</Text>
-                ) : displayedDuas.map((dua) => (
+                ) : displayedDuas.map((dua, idx) => (
                     <TouchableOpacity
                         key={dua.id}
                         style={[styles.duaCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
@@ -239,7 +255,20 @@ export default function DuasScreen() {
                         </View>
 
                         {/* Full Translation */}
-                        <Text style={[styles.duaTranslation, { color: theme.textSecondary }]}>{dua.translation_en}</Text>
+                        <Text
+                            style={[
+                                styles.duaTranslation,
+                                { color: theme.textSecondary },
+                                useRtl && {
+                                    textAlign: 'right',
+                                    writingDirection: 'rtl',
+                                    fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+                                    lineHeight: 26,
+                                },
+                            ]}
+                        >
+                            {translatedTexts[idx] ?? dua.translation_en}
+                        </Text>
 
                         {/* Category badge */}
                         <View style={styles.duaFooter}>

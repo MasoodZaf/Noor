@@ -10,6 +10,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useDatabase } from '../../context/DatabaseContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
+import { useTranslatedTexts } from '../../utils/translateText';
+import type { Language } from '../../utils/language';
 
 const BOOKMARK_KEY = '@dua_bookmarks';
 
@@ -103,6 +106,8 @@ export default function DuaDetailScreen() {
     const focusId = typeof focus === 'string' ? focus : null;
     const { db } = useDatabase();
     const { theme } = useTheme();
+    const { language } = useLanguage();
+    const isUrdu = language === 'urdu';
 
     const [isLoading, setIsLoading] = useState(true);
     const [dbData, setDbData] = useState<any>(null);
@@ -121,7 +126,7 @@ export default function DuaDetailScreen() {
                 if (catRow) {
                     // Fetch nested Duas
                     const duaRows = await db?.getAllAsync(`
-                        SELECT id, title as desc, arabic_text as arabic, transliteration, translation_en as translation, source as reference
+                        SELECT id, title as desc, arabic_text as arabic, transliteration, translation_en, translation_ur, source as reference
                         FROM duas WHERE category_id = ? ORDER BY sort_order ASC
                     `, [categoryId]);
 
@@ -224,11 +229,34 @@ export default function DuaDetailScreen() {
         });
     };
 
+    // Build the English source array (used for runtime translation when the
+    // user picks indonesian/french/bengali/turkish — duas table only ships
+    // EN + UR seeded translations, so the rest fall back to translateText).
+    const englishSources: string[] = (data.items || []).map(
+        (it: any) => it.translation_en || it.translation || ''
+    );
+    const needsRuntimeTranslate = language !== 'english' && language !== 'urdu';
+    const translateTarget: Language = needsRuntimeTranslate ? (language as Language) : 'english';
+    const translatedSources = useTranslatedTexts(englishSources, translateTarget);
+    const translatedById: Record<string, string> = {};
+    (data.items || []).forEach((it: any, i: number) => {
+        translatedById[String(it.id)] = translatedSources[i] ?? englishSources[i];
+    });
+
+    const getTranslation = (item: any): { text: string; rtl: boolean } => {
+        if (isUrdu && item.translation_ur) return { text: item.translation_ur, rtl: true };
+        if (needsRuntimeTranslate) {
+            return { text: translatedById[String(item.id)] || item.translation_en || item.translation || '', rtl: false };
+        }
+        if (item.translation_en) return { text: item.translation_en, rtl: false };
+        return { text: item.translation || '', rtl: false };
+    };
+
     const handleCopy = async (item: any) => {
         const lines = [
             item.arabic,
             item.transliteration,
-            item.translation,
+            getTranslation(item).text,
             item.reference ? `— ${item.reference}` : null,
         ].filter(Boolean);
         try {
@@ -310,10 +338,39 @@ export default function DuaDetailScreen() {
 
                 {/* Duas List */}
                 <View style={styles.listContainer}>
-                    {(showBookmarkedOnly
-                        ? data.items.filter((it: any) => bookmarks.has(it.id))
-                        : data.items
-                    ).map((item: any, index: number) => {
+                    {(() => {
+                        const visibleItems = showBookmarkedOnly
+                            ? data.items.filter((it: any) => bookmarks.has(it.id))
+                            : data.items;
+
+                        if (showBookmarkedOnly && visibleItems.length === 0) {
+                            return (
+                                <View style={{ alignItems: 'center', paddingVertical: 48, paddingHorizontal: 24 }}>
+                                    <View style={[styles.heroIconWrapper, { backgroundColor: theme.accentLight, borderColor: theme.border, marginBottom: 16 }]}>
+                                        <Feather name="bookmark" size={28} color={theme.gold} />
+                                    </View>
+                                    <Text style={{ color: theme.textPrimary, fontSize: 17, fontWeight: '700', marginBottom: 6, textAlign: 'center' }}>
+                                        No bookmarks yet
+                                    </Text>
+                                    <Text style={{ color: theme.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 16 }}>
+                                        Tap the bookmark icon on any dua to save it here for quick access.
+                                    </Text>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                            setShowBookmarkedOnly(false);
+                                        }}
+                                        style={{ borderWidth: 1, borderColor: theme.gold, borderRadius: 999, paddingHorizontal: 20, paddingVertical: 10 }}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Show all duas"
+                                    >
+                                        <Text style={{ color: theme.gold, fontWeight: '700', fontSize: 13 }}>Show all duas</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            );
+                        }
+
+                        return visibleItems.map((item: any, index: number) => {
                         const isExpanded = expandedDua === item.id;
                         const isBookmarked = bookmarks.has(item.id);
                         const justCopied = copiedId === item.id;
@@ -361,7 +418,21 @@ export default function DuaDetailScreen() {
                                             <Text style={[styles.translitText, { color: theme.textPrimary }]}>{item.transliteration}</Text>
 
                                             <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>TRANSLATION</Text>
-                                            <Text style={[styles.translationText, { color: theme.textSecondary }]}>{item.translation}</Text>
+                                            {(() => {
+                                                const tr = getTranslation(item);
+                                                return (
+                                                    <Text style={[
+                                                        styles.translationText,
+                                                        { color: theme.textSecondary },
+                                                        tr.rtl && {
+                                                            textAlign: 'right',
+                                                            writingDirection: 'rtl',
+                                                            fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+                                                            lineHeight: 30,
+                                                        },
+                                                    ]}>{tr.text}</Text>
+                                                );
+                                            })()}
 
                                             <View style={[styles.benefitBox, { backgroundColor: theme.accentLight, borderColor: theme.border }]}>
                                                 <Feather name="award" size={16} color={theme.gold} />
@@ -409,7 +480,8 @@ export default function DuaDetailScreen() {
                                 </LinearGradient>
                             </TouchableOpacity>
                         );
-                    })}
+                        });
+                    })()}
                 </View>
 
                 <View style={{ height: 100 }} />

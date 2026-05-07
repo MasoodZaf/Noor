@@ -1,14 +1,12 @@
-import { exit } from 'process';
-
 const sqlite3 = require('sqlite3').verbose();
 const https = require('https');
 const db = new sqlite3.Database('assets/noor.db');
 
 async function fetchJson(url) {
     return new Promise((resolve, reject) => {
-      exit  https.get(url, (res) => {
+        https.get(url, (res) => {
             let data = '';
-          21  res.on('data', chunk => data += chunk);
+            res.on('data', chunk => data += chunk);
             res.on('end', () => resolve(JSON.parse(data)));
         }).on('error', reject);
     });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, ScrollView,
-    Platform, Animated, Easing, Alert, BackHandler,
+    Platform, Animated, Easing, Alert, BackHandler, Linking,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -88,6 +88,11 @@ export default function RecitationScreen() {
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const wsReconnectAllowedRef = useRef(true);
 
+    // ── Playback of the user's last recording ──────────────────────────────────
+    const [recordingUri, setRecordingUri] = useState<string | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const playbackSoundRef = useRef<Audio.Sound | null>(null);
+
     const goBack = useCallback(() => {
         if (router.canGoBack()) router.back();
         else router.replace('/(tabs)/discover' as any);
@@ -132,6 +137,8 @@ export default function RecitationScreen() {
             wsRef.current?.close();
             wsRef.current = null;
             if (timerRef.current) clearInterval(timerRef.current);
+            playbackSoundRef.current?.unloadAsync().catch(() => {});
+            playbackSoundRef.current = null;
         };
     }, []);
 
@@ -198,13 +205,37 @@ export default function RecitationScreen() {
     }, []);
 
     // ── Recording ───────────────────────────────────────────────────────────
+    const ensureMicPermission = async (): Promise<boolean> => {
+        // Ask now (or re-ask) — handles the case where the initial mount-time
+        // request was deferred, or the user toggled the permission externally.
+        const { status, canAskAgain } = await Audio.requestPermissionsAsync();
+        const granted = status === 'granted';
+        setHasPermission(granted);
+        if (granted) return true;
+        Alert.alert(
+            'Microphone Access Needed',
+            'Falah needs microphone access to record your recitation and check your tajweed.',
+            canAskAgain
+                ? [{ text: 'OK' }]
+                : [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) },
+                ],
+        );
+        return false;
+    };
+
     const startRecording = async () => {
-        if (hasPermission === false) {
-            Alert.alert('Microphone Access', 'Please allow microphone access in Settings to use this feature.');
-            return;
+        // Stop any in-flight playback of a prior recording
+        if (playbackSoundRef.current) {
+            try { await playbackSoundRef.current.unloadAsync(); } catch {}
+            playbackSoundRef.current = null;
+            setIsPlaying(false);
         }
+        if (!(await ensureMicPermission())) return;
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         setResult(null);
+        setRecordingUri(null);
         setDuration(0);
 
         try {
@@ -257,6 +288,7 @@ export default function RecitationScreen() {
             await recordingRef.current.stopAndUnloadAsync();
             const uri = recordingRef.current.getURI();
             recordingRef.current = null;
+            if (uri) setRecordingUri(uri);
 
             if (QRC_KEY && wsRef.current?.readyState === WebSocket.OPEN && uri) {
                 // Send the audio file to QRC via WebSocket
@@ -323,6 +355,44 @@ export default function RecitationScreen() {
         feedback: 'Demo result — add EXPO_PUBLIC_QURANI_API_KEY for live Qurani.ai QRC analysis.',
         isDemo: true,
     });
+
+    // ── Playback of last recording ─────────────────────────────────────────
+    const togglePlayback = useCallback(async () => {
+        if (!recordingUri) return;
+        try {
+            if (playbackSoundRef.current) {
+                if (isPlaying) {
+                    await playbackSoundRef.current.pauseAsync();
+                    setIsPlaying(false);
+                } else {
+                    await playbackSoundRef.current.playAsync();
+                    setIsPlaying(true);
+                }
+                return;
+            }
+            // iOS: leaving allowsRecordingIOS=true forces the earpiece speaker.
+            // Switch it off for playback so the file plays through the loudspeaker.
+            if (Platform.OS === 'ios') {
+                await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+            }
+            const { sound } = await Audio.Sound.createAsync(
+                { uri: recordingUri },
+                { shouldPlay: true },
+            );
+            playbackSoundRef.current = sound;
+            setIsPlaying(true);
+            sound.setOnPlaybackStatusUpdate((status: any) => {
+                if (!status.isLoaded) return;
+                if (status.didJustFinish) {
+                    setIsPlaying(false);
+                    sound.setPositionAsync(0).catch(() => {});
+                }
+            });
+        } catch (e) {
+            console.warn('Playback failed:', e);
+            setIsPlaying(false);
+        }
+    }, [recordingUri, isPlaying]);
 
     const formatDuration = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
@@ -462,6 +532,34 @@ export default function RecitationScreen() {
                         : 'Tap to recite again'}
                     </Text>
                 </View>
+
+                {/* Playback of the user's recording — shown after a real capture,
+                    independent of the analysis result. */}
+                {recState === 'done' && recordingUri && (
+                    <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                        <TouchableOpacity
+                            onPress={togglePlayback}
+                            activeOpacity={0.85}
+                            style={[styles.playbackBtn, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
+                            accessibilityRole="button"
+                            accessibilityLabel={isPlaying ? 'Pause your recording' : 'Play your recording'}
+                            accessibilityState={{ selected: isPlaying }}
+                        >
+                            <View style={[styles.playbackIcon, { backgroundColor: theme.accentLight }]}>
+                                <Feather name={isPlaying ? 'pause' : 'play'} size={18} color={theme.gold} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.playbackTitle, { color: theme.textPrimary }]}>
+                                    {isPlaying ? 'Playing your recitation' : 'Listen to your recitation'}
+                                </Text>
+                                <Text style={[styles.playbackSub, { color: theme.textSecondary }]}>
+                                    {formatDuration(duration)} · {selectedSurah.name}
+                                </Text>
+                            </View>
+                            <Feather name="volume-2" size={18} color={theme.textSecondary} />
+                        </TouchableOpacity>
+                    </View>
+                )}
 
                 {/* Results */}
                 {result && recState === 'done' && (
@@ -612,4 +710,8 @@ const styles = StyleSheet.create({
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
     legendDot: { width: 8, height: 8, borderRadius: 4 },
     legendText: { fontSize: 12 },
+    playbackBtn: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 16, borderWidth: 1 },
+    playbackIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+    playbackTitle: { fontSize: 15, fontWeight: '500' },
+    playbackSub: { fontSize: 12, marginTop: 2 },
 });

@@ -512,6 +512,7 @@ export default function ProfileScreen() {
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.menuItem, { borderBottomWidth: 0 }]}
+                                onPress={() => router.push('/privacy' as any)}
                                 accessibilityRole="button"
                                 accessibilityLabel="Privacy policy"
                             >
@@ -727,13 +728,8 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.menuItem, { borderBottomWidth: 0 }]}
-                        onPress={() => Linking.openURL('https://falah.app/privacy').catch(() =>
-                            Alert.alert(
-                                'Privacy Policy',
-                                'Falah collects no personal data. Prayer times use your location only to calculate adhan, and that location stays on your device.\n\nFull policy: https://falah.app/privacy'
-                            )
-                        )}
-                        accessibilityRole="link"
+                        onPress={() => router.push('/privacy' as any)}
+                        accessibilityRole="button"
                         accessibilityLabel="Privacy policy"
                     >
                         <View style={styles.menuItemLeft}>

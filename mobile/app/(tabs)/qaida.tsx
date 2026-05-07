@@ -19,6 +19,7 @@ export default function QaidaScreen() {
     const [progress, setProgress] = useState(0);
     const [lessons, setLessons] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [showAll, setShowAll] = useState(false);
 
     // Back chevron: pop the stack if possible, otherwise fall back to Home tab
     const goBack = () => {
@@ -113,12 +114,23 @@ export default function QaidaScreen() {
 
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <Text style={{ ...styles.sectionTitle, marginBottom: 0, color: theme.textPrimary }}>Interactive Lessons</Text>
-                    <Text style={{ color: theme.gold, fontWeight: 'bold', fontSize: 13 }}>View All</Text>
+                    {lessons.length > 4 && (
+                        <TouchableOpacity
+                            onPress={() => setShowAll(v => !v)}
+                            hitSlop={10}
+                            accessibilityRole="button"
+                            accessibilityLabel={showAll ? 'Show fewer lessons' : 'View all lessons'}
+                        >
+                            <Text style={{ color: theme.gold, fontWeight: 'bold', fontSize: 13 }}>
+                                {showAll ? 'Show Less' : 'View All'}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
 
                 {/* Lessons Grid (Zig-Zag kid-friendly path layout) */}
                 <View style={styles.lessonsGrid}>
-                    {lessons.map((lesson, index) => {
+                    {(showAll ? lessons : lessons.slice(0, 4)).map((lesson, index) => {
                         const isCompleted = index < progress;
                         const isCurrent = index === progress;
                         const isLocked = index > progress;

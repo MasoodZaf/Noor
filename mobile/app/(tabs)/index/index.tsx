@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, TouchableOpacity, Animated, Easing, Modal, Switch, Linking, Image, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, TouchableOpacity, Animated, Easing, Modal, Switch, Linking, Image, Alert, TextInput, Share } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -596,6 +596,7 @@ export default function HomeScreen() {
     const [themeTextColor, setThemeTextColor] = useState('#FFFFFF');
     const [themeSubTextColor, setThemeSubTextColor] = useState('rgba(255,255,255,0.8)');
     const [dayAya, setDayAya] = useState<{ arabic: string; translation: string; surahName: string; surahNumber: number; numberInSurah: number } | null>(null);
+    const [dayAyaBookmarked, setDayAyaBookmarked] = useState(false);
 
     // Prayer settings — { method: -1 means Auto, school: 0=Standard 1=Hanafi }
     const [prayerSettings, setPrayerSettings] = useState<{ method: number; school: number }>({ method: -1, school: 0 });
@@ -670,6 +671,103 @@ export default function HomeScreen() {
         }
         scheduleFridayKahfNotifications(fridayKahfPrefs.hour, fridayKahfPrefs.minute, language);
     }, [fridayKahfPrefs.enabled, fridayKahfPrefs.hour, fridayKahfPrefs.minute, language]);
+
+    // ── Daily Aya: SQLite-backed, language-aware, cache-per-(date,language) ────
+    useEffect(() => {
+        if (!db) return;
+        let mounted = true;
+        (async () => {
+            const dateStr = new Date().toLocaleDateString('en-CA');
+            const ayaKey = `@noor/daily_aya_${dateStr}_${language}`;
+            try {
+                const cached = await AsyncStorage.getItem(ayaKey);
+                if (!mounted) return;
+                if (cached) {
+                    try { setDayAya(JSON.parse(cached)); return; } catch {
+                        AsyncStorage.removeItem(ayaKey).catch(() => {});
+                    }
+                }
+                const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000);
+                const globalAyahIdx = (dayOfYear % 6236) + 1;
+                const translationCol = translationColumnForLanguage(language);
+                const row = await db.getFirstAsync(
+                    `SELECT a.surah_number, a.ayah_number, a.text_arabic,
+                            a.${translationCol} AS translation, a.text_english,
+                            s.name_english
+                     FROM ayahs a JOIN surahs s ON s.number = a.surah_number
+                     ORDER BY a.surah_number ASC, a.ayah_number ASC
+                     LIMIT 1 OFFSET ?`,
+                    [globalAyahIdx - 1]
+                ) as any;
+                if (!mounted || !row) return;
+                const aya = {
+                    arabic: sanitizeArabicText(row.text_arabic || ''),
+                    translation: row.translation || row.text_english || '',
+                    surahName: row.name_english,
+                    surahNumber: row.surah_number,
+                    numberInSurah: row.ayah_number,
+                };
+                setDayAya(aya);
+                AsyncStorage.setItem(ayaKey, JSON.stringify(aya)).catch(() => {});
+            } catch {}
+        })();
+        return () => { mounted = false; };
+    }, [db, language]);
+
+    // ── Daily Aya bookmark state — reuses the global Quran bookmark store ──────
+    const QURAN_BOOKMARK_KEY = '@noor/quran_bookmarks';
+    useEffect(() => {
+        if (!dayAya) { setDayAyaBookmarked(false); return; }
+        AsyncStorage.getItem(QURAN_BOOKMARK_KEY).then(raw => {
+            if (!raw) { setDayAyaBookmarked(false); return; }
+            try {
+                const arr = JSON.parse(raw);
+                if (Array.isArray(arr)) {
+                    setDayAyaBookmarked(arr.some((b: any) =>
+                        b?.surah_number === dayAya.surahNumber && b?.ayah_number === dayAya.numberInSurah
+                    ));
+                }
+            } catch {}
+        }).catch(() => {});
+    }, [dayAya]);
+
+    const toggleDayAyaBookmark = useCallback(async () => {
+        if (!dayAya) return;
+        try {
+            const raw = await AsyncStorage.getItem(QURAN_BOOKMARK_KEY);
+            let list: any[] = [];
+            if (raw) {
+                try { const p = JSON.parse(raw); if (Array.isArray(p)) list = p; } catch {}
+            }
+            const exists = list.some(b => b?.surah_number === dayAya.surahNumber && b?.ayah_number === dayAya.numberInSurah);
+            const next = exists
+                ? list.filter(b => !(b?.surah_number === dayAya.surahNumber && b?.ayah_number === dayAya.numberInSurah))
+                : [...list, {
+                    surah_number: dayAya.surahNumber,
+                    ayah_number: dayAya.numberInSurah,
+                    surah_name: dayAya.surahName,
+                    arabic_snippet: dayAya.arabic.slice(0, 60),
+                    saved_at: Date.now(),
+                }];
+            await AsyncStorage.setItem(QURAN_BOOKMARK_KEY, JSON.stringify(next));
+            setDayAyaBookmarked(!exists);
+            if (Platform.OS !== 'web') {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            }
+        } catch {}
+    }, [dayAya]);
+
+    const shareDayAya = useCallback(async () => {
+        if (!dayAya) return;
+        const ref = `Surah ${dayAya.surahName} [${dayAya.surahNumber}:${dayAya.numberInSurah}]`;
+        const message = `${dayAya.arabic}\n\n"${dayAya.translation}"\n\n— ${ref}\n\nShared from Falah`;
+        try {
+            await Share.share(
+                Platform.OS === 'ios' ? { message } : { message, title: ref },
+                { dialogTitle: 'Share Verse of the Day' }
+            );
+        } catch {}
+    }, [dayAya]);
 
     const pulseAnim = useRef(new Animated.Value(0)).current;
 
@@ -1030,46 +1128,8 @@ export default function HomeScreen() {
         let mounted = true;
         setGreeting(getGreeting());
 
-        // Daily Aya — SQLite primary, no network required
-        (async () => {
-            const dateStr = new Date().toLocaleDateString('en-CA');
-            const ayaKey = `@noor/daily_aya_${dateStr}`;
-            try {
-                const cached = await AsyncStorage.getItem(ayaKey);
-                if (!mounted) return;
-                if (cached) {
-                    try { setDayAya(JSON.parse(cached)); } catch {
-                        AsyncStorage.removeItem(ayaKey).catch(() => {});
-                    }
-                    return;
-                }
-                if (!db) return;
-                const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000);
-                // Map deterministic day → global ayah index (1-based, wraps over 6236 ayahs)
-                const globalAyahIdx = (dayOfYear % 6236) + 1;
-                // Schema: ayahs(surah_number, ayah_number), surahs(number PK)
-                // Order by (surah_number, ayah_number) to produce a stable 1..6236 sequence
-                const row = await db.getFirstAsync(
-                    `SELECT a.surah_number, a.ayah_number, a.text_arabic, a.text_english, s.name_english
-                     FROM ayahs a JOIN surahs s ON s.number = a.surah_number
-                     ORDER BY a.surah_number ASC, a.ayah_number ASC
-                     LIMIT 1 OFFSET ?`,
-                    [globalAyahIdx - 1]
-                ) as any;
-                if (!mounted) return;
-                if (row) {
-                    const aya = {
-                        arabic: sanitizeArabicText(row.text_arabic || ''),
-                        translation: row.text_english,
-                        surahName: row.name_english,
-                        surahNumber: row.surah_number,
-                        numberInSurah: row.ayah_number,
-                    };
-                    setDayAya(aya);
-                    AsyncStorage.setItem(ayaKey, JSON.stringify(aya)).catch(() => { });
-                }
-            } catch { }
-        })();
+        // Daily Aya is loaded by a dedicated effect keyed on [db, language]
+        // so it re-fetches the translation when the user switches languages.
 
         // Pulse animation
         Animated.loop(
@@ -1611,8 +1671,28 @@ export default function HomeScreen() {
                                     SURAH {dayAya.surahName.toUpperCase()} [{dayAya.surahNumber}:{dayAya.numberInSurah}]
                                 </Text>
                                 <View style={styles.verseActions}>
-                                    <Feather name="share-2" size={18} color={theme.textSecondary} style={{ marginRight: 16 }} />
-                                    <Feather name="bookmark" size={18} color={theme.textSecondary} />
+                                    <TouchableOpacity
+                                        onPress={shareDayAya}
+                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                        style={{ marginRight: 16 }}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Share verse of the day"
+                                    >
+                                        <Feather name="share-2" size={18} color={theme.textSecondary} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={toggleDayAyaBookmark}
+                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={dayAyaBookmarked ? 'Remove bookmark' : 'Bookmark verse of the day'}
+                                        accessibilityState={{ selected: dayAyaBookmarked }}
+                                    >
+                                        <Feather
+                                            name="bookmark"
+                                            size={18}
+                                            color={dayAyaBookmarked ? theme.accent : theme.textSecondary}
+                                        />
+                                    </TouchableOpacity>
                                 </View>
                             </View>
                         </View>
