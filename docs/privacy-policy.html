@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Privacy Policy — Falah</title>
+<style>
+  :root {
+    --bg: #FAF7F0;
+    --fg: #1F1B16;
+    --muted: #6B6357;
+    --accent: #8C4B40;
+    --card: #FFFFFF;
+    --border: #E8E1D4;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.65;
+    font-size: 16px;
+  }
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 56px 28px 96px;
+  }
+  header h1 {
+    margin: 0 0 6px;
+    font-size: 32px;
+    letter-spacing: -0.02em;
+  }
+  header .sub {
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 32px;
+  }
+  .highlight {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    padding: 20px 22px;
+    border-radius: 12px;
+    margin: 24px 0 36px;
+    font-size: 17px;
+  }
+  .highlight strong { color: var(--accent); }
+  h2 {
+    margin-top: 40px;
+    margin-bottom: 10px;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+  }
+  h3 {
+    margin-top: 22px;
+    margin-bottom: 6px;
+    font-size: 16px;
+  }
+  p, li { color: var(--fg); }
+  .muted { color: var(--muted); font-size: 14px; }
+  ul { padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 4px;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: var(--card); font-weight: 600; }
+  code {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-size: 13px;
+  }
+  a { color: var(--accent); }
+  footer {
+    margin-top: 56px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Privacy Policy</h1>
+    <div class="sub">Falah — Islamic companion app · Effective 7 May 2026</div>
+  </header>
+
+  <div class="highlight">
+    <strong>We do not collect, store, or transmit any personal information.</strong>
+    Falah runs entirely on your device. No accounts, no analytics, no advertising,
+    no tracking, and no servers operated by us hold any of your data.
+  </div>
+
+  <h2>1. What this means in practice</h2>
+  <ul>
+    <li>You don't sign in. There is no Falah account.</li>
+    <li>We do not maintain user databases. We have no way to identify you.</li>
+    <li>We do not run analytics, crash-reporting, or advertising SDKs.</li>
+    <li>We do not sell, rent, share, or monetise any information.</li>
+    <li>Anything you save (bookmarks, prayer settings, Hifz progress, recordings)
+        is stored only on your device and is removed when you delete the app.</li>
+  </ul>
+
+  <h2>2. Information stored on your device</h2>
+  <p>
+    To function offline, Falah keeps the following <em>locally on your device only</em>.
+    None of it leaves your device or reaches us.
+  </p>
+  <ul>
+    <li>Quran, Hadith, and Dua text (bundled SQLite database).</li>
+    <li>Cached prayer times, Hijri calendar, and Qibla bearing.</li>
+    <li>Bookmarks, Hifz spaced-repetition progress, language preference, theme,
+        notification preferences, and reciter selection.</li>
+    <li>Your most recent recitation audio (used only for in-app playback;
+        a new recording overwrites the previous one).</li>
+  </ul>
+  <p class="muted">
+    All of the above lives in the operating-system sandbox for the Falah app.
+    Uninstalling Falah deletes it.
+  </p>
+
+  <h2>3. Permissions Falah may request</h2>
+  <p>
+    The app asks for the minimum permissions needed for each feature.
+    Granting them is optional; denying them only disables the related feature.
+  </p>
+  <table>
+    <thead>
+      <tr><th>Permission</th><th>Why it's used</th><th>Leaves device?</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Location</td>
+        <td>To compute accurate prayer times, Qibla direction, and find nearby mosques / halal places.</td>
+        <td>Sent only to the prayer-time API to compute timings (see §4). Never stored by us.</td>
+      </tr>
+      <tr>
+        <td>Microphone</td>
+        <td>Recitation feature — records your voice locally so you can hear yourself read.</td>
+        <td>Audio stays on device. If you opt in to AI tajweed feedback, the audio is sent to Qurani.ai for analysis (see §4).</td>
+      </tr>
+      <tr>
+        <td>Notifications</td>
+        <td>Prayer-time alerts, daily ayah, and Friday Surah al-Kahf reminder.</td>
+        <td>Scheduled and delivered locally by your device's OS.</td>
+      </tr>
+      <tr>
+        <td>Photo library</td>
+        <td>Set a profile picture.</td>
+        <td>Image is stored only on your device.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>4. Third-party services Falah connects to</h2>
+  <p>
+    Falah needs the public internet to fetch Islamic content and prayer times.
+    These requests are made directly from your device to the providers below.
+    Each provider has its own privacy policy; we do not control how they
+    process the technical request data (such as your IP address) that any
+    HTTP request necessarily exposes.
+  </p>
+  <table>
+    <thead>
+      <tr><th>Service</th><th>Used for</th><th>Data sent</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>AlAdhan (<code>aladhan.com</code>)</td>
+        <td>Prayer times, Hijri calendar, Qibla bearing.</td>
+        <td>Approximate latitude / longitude (or chosen city), date, calculation method.</td>
+      </tr>
+      <tr>
+        <td>Quran.com / AlQuran Cloud / Fawaz Quran CDN</td>
+        <td>Quran text, translations, recitation audio.</td>
+        <td>Surah / ayah numbers requested.</td>
+      </tr>
+      <tr>
+        <td>Fawaz Hadith CDN</td>
+        <td>Hadith collections.</td>
+        <td>Collection / hadith identifiers.</td>
+      </tr>
+      <tr>
+        <td>Qurani.ai</td>
+        <td>Optional AI search and recitation feedback.</td>
+        <td>Your search query, or — only if you tap "Record" — the audio of that recitation. Disabled if no API key is configured.</td>
+      </tr>
+      <tr>
+        <td>mp3quran CDN</td>
+        <td>Reciter audio playback.</td>
+        <td>Surah identifier of the file requested.</td>
+      </tr>
+      <tr>
+        <td>Unsplash (<code>images.unsplash.com</code>)</td>
+        <td>Decorative imagery for category cards.</td>
+        <td>Standard image-fetch request only.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="muted">
+    No identifiers, accounts, device IDs, or advertising IDs are attached to any of
+    these requests by Falah. The providers may log routine technical metadata
+    (IP, user-agent, timestamp) the way any web request does. If that concerns
+    you, you can reduce reliance on the network by enabling Offline Mode in
+    Settings.
+  </p>
+
+  <h2>5. Children's privacy</h2>
+  <p>
+    Falah is suitable for all ages. Because we do not collect any data from any
+    user, we cannot — and do not — collect data from children. The app does not
+    profile users, serve advertising, or include third-party tracking.
+  </p>
+
+  <h2>6. Your choices and controls</h2>
+  <ul>
+    <li><strong>Offline Mode</strong> — turn off all outbound network requests
+        once content has been cached.</li>
+    <li><strong>Permissions</strong> — revoke any permission at any time in your
+        device's system settings; the corresponding feature will simply be skipped.</li>
+    <li><strong>Notifications</strong> — toggle prayer-time, daily-ayah, and
+        Friday Kahf reminders in the app or system settings.</li>
+    <li><strong>Reset</strong> — uninstalling Falah removes all locally stored
+        data, since nothing is held off-device.</li>
+  </ul>
+
+  <h2>7. Your rights under GDPR / UK GDPR / CCPA</h2>
+  <p>
+    Privacy laws such as the GDPR and the CCPA grant rights to access, correct,
+    delete, or port personal data held by a service. Because Falah holds no
+    personal data about you on any server we operate, there is nothing for us
+    to access, correct, delete, or port. Local data on your device is fully
+    under your control via the Reset option above.
+  </p>
+
+  <h2>8. Security</h2>
+  <p>
+    Network requests use HTTPS where the upstream provider supports it.
+    Local data is sandboxed by your operating system to the Falah app.
+    No data is encrypted at rest by Falah beyond what the OS provides,
+    because no sensitive data is stored.
+  </p>
+
+  <h2>9. Changes to this policy</h2>
+  <p>
+    If we make any change that affects how Falah handles information, we will
+    update this page and revise the effective date at the top. Material changes
+    will also be flagged in the app's release notes.
+  </p>
+
+  <h2>10. Contact</h2>
+  <p>
+    Questions or concerns about this policy? Email
+    <a href="mailto:ai@aurmak.com">ai@aurmak.com</a>.
+  </p>
+
+  <footer>
+    Falah · Islamic companion app · This page is the official privacy policy
+    referenced from the App Store and Google Play listings.
+  </footer>
+</div>
+</body>
+</html>
