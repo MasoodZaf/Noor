@@ -1,0 +1,14 @@
+# Duas — accessed from the Home quick-actions strip.
+appId: com.falah.islamic
+tags:
+  - smoke
+  - duas
+---
+- launchApp:
+    clearState: false
+- tapOn: "Home"
+- tapOn:
+    text: "Duas"
+- assertVisible:
+    text: ".*(Duas|Dua).*"
+- back

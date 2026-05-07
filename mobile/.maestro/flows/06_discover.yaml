@@ -1,0 +1,48 @@
+# Discover tab — opens each tile and asserts the destination renders.
+# The Ramadan/Fasting tile changes label depending on the Hijri month:
+#   - "Ramadan" during Ramadan
+#   - "Fasting" outside Ramadan
+appId: com.falah.islamic
+tags:
+  - smoke
+  - discover
+---
+- launchApp:
+    clearState: false
+- tapOn: "Discover"
+
+# Recitation tile
+- tapOn: "Recitation"
+- assertVisible:
+    text: ".*(Recitation|Recite).*"
+- back
+
+# Halal Places — may need location permission to populate; we just verify the screen loads
+- tapOn: "Halal Places"
+- assertVisible:
+    text: "Halal"
+- back
+
+# Makkah Live (YouTube embed)
+- tapOn: "Makkah Live"
+- assertVisible:
+    text: ".*(Makkah|Live).*"
+- back
+
+# Ramadan / Fasting tracker — title varies by Hijri month
+- runFlow:
+    when:
+      visible: "Ramadan"
+    commands:
+      - tapOn: "Ramadan"
+      - assertVisible:
+          text: "Sehri & Iftar alerts"
+      - back
+- runFlow:
+    when:
+      visible: "Fasting"
+    commands:
+      - tapOn: "Fasting"
+      - assertVisible:
+          text: "Sehri & Iftar alerts"
+      - back

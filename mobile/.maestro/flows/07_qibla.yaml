@@ -1,0 +1,24 @@
+# Qibla tab — needs location permission for the bearing calculation. The flow
+# tolerates the permission dialog by tapping "Allow" / "Allow Once" if shown.
+appId: com.falah.islamic
+tags:
+  - smoke
+  - qibla
+---
+- launchApp:
+    clearState: false
+- tapOn: "Qibla"
+
+# Permission prompts (if shown) — Maestro silently skips when not visible
+- tapOn:
+    text: "Allow Once"
+    optional: true
+- tapOn:
+    text: "Allow While Using App"
+    optional: true
+- tapOn:
+    text: "Allow"
+    optional: true
+
+- assertVisible:
+    text: "Qibla"

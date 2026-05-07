@@ -1,0 +1,35 @@
+# Juz tab — verifies the new vertical layout shows all 30 juzs in a scrollable
+# list, and that tapping one opens the juz reader.
+appId: com.falah.islamic
+tags:
+  - smoke
+  - quran
+---
+- launchApp:
+    clearState: false
+- tapOn: "Quran"
+- tapOn: "Juz"
+- assertVisible:
+    text: "Juz 1"
+
+# Scroll to confirm the list flows vertically — Juz 30 sits at the bottom
+- repeat:
+    times: 12
+    commands:
+      - swipe:
+          from: { x: "50%", y: "70%" }
+          to:   { x: "50%", y: "20%" }
+- assertVisible:
+    text: "Juz 30"
+
+# Reset to top and open Juz 1
+- repeat:
+    times: 12
+    commands:
+      - swipe:
+          from: { x: "50%", y: "20%" }
+          to:   { x: "50%", y: "70%" }
+- tapOn: "Juz 1"
+- assertVisible:
+    text: "Juz 1"
+- back

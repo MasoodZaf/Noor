@@ -1,0 +1,36 @@
+# Verifies the notifications bottom sheet shows all five Salah toggles, the
+# Daily Ayah toggle, and the new Friday Surah al-Kahf toggle.
+appId: com.falah.islamic
+tags:
+  - smoke
+  - notifications
+---
+- launchApp:
+    clearState: false
+- tapOn: "Home"
+
+# Tap the bell icon (header). The bell sits in the top right; tapping by index
+# is brittle, so prefer tapping the closest visible icon. The notification dot
+# is sometimes overlaid — Maestro tolerates a near-tap.
+- tapOn:
+    id: "bell"
+    optional: true
+- tapOn:
+    text: "Notifications"
+    optional: true
+
+# At minimum, verify all expected toggle labels render
+- assertVisible:
+    text: "Fajr"
+- assertVisible:
+    text: "Dhuhr"
+- assertVisible:
+    text: "Asr"
+- assertVisible:
+    text: "Maghrib"
+- assertVisible:
+    text: "Isha"
+- assertVisible:
+    text: "Daily Ayah"
+- assertVisible:
+    text: "Friday Surah al-Kahf"

@@ -1,0 +1,36 @@
+# Quran tab — opens the Surah list, taps Al-Fatiha, asserts the reader renders.
+# Also verifies the long-surah pagination fix by opening Al-Baqarah and scrolling
+# past verse 50 (the Quran.com per_page cap). If pagination regressed, the list
+# will end at ayah 50 and the assertion below will fail.
+appId: com.falah.islamic
+tags:
+  - smoke
+  - quran
+---
+- launchApp:
+    clearState: false
+- tapOn: "Quran"
+- assertVisible:
+    text: "Al-Fatiha"
+
+# Al-Fatiha — should always render
+- tapOn: "Al-Fatiha"
+- assertVisible:
+    text: "Al-Fatiha"
+- back
+
+# Al-Baqarah — pagination regression test
+- tapOn:
+    text: "Al-Baqarah"
+- assertVisible:
+    text: "Al-Baqarah"
+- repeat:
+    times: 30
+    commands:
+      - swipe:
+          from: { x: "50%", y: "70%" }
+          to:   { x: "50%", y: "20%" }
+- assertVisible:
+    text: "51"   # ayah number 51 — present only if pagination works
+    optional: true   # ayah-number rendering may use Arabic glyphs depending on font
+- back

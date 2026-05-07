@@ -1,0 +1,11 @@
+# Qaida tab — Arabic learning lessons for beginners.
+appId: com.falah.islamic
+tags:
+  - smoke
+  - qaida
+---
+- launchApp:
+    clearState: false
+- tapOn: "Qaida"
+- assertVisible:
+    text: "Qaida"

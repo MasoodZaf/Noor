@@ -1,0 +1,14 @@
+# Hadith tab — opens the index and verifies a known collection is listed.
+appId: com.falah.islamic
+tags:
+  - smoke
+  - hadith
+---
+- launchApp:
+    clearState: false
+- tapOn: "Hadith"
+- assertVisible:
+    text: "Hadith"
+# At least one mainstream collection should be listed
+- assertVisible:
+    text: ".*(Bukhari|Muslim|Tirmidhi|Abu Dawud|Nasai|Ibn Majah).*"

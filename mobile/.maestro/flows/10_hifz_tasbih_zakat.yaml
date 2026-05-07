@@ -1,0 +1,30 @@
+# Hifz / Tasbih / Zakat — all reached via the Quran tab or Home quick actions.
+appId: com.falah.islamic
+tags:
+  - smoke
+  - tools
+---
+- launchApp:
+    clearState: false
+
+# Hifz tracker — entered via the Quran tab
+- tapOn: "Quran"
+- tapOn:
+    text: ".*(Hifz|Memorize).*"
+    optional: true
+- back
+
+# Tasbih — Home quick action
+- tapOn: "Home"
+- tapOn:
+    text: "Tasbih"
+- assertVisible:
+    text: ".*(Tasbih|Dhikr).*"
+- back
+
+# Zakat — Home quick action
+- tapOn:
+    text: "Zakat"
+- assertVisible:
+    text: ".*(Zakat|Zakah).*"
+- back

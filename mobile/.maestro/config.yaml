@@ -1,0 +1,4 @@
+# Maestro workspace config — inherited by every flow in this directory.
+# https://maestro.mobile.dev/cli/configuration
+flows:
+  - "flows/*.yaml"

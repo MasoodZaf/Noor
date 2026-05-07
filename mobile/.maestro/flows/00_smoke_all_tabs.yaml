@@ -1,0 +1,43 @@
+# Smoke test #00 — top-level smoke. Walks every bottom tab and asserts that the
+# screen renders something recognisable. Should be the first flow you run after
+# a build to catch regressions in the tab graph itself.
+appId: com.falah.islamic
+tags:
+  - smoke
+---
+- launchApp:
+    clearState: false
+- assertVisible:
+    text: "Home"
+
+- tapOn: "Quran"
+- assertVisible:
+    text: "Al-Quran"
+- assertVisible:
+    text: "Al-Fatiha"
+
+- tapOn: "Hadith"
+- assertVisible:
+    text: "Hadith"
+
+- tapOn: "Qaida"
+- assertVisible:
+    text: "Qaida"
+
+- tapOn: "Discover"
+- assertVisible:
+    text: "Recitation"
+- assertVisible:
+    text: "Halal Places"
+
+- tapOn: "Qibla"
+- assertVisible:
+    text: "Qibla"
+
+- tapOn: "Settings"
+- assertVisible:
+    text: "Settings"
+
+- tapOn: "Home"
+- assertVisible:
+    text: "Home"

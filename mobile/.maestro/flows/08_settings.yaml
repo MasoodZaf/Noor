@@ -1,0 +1,24 @@
+# Settings tab — verifies preferences/about sections render and the language
+# picker bottom sheet opens. Does not change any setting.
+appId: com.falah.islamic
+tags:
+  - smoke
+  - settings
+---
+- launchApp:
+    clearState: false
+- tapOn: "Settings"
+- assertVisible:
+    text: "Settings"
+- assertVisible:
+    text: "Tweaks"
+- assertVisible:
+    text: "Preferences"
+- assertVisible:
+    text: "About"
+
+# Open Translation Language sheet, confirm and dismiss
+- tapOn: "Translation Language"
+- assertVisible:
+    text: "Translation Language"
+- back

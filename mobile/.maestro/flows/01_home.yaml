@@ -1,0 +1,17 @@
+# Home tab — verifies the prayer times card and Verse of the Day render.
+# Note: when GPS is denied or location takes time, the city may show "Locating…"
+# so we assert against the prayer/aya copy instead.
+appId: com.falah.islamic
+tags:
+  - smoke
+  - home
+---
+- launchApp:
+    clearState: false
+- tapOn: "Home"
+- assertVisible:
+    text: "Verse of the Day"
+    optional: true   # falls back to non-aya layout while DB seeds
+# At least one of the five Salah names should be visible on the home prayer strip
+- assertVisible:
+    text: ".*(Fajr|Dhuhr|Asr|Maghrib|Isha).*"
