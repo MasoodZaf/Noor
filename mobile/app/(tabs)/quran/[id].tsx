@@ -206,8 +206,14 @@ const getTranslationFromRow = (row: any, language: string): string => {
 // Build ayah objects from raw verse data (from API) + translations + indopak texts
 // verses[] come from Quran.com v4 with words=true&audio=7
 // indopakTexts[] come from AlQuran Cloud quran-indopak edition (standard Unicode, renders with any Naskh font)
-const buildAyahs = (surahId: number, verses: any[], translations: string[], indopakTexts: string[] = []) =>
-    verses.map((v, i) => ({
+const buildAyahs = (surahId: number, verses: any[], translations: string[], indopakTexts: string[] = []) => {
+    if (__DEV__ && translations.length > 0 && translations.length !== verses.length) {
+        console.warn(`[Noor/Quran] Surah ${surahId}: translations.length=${translations.length} but verses.length=${verses.length} — trailing ayahs will show empty translation.`);
+    }
+    if (__DEV__ && indopakTexts.length > 0 && indopakTexts.length !== verses.length) {
+        console.warn(`[Noor/Quran] Surah ${surahId}: indopakTexts.length=${indopakTexts.length} but verses.length=${verses.length} — trailing ayahs will fall back to Uthmani text.`);
+    }
+    return verses.map((v, i) => ({
         id: `${surahId}_${i + 1}`,
         surah_number: surahId,
         ayah_number: i + 1,
@@ -225,6 +231,7 @@ const buildAyahs = (surahId: number, verses: any[], translations: string[], indo
         // Timestamps are relative to the verse audio file
         segments: (v.audio?.segments || []) as number[][],
     }));
+};
 
 const { width } = Dimensions.get('window');
 
@@ -455,42 +462,58 @@ export default function QuranReaderScreen() {
         setLoadingTafseers(new Set());
         let mounted = true;
 
+        // Render full surah from bundled SQLite (Uthmani + IndoPak + EN/UR are all
+        // present, all 6236 ayahs verified). Used by both forced-offline mode and as
+        // the primary render path in online mode (API then upgrades audio/word-segments).
+        const renderFromSqlite = async (): Promise<boolean> => {
+            if (!db) return false;
+            try {
+                const surah = await db.getFirstAsync<{ number: number; name_english: string; name_arabic: string; ayah_count: number; revelation_place: string }>('SELECT * FROM surahs WHERE number = ?', [surahId]);
+                if (!mounted) return false;
+                setSurahInfo({
+                    ...surah,
+                    bismillah_pre: surah?.number !== 1 && surah?.number !== 9,
+                });
+                const rows = await db.getAllAsync(
+                    'SELECT * FROM ayahs WHERE surah_number = ? ORDER BY ayah_number ASC',
+                    [surahId]
+                ) as any[];
+                if (!mounted || rows.length === 0) return false;
+                const offlineVerses = rows.map((r: any) => ({
+                    text_uthmani: sanitizeArabicText(r.text_arabic || ''),
+                    audio: null,
+                    words: [],
+                    segments: [],
+                }));
+                const indopakTexts = rows.map((r: any) => sanitizeArabicText(r.text_arabic_indopak || r.text_arabic || ''));
+                const translationTexts = rows.map((r: any) => getTranslationFromRow(r, language));
+                arabicCacheRef.current = offlineVerses;
+                indopakCacheRef.current = indopakTexts;
+                setAyahs(buildAyahs(surahId, offlineVerses, translationTexts, indopakTexts));
+                return true;
+            } catch (dbErr) {
+                console.error('[Noor/Quran] SQLite load failed:', dbErr);
+                return false;
+            }
+        };
+
         const loadSurah = async () => {
             setLoading(true);
             setIsOffline(isOfflineMode);
 
-            // ── Forced offline mode: skip all network requests, use SQLite directly ──
+            // ── Step 1: render immediately from bundled SQLite ──
+            // Long surahs (Al-Baqarah/286, Ash-Shu'ara/227) render fully and instantly,
+            // independent of network reliability or API pagination.
+            const sqliteOk = await renderFromSqlite();
+            if (sqliteOk && mounted) setLoading(false);
+
             if (isOfflineMode) {
-                try {
-                    if (db) {
-                        const surah = await db.getFirstAsync<{ number: number; name_english: string; name_arabic: string; ayah_count: number; revelation_place: string }>('SELECT * FROM surahs WHERE number = ?', [surahId]);
-                        if (!mounted) return;
-                        setSurahInfo({
-                            ...surah,
-                            bismillah_pre: surah?.number !== 1 && surah?.number !== 9,
-                        });
-                        const rows = await db.getAllAsync(
-                            'SELECT * FROM ayahs WHERE surah_number = ? ORDER BY ayah_number ASC',
-                            [surahId]
-                        ) as any[];
-                        const offlineVerses = rows.map((r: any) => ({
-                            text_uthmani: sanitizeArabicText(r.text_arabic || ''),
-                            audio: null,
-                            words: [],
-                            segments: [],
-                        }));
-                        const translationTexts = rows.map((r: any) => getTranslationFromRow(r, language));
-                        arabicCacheRef.current = offlineVerses;
-                        if (mounted) setAyahs(buildAyahs(surahId, offlineVerses, translationTexts, indopakCacheRef.current));
-                    }
-                } catch (dbErr) {
-                    console.error('[Noor/Quran] Offline SQLite load failed:', dbErr);
-                } finally {
-                    if (mounted) setLoading(false);
-                }
+                if (!sqliteOk && mounted) setLoading(false);
                 return;
             }
 
+            // ── Step 2: upgrade with online data (audio URLs, word-timing segments,
+            // CDN translations) — non-blocking. If it fails, we keep the SQLite render.
             try {
                 // Fetch chapter info + verified verses (with word segments + audio) + translation + IndoPak in parallel
                 // words=true → word-split text for highlighting
@@ -545,47 +568,28 @@ export default function QuranReaderScreen() {
 
                 if (indopakResult.status === 'fulfilled' && indopakResult.value.ok) {
                     const json = await indopakResult.value.json();
-                    indopakCacheRef.current = (json.data?.ayahs || []).map((a: any) =>
+                    const apiIndopak = (json.data?.ayahs || []).map((a: any) =>
                         sanitizeArabicText(a.text || '')
                     );
+                    if (apiIndopak.length > 0) indopakCacheRef.current = apiIndopak;
                 }
 
-                if (verses.length === 0) throw new Error('Verse fetch failed');
+                // Only upgrade if the API returned a complete verse set. A short response
+                // (network drop mid-pagination, CDN error) would shrink the on-screen surah,
+                // so we keep the SQLite render in that case.
+                const expectedCount = (await db?.getFirstAsync<{ ayah_count: number }>(
+                    'SELECT ayah_count FROM surahs WHERE number = ?', [surahId]
+                ))?.ayah_count ?? 0;
 
-                arabicCacheRef.current = verses;
-                if (mounted) setAyahs(buildAyahs(surahId, verses, translationTexts, indopakCacheRef.current));
-
+                if (verses.length > 0 && (expectedCount === 0 || verses.length === expectedCount)) {
+                    arabicCacheRef.current = verses;
+                    if (mounted) setAyahs(buildAyahs(surahId, verses, translationTexts, indopakCacheRef.current));
+                } else if (__DEV__) {
+                    console.warn(`[Noor/Quran] API upgrade skipped — verses=${verses.length}, expected=${expectedCount}. Keeping SQLite render.`);
+                }
             } catch (error: any) {
-                if (!mounted) return;
-                // In online mode, API failures fall back silently to SQLite — no banner.
-                // Banner only shows when the user has explicitly enabled offline mode.
-                setIsOffline(isOfflineMode);
-                if (db) {
-                    try {
-                        const surah = await db.getFirstAsync<{ number: number; name_english: string; name_arabic: string; ayah_count: number; revelation_place: string }>('SELECT * FROM surahs WHERE number = ?', [surahId]);
-                        if (!mounted) return;
-                        setSurahInfo({
-                            ...surah,
-                            bismillah_pre: surah?.number !== 1 && surah?.number !== 9,
-                        });
-                        const rows = await db.getAllAsync(
-                            'SELECT * FROM ayahs WHERE surah_number = ? ORDER BY ayah_number ASC',
-                            [surahId]
-                        ) as any[];
-                        // Build offline verse objects (no audio or word segments)
-                        const offlineVerses = rows.map((r: any) => ({
-                            text_uthmani: sanitizeArabicText(r.text_arabic || ''),
-                            audio: null,
-                            words: [],
-                            segments: [],
-                        }));
-                        const translationTexts = rows.map((r: any) => getTranslationFromRow(r, language));
-                        arabicCacheRef.current = offlineVerses;
-                        if (mounted) setAyahs(buildAyahs(surahId, offlineVerses, translationTexts, indopakCacheRef.current));
-                    } catch (dbErr) {
-                        console.error('DB fallback failed:', dbErr);
-                    }
-                }
+                // SQLite already rendered in Step 1 — nothing visible to do here.
+                if (__DEV__) console.warn('[Noor/Quran] Online upgrade failed, keeping SQLite render:', error?.message || error);
             } finally {
                 if (mounted) setLoading(false);
             }
@@ -1048,10 +1052,10 @@ export default function QuranReaderScreen() {
                 style={{ flex: 1 }}
                 keyExtractor={(item) => item.id.toString()}
                 contentContainerStyle={{ paddingVertical: 0, paddingBottom: 160 }}
-                initialNumToRender={8}
-                maxToRenderPerBatch={10}
-                windowSize={5}
-                removeClippedSubviews={Platform.OS === 'android'}
+                initialNumToRender={15}
+                maxToRenderPerBatch={20}
+                windowSize={10}
+                removeClippedSubviews={false}
                 ListHeaderComponent={
                     <View style={[styles.surahHero, { borderBottomColor: theme.border, backgroundColor: theme.bgSecondary }]}>
                         <Text style={[styles.surahHeroArabic, { fontFamily: 'ScheherazadeNew_400Regular', color: theme.textPrimary }]}>
