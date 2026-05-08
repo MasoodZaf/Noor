@@ -13,7 +13,9 @@
     "test:coverage": "jest --coverage",
     "test:a11y": "bash .maestro/a11y-audit.sh",
     "typecheck": "tsc --noEmit",
-    "verify": "tsc --noEmit && jest && bash .maestro/a11y-audit.sh"
+    "verify": "tsc --noEmit && jest && bash .maestro/a11y-audit.sh",
+    "verify:quran": "node scripts/verify_quran_data.js",
+    "verify:full": "npm run verify && npm run verify:quran"
   },
   "dependencies": {
     "@expo-google-fonts/cormorant-garamond": "^0.4.1",
