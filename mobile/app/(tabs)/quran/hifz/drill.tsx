@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
     arabicBox: { borderRadius: 20, padding: 20, marginBottom: 20, borderWidth: 1 },
     arabicText: {
         fontSize: 28, lineHeight: 52, textAlign: 'right',
-        fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        fontFamily: 'ScheherazadeNew_400Regular',
         includeFontPadding: false,
     },
 

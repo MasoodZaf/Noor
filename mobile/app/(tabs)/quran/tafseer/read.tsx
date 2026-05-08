@@ -147,10 +147,14 @@ const AyahPage = React.memo(({
                         <Text style={styles.ayahDecorativeMark}>۝</Text>
                         <Text style={styles.ayahNumberText}>{toArabicDigits(ayah.ayah_number)}</Text>
                     </View>
-                    <Text style={[
-                        styles.arabicText,
-                        { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.6, color: theme.textPrimary },
-                    ]}>
+                    <Text
+                        textBreakStrategy="simple"
+                        allowFontScaling={false}
+                        style={[
+                            styles.arabicText,
+                            { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.6, color: theme.textPrimary },
+                        ]}
+                    >
                         {ayah.text_arabic}
                     </Text>
                 </View>
@@ -161,9 +165,9 @@ const AyahPage = React.memo(({
                         styles.translationText,
                         { color: theme.textSecondary },
                         isUrdu && {
-                            fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+                            fontFamily: 'NotoNastaliqUrdu_400Regular',
                             includeFontPadding: false,
-                            fontSize: 18, textAlign: 'right', lineHeight: 32, fontStyle: 'normal',
+                            fontSize: 18, textAlign: 'right', lineHeight: 36, fontStyle: 'normal',
                         },
                     ]}>
                         {ayah.text_translation}
@@ -192,9 +196,9 @@ const AyahPage = React.memo(({
                                     styles.tafseerText,
                                     { color: theme.textSecondary },
                                     isUrdu && {
-                                        fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+                                        fontFamily: 'NotoNastaliqUrdu_400Regular',
                                         includeFontPadding: false,
-                                        fontSize: 17, textAlign: 'right', lineHeight: 30, fontStyle: 'normal',
+                                        fontSize: 17, textAlign: 'right', lineHeight: 34, fontStyle: 'normal',
                                     },
                                 ]}>
                                     <Text style={[styles.tafseerAuthor, { color: theme.accent }]}>[{meta.author}]{'  '}</Text>

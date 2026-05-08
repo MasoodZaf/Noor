@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, Platform, LogBox } from 'react-native';
+import { View, Platform, LogBox, Text } from 'react-native';
 import { DatabaseProvider } from '../context/DatabaseContext';
 import { LanguageProvider } from '../context/LanguageContext';
 import { AudioProvider } from '../context/AudioContext';
@@ -35,12 +35,23 @@ import {
     JetBrainsMono_600SemiBold,
 } from '@expo-google-fonts/jetbrains-mono';
 import { ScheherazadeNew_400Regular, ScheherazadeNew_600SemiBold } from '@expo-google-fonts/scheherazade-new';
+import { NotoNaskhArabic_400Regular } from '@expo-google-fonts/noto-naskh-arabic';
+import { NotoNastaliqUrdu_400Regular } from '@expo-google-fonts/noto-nastaliq-urdu';
 
 // Suppress Expo Go Android warning about push notifications (expected — we use a dev build for production)
 LogBox.ignoreLogs([
     'expo-notifications: Android Push notifications',
     'expo-notifications: Push notifications',
 ]);
+
+// Cap iOS Dynamic Type / Android font-scale at 1.4× globally. Without this, an
+// accessibility user with text size at the maximum setting can scale text up to
+// 3× the design size — Arabic with carefully tuned lineHeight then overlaps and
+// clips. 1.4 still helps users who need larger text without breaking layouts.
+// Quran reader / Daily Aya screens disable scaling entirely on Arabic Text
+// (allowFontScaling={false}) since they expose their own in-app font slider.
+(Text as any).defaultProps = (Text as any).defaultProps || {};
+(Text as any).defaultProps.maxFontSizeMultiplier = 1.4;
 
 // Configure how notifications should behave when received while the app is in the foreground.
 // We deliberately drop `shouldShowAlert` (deprecated/redundant with banner on iOS 14+) and only
@@ -95,6 +106,12 @@ export default function RootLayout() {
         JetBrainsMono_600SemiBold,
         ScheherazadeNew_400Regular,
         ScheherazadeNew_600SemiBold,
+        // Loaded globally so screens beyond the main Quran reader (tafseer,
+        // hifz drill, daily-aya, duas) can reference these fonts without each
+        // having its own useFonts() call. iOS otherwise silently falls back
+        // to Geeza Pro, which renders Quranic Uthmani annotations incorrectly.
+        NotoNaskhArabic_400Regular,
+        NotoNastaliqUrdu_400Regular,
     });
 
     useEffect(() => {

@@ -2121,7 +2121,7 @@ const styles = StyleSheet.create({
     bellToggleBtn: { padding: 2 },
     verseSection: { marginTop: 32, paddingHorizontal: 16 },
     verseCard: { padding: 24, borderRadius: 20, marginTop: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
-    verseArabicText: { fontSize: 26, lineHeight: 46, textAlign: 'right', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', marginBottom: 20, includeFontPadding: false },
+    verseArabicText: { fontSize: 26, lineHeight: 46, textAlign: 'right', fontFamily: 'ScheherazadeNew_400Regular', marginBottom: 20, includeFontPadding: false },
     verseText: { fontSize: 16, fontWeight: '400', lineHeight: 26, fontStyle: 'italic', marginBottom: 24 },
     verseFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, paddingTop: 16 },
     verseRef: { fontSize: 12, fontWeight: 'bold', letterSpacing: 1 },

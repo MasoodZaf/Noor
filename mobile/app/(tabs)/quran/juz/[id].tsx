@@ -466,6 +466,7 @@ export default function JuzReaderScreen() {
                 {/* Arabic */}
                 <Text
                     textBreakStrategy="simple"
+                    allowFontScaling={false}
                     style={[
                         styles.arabicText,
                         { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.75, color: theme.textPrimary },

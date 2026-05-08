@@ -1157,6 +1157,7 @@ export default function QuranReaderScreen() {
                                 {(isCurrent || tajweedEnabled) && ayah.words && ayah.words.length > 0 ? (
                                     <Text
                                         textBreakStrategy="simple"
+                                        allowFontScaling={false}
                                         style={[styles.arabicText, { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.85 }]}
                                     >
                                         {ayah.words.map((w: any, wi: number) => {
@@ -1193,6 +1194,7 @@ export default function QuranReaderScreen() {
                                 ) : (
                                     <Text
                                         textBreakStrategy="simple"
+                                        allowFontScaling={false}
                                         style={[
                                             styles.arabicText,
                                             { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.6, color: theme.textPrimary },
