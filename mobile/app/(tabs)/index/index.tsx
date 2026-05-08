@@ -460,10 +460,11 @@ async function schedulePrayerNotifications(
 
 // ─── Quick actions with fixed Islamic-themed gradients ────────────────────────
 const QUICK_ACTIONS = [
-    { title: 'Salah',   icon: 'user',       route: '/salah',  gradient: ['#4A2C6E', '#7B4FA6'] as const },
-    { title: 'Tasbih',  icon: 'refresh-cw', route: '/tasbih', gradient: ['#1A5C38', '#2E9D60'] as const },
-    { title: 'Zakat',   icon: 'heart',      route: '/zakat',  gradient: ['#92650A', '#C9A84C'] as const },
-    { title: 'Duas',    icon: 'book-open',  route: '/duas',   gradient: ['#1B3A6B', '#2B6CB0'] as const },
+    { title: 'Salah',    icon: 'user',       route: '/salah',                      gradient: ['#4A2C6E', '#7B4FA6'] as const },
+    { title: 'Tasbih',   icon: 'refresh-cw', route: '/tasbih',                     gradient: ['#1A5C38', '#2E9D60'] as const },
+    { title: 'Calendar', icon: 'calendar',   route: '/(tabs)/index/calendar',      gradient: ['#7B3F00', '#C76A2D'] as const },
+    { title: 'Zakat',    icon: 'heart',      route: '/zakat',                      gradient: ['#92650A', '#C9A84C'] as const },
+    { title: 'Duas',     icon: 'book-open',  route: '/duas',                       gradient: ['#1B3A6B', '#2B6CB0'] as const },
 ];
 
 // ─── Famous mosque watermark images (replace PNGs in assets/mosques/ with real photos) ──
@@ -1486,11 +1487,27 @@ export default function HomeScreen() {
                         </View>
                         <Feather name={prayers.find(p => p.id === currentPrayerId)?.icon || 'sun'} size={200} color="rgba(0,0,0,0.06)" style={styles.heroBgIcon} />
                         <View style={styles.heroContent}>
-                            <View style={styles.heroTag}>
-                                <Feather name={currentPrayerId !== 'none' ? 'sun' : 'clock'} size={14} color={themeTextColor} />
-                                <Text style={[styles.heroTagText, { color: themeTextColor }]}>
-                                    {currentPrayerId !== 'none' ? 'CURRENT PRAYER' : 'NEXT PRAYER'}
-                                </Text>
+                            <View style={styles.heroTopRow}>
+                                <View style={styles.heroTag}>
+                                    <Feather name={currentPrayerId !== 'none' ? 'sun' : 'clock'} size={14} color={themeTextColor} />
+                                    <Text style={[styles.heroTagText, { color: themeTextColor }]}>
+                                        {currentPrayerId !== 'none' ? 'CURRENT PRAYER' : 'NEXT PRAYER'}
+                                    </Text>
+                                </View>
+                                {!!hijriDate && (
+                                    <TouchableOpacity
+                                        style={[styles.heroHijriPill, { backgroundColor: 'rgba(255,255,255,0.22)' }]}
+                                        onPress={() => router.push('/(tabs)/index/calendar' as any)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`${hijriDate} — open Hijri calendar`}
+                                        activeOpacity={0.85}
+                                    >
+                                        <Feather name="calendar" size={12} color={themeTextColor} style={{ marginRight: 6 }} />
+                                        <Text style={[styles.heroHijriText, { color: themeTextColor }]} numberOfLines={1}>
+                                            {hijriDate}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                             <Text style={[styles.heroPrayerName, { color: themeTextColor }]}>
                                 {currentPrayerId !== 'none' ? prayers.find(p => p.id === currentPrayerId)?.name : nextPrayerName}
@@ -1563,7 +1580,7 @@ export default function HomeScreen() {
                                     accessibilityLabel={tool.title}
                                 >
                                     <LinearGradient colors={tool.gradient} style={styles.quickToolIconBox} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                                        <Feather name={tool.icon as any} size={26} color="#FFFFFF" />
+                                        <Feather name={tool.icon as any} size={22} color="#FFFFFF" />
                                     </LinearGradient>
                                 </TouchableOpacity>
                                 <Text style={[styles.quickToolText, { color: theme.textPrimary }]}>{tool.title}</Text>
@@ -2058,8 +2075,11 @@ const styles = StyleSheet.create({
     mosqueLabel: { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.75)', marginTop: 14, letterSpacing: 0.3 },
     heroBgIcon: { position: 'absolute', top: -40, right: -40 },
     heroContent: { position: 'relative', zIndex: 2 },
-    heroTag: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+    heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 },
+    heroTag: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     heroTagText: { fontSize: 13, fontWeight: '600', letterSpacing: 1 },
+    heroHijriPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, flexShrink: 1 },
+    heroHijriText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.4 },
     // Prayer hero — serif italic per the Falah design ("Maghrib" / "Fajr" etc.)
     heroPrayerName: { fontSize: 48, fontFamily: fonts.serif, letterSpacing: -0.5, marginBottom: 4 },
     // Prayer time in mono for that tactile digital-clock feel
@@ -2069,11 +2089,11 @@ const styles = StyleSheet.create({
     heroNextText: { fontSize: 14, fontWeight: '700', flexShrink: 1 },
     heroRemindBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, flexShrink: 0, flexDirection: 'row', alignItems: 'center' },
     heroRemindBtnText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
-    quickActionsContainer: { marginTop: 24, paddingHorizontal: 16 },
-    quickActionsGrid: { flexDirection: 'row', justifyContent: 'center', gap: 16 },
-    quickToolItem: { alignItems: 'center', gap: 10 },
+    quickActionsContainer: { marginTop: 24, paddingHorizontal: 12 },
+    quickActionsGrid: { flexDirection: 'row', justifyContent: 'space-between' },
+    quickToolItem: { alignItems: 'center', gap: 10, flex: 1 },
     quickToolIconBox: {
-        width: 76, height: 76, borderRadius: 22,
+        width: 64, height: 64, borderRadius: 20,
         alignItems: 'center', justifyContent: 'center',
         shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.18, shadowRadius: 8, elevation: 5,
