@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.falah.islamic",
-      "buildNumber": "11",
+      "buildNumber": "12",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "Falah uses the microphone to check your Quran recitation and provide tajweed feedback.",
