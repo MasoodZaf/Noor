@@ -429,6 +429,7 @@ export default function DuaDetailScreen() {
                                                             writingDirection: 'rtl',
                                                             fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
                                                             lineHeight: 30,
+                                                            includeFontPadding: false,
                                                         },
                                                     ]}>{tr.text}</Text>
                                                 );
@@ -533,6 +534,7 @@ const styles = StyleSheet.create({
         fontSize: 32, lineHeight: 52, textAlign: 'right',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
         marginBottom: 10,
+        includeFontPadding: false,
     },
     expandedDetails: { marginTop: 10 },
     divider: { height: 1, marginVertical: 20 },

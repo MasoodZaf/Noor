@@ -1155,7 +1155,10 @@ export default function QuranReaderScreen() {
                                  * preserves any cross-word ligatures in the font).
                                  */}
                                 {(isCurrent || tajweedEnabled) && ayah.words && ayah.words.length > 0 ? (
-                                    <Text style={[styles.arabicText, { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.85 }]}>
+                                    <Text
+                                        textBreakStrategy="simple"
+                                        style={[styles.arabicText, { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.85 }]}
+                                    >
                                         {ayah.words.map((w: any, wi: number) => {
                                             // 1. Playback highlight takes highest priority
                                             const active = isCurrent && currentWordIndex !== -1 && currentWordIndex === w.position;
@@ -1188,11 +1191,14 @@ export default function QuranReaderScreen() {
                                         })}
                                     </Text>
                                 ) : (
-                                    <Text style={[
-                                        styles.arabicText,
-                                        { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.6, color: theme.textPrimary },
-                                        isCurrent && { color: QURAN_ACCENT }
-                                    ]}>
+                                    <Text
+                                        textBreakStrategy="simple"
+                                        style={[
+                                            styles.arabicText,
+                                            { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.6, color: theme.textPrimary },
+                                            isCurrent && { color: QURAN_ACCENT }
+                                        ]}
+                                    >
                                         {ayah[selectedFont.field] || ayah.text_uthmani}
                                     </Text>
                                 )}
@@ -1207,6 +1213,7 @@ export default function QuranReaderScreen() {
                                     textAlign: 'right',
                                     lineHeight: 42,
                                     writingDirection: 'rtl',
+                                    includeFontPadding: false,
                                 }
                             ]}>
                                 {ayah.text_translation}
@@ -1265,7 +1272,7 @@ export default function QuranReaderScreen() {
                                     <Text style={[
                                         styles.tafseerBoxText,
                                         { color: theme.textSecondary },
-                                        language === 'urdu' && { textAlign: 'right', writingDirection: 'rtl', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', lineHeight: 30 },
+                                        language === 'urdu' && { textAlign: 'right', writingDirection: 'rtl', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', lineHeight: 30, includeFontPadding: false },
                                     ]}>
                                         {tafseerTexts[tafsirCacheKey(ayah.id)]}
                                     </Text>
@@ -1748,6 +1755,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: 12,
         lineHeight: 80,
+        includeFontPadding: false,
     },
     surahHeroEnglish: {
         fontSize: 22,
@@ -1851,6 +1859,7 @@ const styles = StyleSheet.create({
         fontSize: 32,
         position: 'absolute',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        includeFontPadding: false,
     },
     ayahNumberText: {
         color: QURAN_ACCENT,
@@ -1861,6 +1870,12 @@ const styles = StyleSheet.create({
     arabicText: {
         textAlign: 'right',
         flexShrink: 1,
+        // Android default true. On Samsung One UI (Galaxy S22/S23/S24/S25),
+        // the padding interacts badly with tall Arabic fonts (Scheherazade has
+        // high ascenders for harakat) — clips diacritics and dagger alefs and
+        // can hide trailing characters mid-word. lineHeight already controls
+        // vertical spacing, so this padding is purely harmful here.
+        includeFontPadding: false,
     },
     // Active (highlighted) word during recitation
     arabicWordActive: {

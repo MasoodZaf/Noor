@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
         marginBottom: 'auto',
         shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2,
     },
-    arabicText: { fontSize: 24, fontWeight: 'bold', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif' },
+    arabicText: { fontSize: 24, fontWeight: 'bold', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', includeFontPadding: false },
     lessonTitleMain: { fontSize: 15, fontWeight: 'bold', marginBottom: 2 },
     lessonSub: { fontSize: 11, fontWeight: '500' },
 });

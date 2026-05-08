@@ -569,6 +569,7 @@ const styles = StyleSheet.create({
     duaArabic: {
         fontSize: 22, lineHeight: 40, textAlign: 'right',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        includeFontPadding: false,
     },
     duaDivider: { height: 1, marginVertical: 16 },
     duaTranslation: { fontSize: 14, lineHeight: 22, fontStyle: 'italic' },

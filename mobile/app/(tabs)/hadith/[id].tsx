@@ -389,6 +389,7 @@ export default function HadithCollectionScreen() {
                         { color: theme.textSecondary },
                         language === 'urdu' && {
                             fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+                            includeFontPadding: false,
                             fontSize: 18, textAlign: 'right', lineHeight: 32,
                         }
                     ]}>
@@ -553,6 +554,7 @@ const styles = StyleSheet.create({
     arabicText: {
         fontSize: 22, lineHeight: 40,
         textAlign: 'right', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        includeFontPadding: false,
     },
     divider: { height: 1, marginVertical: 20 },
     translationText: { fontSize: 15, lineHeight: 24 },

@@ -685,6 +685,7 @@ const styles = StyleSheet.create({
         right: -20,
         lineHeight: 160,
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        includeFontPadding: false,
     },
     innerFrame: {
         position: 'absolute',
@@ -720,6 +721,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         lineHeight: 44,
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        includeFontPadding: false,
     },
     cardBottom: {
         gap: 4,
@@ -816,6 +818,7 @@ const styles = StyleSheet.create({
         lineHeight: 40,
         textAlign: 'right',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        includeFontPadding: false,
     },
     divider: {
         height: 1,

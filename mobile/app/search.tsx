@@ -748,6 +748,7 @@ const styles = StyleSheet.create({
         lineHeight: 38,
         textAlign: 'right',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        includeFontPadding: false,
         marginBottom: 12,
     },
     divider: { height: 1, marginVertical: 12 },

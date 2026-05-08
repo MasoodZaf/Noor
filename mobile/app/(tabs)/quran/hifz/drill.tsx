@@ -431,6 +431,7 @@ const styles = StyleSheet.create({
     arabicText: {
         fontSize: 28, lineHeight: 52, textAlign: 'right',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        includeFontPadding: false,
     },
 
     nextBtn: {

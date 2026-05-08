@@ -316,6 +316,7 @@ const styles = StyleSheet.create({
     arabicChar: {
         fontSize: 36,
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        includeFontPadding: false,
     },
     audioBadge: {
         position: 'absolute',

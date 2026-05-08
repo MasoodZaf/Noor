@@ -464,10 +464,13 @@ export default function JuzReaderScreen() {
                 </View>
 
                 {/* Arabic */}
-                <Text style={[
-                    styles.arabicText,
-                    { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.75, color: theme.textPrimary },
-                ]}>
+                <Text
+                    textBreakStrategy="simple"
+                    style={[
+                        styles.arabicText,
+                        { fontFamily: selectedFont.family, fontSize, lineHeight: fontSize * 1.75, color: theme.textPrimary },
+                    ]}
+                >
                     {arabicText}
                 </Text>
 
@@ -478,6 +481,7 @@ export default function JuzReaderScreen() {
                     language === 'urdu' && {
                         fontFamily: 'NotoNastaliqUrdu_400Regular',
                         fontSize: 18, textAlign: 'right', lineHeight: 36, writingDirection: 'rtl',
+                        includeFontPadding: false,
                     },
                 ]}>
                     {ayah.text_translation}
@@ -534,7 +538,7 @@ export default function JuzReaderScreen() {
                 initialNumToRender={12}
                 maxToRenderPerBatch={15}
                 windowSize={8}
-                removeClippedSubviews={Platform.OS === 'android'}
+                removeClippedSubviews={false}
             />
 
             {/* Settings Modal */}
@@ -637,7 +641,7 @@ const styles = StyleSheet.create({
         borderRadius: 4, borderWidth: 1.5,
         alignItems: 'center', width: '100%',
     },
-    bismillahText: { fontSize: 28, textAlign: 'center' },
+    bismillahText: { fontSize: 28, textAlign: 'center', includeFontPadding: false },
 
     // Ayah card
     ayahContainer: {
@@ -647,7 +651,7 @@ const styles = StyleSheet.create({
     ayahHeader: { flexDirection: 'row', marginBottom: 14 },
     ayahPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14 },
     ayahPillText: { fontSize: 12, fontWeight: '600' },
-    arabicText: { textAlign: 'right', writingDirection: 'rtl' },
+    arabicText: { textAlign: 'right', writingDirection: 'rtl', includeFontPadding: false },
     translationText: {
         marginTop: 14, fontSize: 16, lineHeight: 26,
         fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',

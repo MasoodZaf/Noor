@@ -736,6 +736,7 @@ const styles = StyleSheet.create({
     reviewArabic: {
         fontSize: 16, marginBottom: 4,
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        includeFontPadding: false,
         textAlign: 'left',
     },
     reviewDue: { fontSize: 13 },
@@ -780,6 +781,7 @@ const styles = StyleSheet.create({
     surahPickerSub: { fontSize: 12, marginTop: 2 },
     surahPickerArabic: {
         fontSize: 18, fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        includeFontPadding: false,
     },
     modalEmpty: { textAlign: 'center', marginTop: 40, fontSize: 15 },
 });

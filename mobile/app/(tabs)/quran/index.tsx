@@ -329,6 +329,7 @@ const styles = StyleSheet.create({
         fontSize: 22,
         textAlign: 'center',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        includeFontPadding: false,
     },
     nameBlock: {
         flex: 1,

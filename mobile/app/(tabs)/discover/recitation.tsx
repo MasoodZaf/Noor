@@ -692,6 +692,7 @@ const styles = StyleSheet.create({
     mistakeWord: {
         fontSize: 22, lineHeight: 36, textAlign: 'right',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', marginBottom: 6,
+        includeFontPadding: false,
     },
     mistakeCorrection: { fontSize: 14, lineHeight: 20 },
     perfectCard: {

@@ -162,6 +162,7 @@ const AyahPage = React.memo(({
                         { color: theme.textSecondary },
                         isUrdu && {
                             fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+                            includeFontPadding: false,
                             fontSize: 18, textAlign: 'right', lineHeight: 32, fontStyle: 'normal',
                         },
                     ]}>
@@ -192,6 +193,7 @@ const AyahPage = React.memo(({
                                     { color: theme.textSecondary },
                                     isUrdu && {
                                         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+                                        includeFontPadding: false,
                                         fontSize: 17, textAlign: 'right', lineHeight: 30, fontStyle: 'normal',
                                     },
                                 ]}>
@@ -492,6 +494,7 @@ const styles = StyleSheet.create({
     ayahDecorativeMark: {
         color: TAFSEER_ACCENT, fontSize: 32, position: 'absolute',
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        includeFontPadding: false,
     },
     ayahNumberText: { color: TAFSEER_ACCENT, fontSize: 11, fontWeight: 'bold', position: 'absolute' },
     arabicText: { textAlign: 'right', flexShrink: 1 },

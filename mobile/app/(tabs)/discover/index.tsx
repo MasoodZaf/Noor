@@ -632,6 +632,7 @@ const styles = StyleSheet.create({
     resultArabic: {
         fontSize: 22, lineHeight: 38, textAlign: 'right', marginBottom: 10,
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
+        includeFontPadding: false,
     },
     resultDivider: { height: 1, marginVertical: 10 },
     resultEnglish: { fontSize: 14, lineHeight: 22 },

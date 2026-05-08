@@ -720,8 +720,8 @@ const styles = StyleSheet.create({
     cardAuthor:     { fontSize: 13, fontWeight: '500', marginBottom: 8 },
     cardDesc:       { fontSize: 14, lineHeight: 21, marginBottom: 14 },
 
-    urduTitle:      { textAlign: 'right', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', fontSize: 18, lineHeight: 30 },
-    urduText:       { textAlign: 'right', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', lineHeight: 26 },
+    urduTitle:      { textAlign: 'right', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', fontSize: 18, lineHeight: 30, includeFontPadding: false },
+    urduText:       { textAlign: 'right', fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif', lineHeight: 26, includeFontPadding: false },
 
     openBtn:        { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1 },
     openBtnText:    { fontSize: 13, fontWeight: '500' },

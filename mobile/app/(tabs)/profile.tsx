@@ -273,6 +273,7 @@ export default function ProfileScreen() {
                     textAlign: 'right',
                     marginTop: 4,
                     lineHeight: 30 * arabicScale,
+                    includeFontPadding: false,
                 }}>
                     بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
                 </Text>

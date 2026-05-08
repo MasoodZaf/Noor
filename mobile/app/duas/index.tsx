@@ -264,6 +264,7 @@ export default function DuasScreen() {
                                     writingDirection: 'rtl',
                                     fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
                                     lineHeight: 26,
+                                    includeFontPadding: false,
                                 },
                             ]}
                         >
@@ -414,6 +415,7 @@ const styles = StyleSheet.create({
         lineHeight: 44,
         fontFamily: Platform.OS === 'ios' ? 'Geeza Pro' : 'sans-serif',
         marginBottom: 8,
+        includeFontPadding: false,
     },
     duaTranslit: { fontSize: 13, fontStyle: 'italic', textAlign: 'right', marginBottom: 12, lineHeight: 20 },
     duaDivider: { height: 1, marginBottom: 12 },
