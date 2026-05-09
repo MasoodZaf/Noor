@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment-hijri';
-import { useTheme } from '../../../context/ThemeContext';
+import { useTheme } from '../context/ThemeContext';
 
 const ALADHAN = 'https://api.aladhan.com/v1';
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -101,7 +101,10 @@ export default function CalendarScreen() {
 
         // 2 — AlAdhan Hijri Calendar API
         try {
-            const res = await fetch(`${ALADHAN}/hijriCalendar/${month}/${year}`);
+            // AlAdhan: /hijriCalendar is deprecated (400 BAD_REQUEST). Use the
+            // active Hijri-to-Gregorian endpoint, which embeds holidays under
+            // data[i].hijri.holidays just like the old shape.
+            const res = await fetch(`${ALADHAN}/hToGCalendar/${month}/${year}`);
             const json = await res.json();
             if (json.code === 200 && Array.isArray(json.data) && json.data.length > 0) {
                 const raw = json.data;

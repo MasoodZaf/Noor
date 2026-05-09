@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, TouchableOpacity, Animated, Easing, Modal, Switch, Linking, Image, Alert, TextInput, Share } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,7 @@ import { useNetworkMode } from '../../../context/NetworkModeContext';
 import { useLanguage } from '../../../context/LanguageContext';
 import { useAudio } from '../../../context/AudioContext';
 import { fonts } from '../../../context/ThemeContext';
+import { getDailyInspiration, type InspirationLang } from '../../../utils/inspirations';
 
 // ─── AlAdhan API ──────────────────────────────────────────────────────────────
 const ALADHAN_API = 'https://api.aladhan.com/v1';
@@ -462,7 +463,7 @@ async function schedulePrayerNotifications(
 const QUICK_ACTIONS = [
     { title: 'Salah',    icon: 'user',       route: '/salah',                      gradient: ['#4A2C6E', '#7B4FA6'] as const },
     { title: 'Tasbih',   icon: 'refresh-cw', route: '/tasbih',                     gradient: ['#1A5C38', '#2E9D60'] as const },
-    { title: 'Calendar', icon: 'calendar',   route: '/(tabs)/index/calendar',      gradient: ['#7B3F00', '#C76A2D'] as const },
+    { title: 'Calendar', icon: 'calendar',   route: '/calendar',                   gradient: ['#7B3F00', '#C76A2D'] as const },
     { title: 'Zakat',    icon: 'heart',      route: '/zakat',                      gradient: ['#92650A', '#C9A84C'] as const },
     { title: 'Duas',     icon: 'book-open',  route: '/duas',                       gradient: ['#1B3A6B', '#2B6CB0'] as const },
 ];
@@ -769,6 +770,22 @@ export default function HomeScreen() {
             );
         } catch {}
     }, [dayAya]);
+
+    // Daily Inspiration — deterministic by day-of-year so it changes daily but
+    // is stable across reloads on the same date.
+    const dayInspiration = useMemo(() => getDailyInspiration(), []);
+    const inspirationTranslation = dayInspiration.translations[language as InspirationLang]
+        ?? dayInspiration.translations.english;
+
+    const shareDayInspiration = useCallback(async () => {
+        const message = `${dayInspiration.arabic}\n\n"${inspirationTranslation}"\n\n— ${dayInspiration.source}\n\nShared from Falah`;
+        try {
+            await Share.share(
+                Platform.OS === 'ios' ? { message } : { message, title: 'Daily Inspiration' },
+                { dialogTitle: 'Share Daily Inspiration' }
+            );
+        } catch {}
+    }, [dayInspiration, inspirationTranslation]);
 
     const pulseAnim = useRef(new Animated.Value(0)).current;
 
@@ -1497,7 +1514,7 @@ export default function HomeScreen() {
                                 {!!hijriDate && (
                                     <TouchableOpacity
                                         style={[styles.heroHijriPill, { backgroundColor: 'rgba(255,255,255,0.22)' }]}
-                                        onPress={() => router.push('/(tabs)/index/calendar' as any)}
+                                        onPress={() => router.push('/calendar' as any)}
                                         accessibilityRole="button"
                                         accessibilityLabel={`${hijriDate} — open Hijri calendar`}
                                         activeOpacity={0.85}
@@ -1715,6 +1732,39 @@ export default function HomeScreen() {
                         </View>
                     </View>
                 )}
+
+                {/* Daily Inspiration */}
+                <View style={styles.verseSection}>
+                    <Text style={[styles.prayerListTitle, { color: theme.textPrimary }]}>Daily Inspiration</Text>
+                    <View style={[styles.verseCard, { backgroundColor: theme.bgCard, borderColor: theme.border, borderWidth: 1 }]}>
+                        <View style={[styles.inspirationBadge, { backgroundColor: theme.accentLight, borderColor: theme.accent + '40' }]}>
+                            <Feather name={dayInspiration.type === 'hadith' ? 'message-circle' : 'book'} size={11} color={theme.accent} />
+                            <Text style={[styles.inspirationBadgeText, { color: theme.accent }]}>
+                                {dayInspiration.type === 'hadith' ? 'HADITH' : 'QURAN'}
+                            </Text>
+                        </View>
+                        <Text style={[
+                            styles.verseArabicText,
+                            { color: theme.textPrimary, fontSize: 24 * theme.arabicScale, lineHeight: 44 * theme.arabicScale, marginTop: 16, marginBottom: 16 },
+                        ]}>{dayInspiration.arabic}</Text>
+                        <Text style={[styles.verseText, { color: theme.textSecondary, marginBottom: 20 }]}>
+                            "{inspirationTranslation}"
+                        </Text>
+                        <View style={[styles.verseFooter, { borderTopColor: theme.border }]}>
+                            <Text style={[styles.verseRef, { color: theme.accent, flex: 1 }]} numberOfLines={1}>
+                                {dayInspiration.source.toUpperCase()}
+                            </Text>
+                            <TouchableOpacity
+                                onPress={shareDayInspiration}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                accessibilityRole="button"
+                                accessibilityLabel="Share daily inspiration"
+                            >
+                                <Feather name="share-2" size={18} color={theme.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
             </ScrollView>
 
             {/* ── Notification Settings Bottom Sheet ───────────────────────── */}
@@ -2126,6 +2176,8 @@ const styles = StyleSheet.create({
     verseFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, paddingTop: 16 },
     verseRef: { fontSize: 12, fontWeight: 'bold', letterSpacing: 1 },
     verseActions: { flexDirection: 'row', alignItems: 'center' },
+    inspirationBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1 },
+    inspirationBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 1.2, includeFontPadding: false },
     // ── Prayer Settings Sheet ─────────────────────────────────────────────────
     sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
     sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 12, maxHeight: '85%' },
