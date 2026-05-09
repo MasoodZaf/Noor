@@ -1427,9 +1427,9 @@ export default function HomeScreen() {
                 <View style={styles.headerRight}>
                     <TouchableOpacity
                         style={styles.iconBtn}
-                        onPress={() => router.push('/(tabs)/discover/ask' as any)}
+                        onPress={() => router.push('/search' as any)}
                         accessibilityRole="button"
-                        accessibilityLabel="Ask AiDeen, Islamic search"
+                        accessibilityLabel="Search Quran, Hadith and Fiqh"
                     >
                         <Feather name="search" size={20} color={theme.textPrimary} />
                     </TouchableOpacity>
