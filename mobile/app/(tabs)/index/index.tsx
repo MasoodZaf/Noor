@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, Toucha
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
-import { Coordinates, CalculationMethod, PrayerTimes, Madhab } from 'adhan';
+import { Coordinates, CalculationMethod, PrayerTimes, Madhab, HighLatitudeRule } from 'adhan';
 import moment from 'moment-hijri';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
@@ -561,12 +561,16 @@ const prayerCacheKey = (lat: number, lng: number, method: number, school: number
     // UTC date can be "tomorrow" for UTC+ timezones in the evening, causing stale prayers.
     const d = new Date();
     const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    return `@noor/prayer_${date}_${Math.round(lat * 100)}_${Math.round(lng * 100)}_m${method}_s${school}`;
+    // v2: high-latitude adjustment added — v1 caches must not be reused
+    return `@noor/prayer_v2_${date}_${Math.round(lat * 100)}_${Math.round(lng * 100)}_m${method}_s${school}`;
 };
 
 const fetchAlAdhan = async (lat: number, lng: number, method: number, school: number, date?: Date) => {
     const ts = date ? Math.floor(date.getTime() / 1000) : Math.floor(Date.now() / 1000);
-    const url = `${ALADHAN_API}/timings/${ts}?latitude=${lat}&longitude=${lng}&method=${method}&school=${school}`;
+    // latitudeAdjustmentMethod=3 (Angle Based) — required for high-latitude regions
+    // (UK, Northern Europe, Canada) where sun doesn't reach 18° depression in summer.
+    // Without it Fajr/Isha return extreme/invalid times (e.g. London May: Fajr 02:07, Isha 23:31).
+    const url = `${ALADHAN_API}/timings/${ts}?latitude=${lat}&longitude=${lng}&method=${method}&school=${school}&latitudeAdjustmentMethod=3`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`AlAdhan HTTP ${res.status}`);
     const json = await res.json();
@@ -886,6 +890,10 @@ export default function HomeScreen() {
             : method === 2 ? CalculationMethod.NorthAmerica()
                 : CalculationMethod.MuslimWorldLeague();
         if (school === 1) offlineParams.madhab = Madhab.Hanafi;
+        // High-latitude rule (UK/Northern Europe/Canada): without this Fajr/Isha
+        // diverge in summer when sun never reaches 18° depression. Mirrors the
+        // online AlAdhan call's latitudeAdjustmentMethod=3 (Angle Based).
+        offlineParams.highLatitudeRule = HighLatitudeRule.TwilightAngle;
 
         const { status: finalStatus } = await Notifications.getPermissionsAsync();
 

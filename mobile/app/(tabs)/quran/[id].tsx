@@ -1843,9 +1843,12 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     arabicContentWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'flex-end',
+        // Block-level wrapper so the Arabic Text gets the full row width and
+        // wraps cleanly onto multiple lines. A flexDirection:'row' parent with
+        // a flexShrink:1 child caused Samsung One UI to clip trailing words
+        // (e.g. ayah 1:3 dropped "ٱلرَّحِیمِ") instead of wrapping. textAlign:'right'
+        // on the Text itself preserves RTL right-edge alignment.
+        width: '100%',
         marginBottom: 20,
     },
     ayahDecorativeContainer: {

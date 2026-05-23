@@ -263,7 +263,8 @@ export default function RamadanScreen() {
             } catch {}
 
             const ts = Math.floor(Date.now() / 1000);
-            const res = await fetch(`${ALADHAN}/timings/${ts}?latitude=${latitude}&longitude=${longitude}&method=${prayerMethod}`);
+            // latitudeAdjustmentMethod=3 (Angle Based) — keeps Fajr/Maghrib sane at high latitudes (UK/Nordic/Canada)
+            const res = await fetch(`${ALADHAN}/timings/${ts}?latitude=${latitude}&longitude=${longitude}&method=${prayerMethod}&latitudeAdjustmentMethod=3`);
             const json = await res.json();
 
             if (json.code === 200) {
