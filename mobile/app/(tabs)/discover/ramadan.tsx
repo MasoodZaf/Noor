@@ -9,84 +9,24 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
-// expo-notifications is unavailable in Expo Go on Android (removed SDK 53+).
-// Dynamically require to avoid a hard crash in Expo Go.
-let Notifications: typeof import('expo-notifications') | null = null;
-try { Notifications = require('expo-notifications'); } catch (_) {}
+// expo-notifications availability — removed from Expo Go on Android SDK 53+.
+// We hold a runtime reference to read permission status for the UI hint;
+// the actual scheduling lives in utils/notifications and is a no-op on
+// platforms where the native module isn't linked.
+let NotificationsRuntime: typeof import('expo-notifications') | null = null;
+try { NotificationsRuntime = require('expo-notifications'); } catch (_) {}
 import moment from 'moment-hijri';
 import Svg, { Circle } from 'react-native-svg';
 import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../context/LanguageContext';
-
-// ── Ramadan notification strings per language ──────────────────────────────────
-const RAMADAN_NOTIF: Record<string, { sehriTitle: string; sehriBody: string; iftarTitle: string; iftarBody: string }> = {
-    english:    { sehriTitle: '🌙 Sehri Time Ending',      sehriBody: 'Fajr is approaching. Stop eating and prepare for prayer.',         iftarTitle: '🌅 Iftar Time',          iftarBody: 'Allahu Akbar! It is time to break your fast. Bismillah.'         },
-    urdu:       { sehriTitle: '🌙 سحری کا وقت ختم ہو رہا ہے', sehriBody: 'فجر قریب ہے۔ کھانا بند کریں اور نماز کی تیاری کریں۔',          iftarTitle: '🌅 افطار کا وقت',         iftarBody: 'اللہ اکبر! روزہ افطار کرنے کا وقت آ گیا ہے۔ بسم اللہ۔'            },
-    indonesian: { sehriTitle: '🌙 Waktu Sahur Hampir Habis', sehriBody: 'Subuh hampir tiba. Berhenti makan dan bersiap untuk shalat.',      iftarTitle: '🌅 Waktu Berbuka',        iftarBody: 'Allahu Akbar! Waktunya berbuka puasa. Bismillah.'                  },
-    french:     { sehriTitle: '🌙 Fin du Suhoor',           sehriBody: 'Le Fajr approche. Arrêtez de manger et préparez-vous à prier.',   iftarTitle: '🌅 Heure de l\'Iftar',    iftarBody: 'Allahu Akbar ! Il est temps de rompre le jeûne. Bismillah.'        },
-    bengali:    { sehriTitle: '🌙 সেহরির সময় শেষ হচ্ছে',   sehriBody: 'ফজর আসছে। খাওয়া বন্ধ করুন এবং নামাজের প্রস্তুতি নিন।',        iftarTitle: '🌅 ইফতারের সময়',         iftarBody: 'আল্লাহু আকবর! রোজা ভাঙার সময় হয়েছে। বিসমিল্লাহ।'              },
-    turkish:    { sehriTitle: '🌙 Sahur Vakti Bitiyor',      sehriBody: 'Sabah ezanı yaklaşıyor. Yemeği bırakın ve namaza hazırlanın.',    iftarTitle: '🌅 İftar Vakti',          iftarBody: 'Allahu Ekber! Orucunuzu açma vakti geldi. Bismillah.'              },
-};
+import {
+    RAMADAN_NOTIF_PREF_KEY,
+    scheduleRamadanNotifications,
+    cancelRamadanNotifications,
+} from '../../../utils/notifications';
 
 // ── AlAdhan API ────────────────────────────────────────────────────────────────
 const ALADHAN = 'https://api.aladhan.com/v1';
-
-// Stable Ramadan notification identifiers — used so the language-change listener
-// can cancel/replace sehri and iftar alerts without wiping prayer notifications.
-const RAMADAN_NOTIF_IDS = {
-    sehri: 'falah-ramadan-sehri',
-    iftar: 'falah-ramadan-iftar',
-} as const;
-
-// User toggle — default on. Persists the user's preference; independent of the
-// Hijri-month gate (below) which controls whether alerts actually fire.
-const RAMADAN_NOTIF_PREF_KEY = '@noor/ramadan_notif';
-
-/**
- * Cancels Ramadan-scoped notifications (by identifier) and reschedules sehri/iftar
- * with the given language. Only acts when notification permission is granted, the
- * user hasn't disabled them, and the current Hijri month is Ramadan.
- */
-async function scheduleRamadanNotifications(
-    notifications: typeof import('expo-notifications') | null,
-    sehriDate: Date,
-    iftarDate: Date,
-    lang: string,
-    enabled: boolean,
-) {
-    if (!notifications) return;
-    const { status } = await notifications.getPermissionsAsync();
-    if (status !== 'granted') return;
-
-    // Cancel existing Ramadan notifications first — also handles the turn-off
-    // and "outside Ramadan" cases below.
-    for (const id of Object.values(RAMADAN_NOTIF_IDS)) {
-        await notifications.cancelScheduledNotificationAsync(id).catch(() => {});
-    }
-
-    if (!enabled) return;
-    // moment-hijri iMonth is 0-indexed, so Ramadan = 8.
-    if (moment().iMonth() !== 8) return;
-
-    const strings = RAMADAN_NOTIF[lang] ?? RAMADAN_NOTIF['english'];
-    const nowMs = Date.now();
-    const sehriAlertAt = new Date(sehriDate.getTime() - 10 * 60 * 1000); // 10 min before fajr
-
-    if (sehriAlertAt.getTime() > nowMs) {
-        await notifications.scheduleNotificationAsync({
-            identifier: RAMADAN_NOTIF_IDS.sehri,
-            content: { title: strings.sehriTitle, body: strings.sehriBody, sound: true },
-            trigger: { type: notifications.SchedulableTriggerInputTypes.DATE, date: sehriAlertAt },
-        }).catch(() => {});
-    }
-    if (iftarDate.getTime() > nowMs) {
-        await notifications.scheduleNotificationAsync({
-            identifier: RAMADAN_NOTIF_IDS.iftar,
-            content: { title: strings.iftarTitle, body: strings.iftarBody, sound: true },
-            trigger: { type: notifications.SchedulableTriggerInputTypes.DATE, date: iftarDate },
-        }).catch(() => {});
-    }
-}
 
 // Cache geocode results for 24h — BigDataCloud is a free service with no SLA.
 // Key is rounded to ~1km precision; value is the locality string.
@@ -190,8 +130,9 @@ export default function RamadanScreen() {
     const [locationName, setLocationName] = useState('');
     const [notifsDenied, setNotifsDenied] = useState(false);
     const [ramadanNotifEnabled, setRamadanNotifEnabled] = useState(true);
-    const ramadanNotifEnabledRef = useRef(true);
-    useEffect(() => { ramadanNotifEnabledRef.current = ramadanNotifEnabled; }, [ramadanNotifEnabled]);
+    // Gates the scheduling effect so the default `enabled=true` doesn't briefly
+    // schedule notifications before AsyncStorage resolves the user's saved toggle.
+    const [ramadanPrefsLoaded, setRamadanPrefsLoaded] = useState(false);
 
     // Live clock tick
     useEffect(() => {
@@ -206,6 +147,7 @@ export default function RamadanScreen() {
             const notifPref = await AsyncStorage.getItem(RAMADAN_NOTIF_PREF_KEY);
             if (!mountedRef.current) return;
             setRamadanNotifEnabled(notifPref !== 'false');
+            setRamadanPrefsLoaded(true);
 
             // Load today's fasting status
             const fastedVal = await AsyncStorage.getItem(fastedKey());
@@ -286,12 +228,13 @@ export default function RamadanScreen() {
                     iftarDate: iftarDate.getTime(),
                 }));
 
-                // Schedule sehri & iftar notifications (skipped in Expo Go on Android)
-                if (Notifications) {
-                    const { status: notifStatus } = await Notifications.getPermissionsAsync();
+                // Permission hint only — actual scheduling is driven by the
+                // effect below so timing data, language, and enabled toggle all
+                // funnel through one path.
+                if (NotificationsRuntime) {
+                    const { status: notifStatus } = await NotificationsRuntime.getPermissionsAsync();
                     if (!mountedRef.current) return;
                     if (notifStatus !== 'granted') setNotifsDenied(true);
-                    else await scheduleRamadanNotifications(Notifications, sehriDate, iftarDate, language, ramadanNotifEnabledRef.current);
                 }
             }
         } catch (e) {
@@ -301,26 +244,27 @@ export default function RamadanScreen() {
 
     useEffect(() => { loadData(); }, []);
 
-    // Reschedule sehri/iftar notifications when the user changes app language.
-    // Uses cached `timings` — skips the first render and any state where timings
-    // haven't loaded yet (the initial schedule inside fetchTimings covers that case).
-    const didMountRef = useRef(false);
+    // Single source of truth for Ramadan notification scheduling: fires whenever
+    // timings, language, or the enabled toggle changes — after prefs are loaded.
+    // The util cancels stale IDs on every call, so it's safe to invoke
+    // repeatedly. When enabled=false it cancels and returns.
     useEffect(() => {
-        if (!didMountRef.current) { didMountRef.current = true; return; }
-        if (!timings) return;
-        scheduleRamadanNotifications(Notifications, timings.sehriDate, timings.iftarDate, language, ramadanNotifEnabledRef.current)
-            .catch(e => console.warn('[Noor/Ramadan] Language reschedule failed:', e));
-    }, [language]);
+        if (!NotificationsRuntime || !ramadanPrefsLoaded) return;
+        if (!timings) {
+            // No timings yet: clear any stale IDs from a prior install/version.
+            cancelRamadanNotifications().catch(() => {});
+            return;
+        }
+        scheduleRamadanNotifications(timings.sehriDate, timings.iftarDate, language, ramadanNotifEnabled)
+            .catch(e => console.warn('[Noor/Ramadan] Schedule failed:', e));
+    }, [ramadanPrefsLoaded, timings, language, ramadanNotifEnabled]);
 
     const toggleRamadanNotif = async () => {
         Haptics.selectionAsync();
         const next = !ramadanNotifEnabled;
         setRamadanNotifEnabled(next);
         try { await AsyncStorage.setItem(RAMADAN_NOTIF_PREF_KEY, String(next)); } catch {}
-        if (timings) {
-            await scheduleRamadanNotifications(Notifications, timings.sehriDate, timings.iftarDate, language, next)
-                .catch(e => console.warn('[Noor/Ramadan] Toggle reschedule failed:', e));
-        }
+        // Scheduling driven by the effect that watches ramadanNotifEnabled.
     };
 
     const toggleFasted = async () => {

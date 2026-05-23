@@ -322,22 +322,22 @@ export default function HifzTrackerScreen() {
             {/* Tabs */}
             <View style={[styles.tabContainer, { borderBottomColor: theme.border }]}>
                 <TouchableOpacity
-                    style={[styles.tabBtn, activeTab === 'dashboard' && [styles.tabBtnActive, { borderBottomColor: theme.gold }]]}
+                    style={[styles.tabBtn, activeTab === 'dashboard' && { borderBottomColor: theme.gold }]}
                     onPress={() => setActiveTab('dashboard')}
                     accessibilityRole="tab"
                     accessibilityLabel="Dashboard"
                     accessibilityState={{ selected: activeTab === 'dashboard' }}
                 >
-                    <Text style={[styles.tabText, { color: theme.textSecondary }, activeTab === 'dashboard' && [styles.tabTextActive, { color: theme.gold }]]}>Dashboard</Text>
+                    <Text style={[styles.tabText, { color: activeTab === 'dashboard' ? theme.gold : theme.textSecondary }]}>Dashboard</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                    style={[styles.tabBtn, activeTab === 'review' && [styles.tabBtnActive, { borderBottomColor: theme.gold }]]}
+                    style={[styles.tabBtn, activeTab === 'review' && { borderBottomColor: theme.gold }]}
                     onPress={() => setActiveTab('review')}
                     accessibilityRole="tab"
                     accessibilityLabel={`SRS Review${dueEntries.length > 0 ? `, ${dueEntries.length} due` : ''}`}
                     accessibilityState={{ selected: activeTab === 'review' }}
                 >
-                    <Text style={[styles.tabText, { color: theme.textSecondary }, activeTab === 'review' && [styles.tabTextActive, { color: theme.gold }]]}>
+                    <Text style={[styles.tabText, { color: activeTab === 'review' ? theme.gold : theme.textSecondary }]}>
                         SRS Review
                     </Text>
                     {dueEntries.length > 0 && (
@@ -646,9 +646,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 2, borderBottomColor: 'transparent',
         flexDirection: 'row', justifyContent: 'center', gap: 6,
     },
-    tabBtnActive: {},
     tabText: { fontSize: 15, fontWeight: '600' },
-    tabTextActive: {},
     badge: {
         backgroundColor: '#E53E3E', borderRadius: 10, minWidth: 18, height: 18,
         alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,

@@ -20,6 +20,7 @@ import { useNetworkMode } from '../../../context/NetworkModeContext';
 
 // ─── APIs ─────────────────────────────────────────────────────────────────────
 import { QURAN_API, ALQURAN_CLOUD_API as AUDIO_API } from '../../../utils/apis';
+import { fetchAllSurahVerses } from '../../../utils/quranApi';
 
 // Audio CDN — verses.quran.com (download.quranicaudio.com no longer serves these paths)
 const AUDIO_CDN = 'https://verses.quran.com/';
@@ -44,34 +45,6 @@ const URDU_EDITIONS = [
     { id: 'ur.ahmedraza', name: 'Ahmed Raza Khan',     nameUrdu: 'احمد رضا خان' },
     { id: 'ur.maududi',   name: "Maariful Qur'an",     nameUrdu: 'معارف القرآن' },
 ];
-
-// Quran.com v4 caps `per_page` at 50 — surahs longer than that (Al-Fatiha is fine, but
-// e.g. Al-Baqarah/286, Ash-Shu'ara/227, Al-A'raf/206) lost ayahs from #51 onward. Loop
-// until `meta.total_count` is reached so every verse is fetched.
-const fetchAllSurahVerses = async (
-    surahId: number,
-    reciterId: number,
-    signal?: AbortSignal,
-): Promise<any[]> => {
-    const PAGE_SIZE = 50; // Quran.com v4 hard cap
-    let page = 1;
-    let allVerses: any[] = [];
-    while (true) {
-        const res = await fetch(
-            `${QURAN_API}/verses/by_chapter/${surahId}?words=true&word_fields=text_uthmani&fields=text_uthmani&audio=${reciterId}&per_page=${PAGE_SIZE}&page=${page}`,
-            { signal }
-        );
-        if (!res.ok) throw new Error(`Quran.com ${res.status}`);
-        const json = await res.json();
-        const verses: any[] = json.verses || [];
-        allVerses = allVerses.concat(verses);
-        const total = json.meta?.total_count ?? json.pagination?.total_records ?? 0;
-        if (allVerses.length >= total || verses.length < PAGE_SIZE) break;
-        page++;
-        if (page > 20) break; // safety: longest surah Al-Baqarah needs 6 pages at 50/page
-    }
-    return allVerses;
-};
 
 const fetchTranslationTexts = async (surahId: number, language: string, editionOverride?: string): Promise<string[]> => {
     const alquranEdition = editionOverride || ALQURAN_EDITIONS[language];

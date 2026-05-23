@@ -12,7 +12,22 @@ import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDatabase } from '../../../context/DatabaseContext';
 import { sanitizeArabicText } from '../../../utils/arabic';
-import { getDailyVerseForDate, nextFridayAt } from '../../../utils/hijriContent';
+import {
+    type DailyAyaPrefs,
+    type FridayKahfPrefs,
+    DAILY_AYA_NOTIF_KEY,
+    FRIDAY_KAHF_NOTIF_KEY,
+    DEFAULT_DAILY_AYA_PREFS,
+    DEFAULT_FRIDAY_KAHF_PREFS,
+    sanitizeDailyAyaPrefs,
+    sanitizeFridayKahfPrefs,
+    schedulePrayerNotifications,
+    scheduleDailyAyaNotifications,
+    scheduleFridayKahfNotifications,
+    cancelDailyAyaNotifications,
+    cancelFridayKahfNotifications,
+} from '../../../utils/notifications';
+import { translationCol, type Language } from '../../../utils/language';
 import { useTheme } from '../../../context/ThemeContext';
 import { useNetworkMode } from '../../../context/NetworkModeContext';
 import { useLanguage } from '../../../context/LanguageContext';
@@ -28,436 +43,9 @@ const PRAYER_SETTINGS_KEY = '@noor/prayer_settings';
 const NOTIF_PREFS_KEY = '@noor/notif_prefs';
 const DEFAULT_NOTIF_PREFS = { fajr: true, dhuhr: true, asr: true, maghrib: true, isha: true };
 
-// ─── Prayer notification i18n ─────────────────────────────────────────────────
-type NotifLang = 'english' | 'urdu' | 'indonesian' | 'french' | 'bengali' | 'turkish';
-
-// Prayer display names per language
-const PRAYER_DISPLAY_NAMES: Record<NotifLang, Record<string, string>> = {
-    english:    { fajr: 'Fajr',  dhuhr: 'Dhuhr',  asr: 'Asr',    maghrib: 'Maghrib', isha: 'Isha'   },
-    urdu:       { fajr: 'فجر',   dhuhr: 'ظہر',    asr: 'عصر',    maghrib: 'مغرب',    isha: 'عشاء'   },
-    indonesian: { fajr: 'Subuh', dhuhr: 'Zuhur',  asr: 'Asar',   maghrib: 'Magrib',  isha: 'Isya'   },
-    french:     { fajr: 'Fajr',  dhuhr: 'Dhuhr',  asr: 'Asr',    maghrib: 'Maghrib', isha: 'Isha'   },
-    bengali:    { fajr: 'ফজর',   dhuhr: 'যোহর',   asr: 'আসর',    maghrib: 'মাগরিব',  isha: 'এশা'    },
-    turkish:    { fajr: 'Sabah', dhuhr: 'Öğle',   asr: 'İkindi', maghrib: 'Akşam',   isha: 'Yatsı'  },
-};
-
-// Notification UI strings per language
-// {name} is replaced at runtime with the prayer name in that language
-const NOTIF_UI: Record<NotifLang, { title: string; body: string; fajrRise: string }> = {
-    english:    { title: '🕌 Time for {name}',          body: 'It is time to pray {name}.',                    fajrRise: 'Rise for the dawn prayer.'              },
-    urdu:       { title: '🕌 {name} کا وقت',            body: '{name} کی نماز کا وقت ہو گیا ہے۔',              fajrRise: 'فجر کی نماز کے لیے اٹھیں۔'              },
-    indonesian: { title: '🕌 Waktu {name}',              body: 'Sudah waktunya shalat {name}.',                 fajrRise: 'Bangunlah untuk shalat Subuh.'           },
-    french:     { title: "🕌 L'heure de {name}",         body: "Il est l'heure de prier {name}.",               fajrRise: "Levez-vous pour la prière de l'aube."   },
-    bengali:    { title: '🕌 {name} এর সময়',            body: '{name} নামাজের সময় হয়েছে।',                    fajrRise: 'ফজরের নামাজের জন্য উঠুন।'              },
-    turkish:    { title: '🕌 {name} Vakti',              body: '{name} namazı için vakit girdi.',                fajrRise: 'Sabah namazı için kalkın.'              },
-};
-
-// Ayah / Hadith quotes per language per prayer
-const PRAYER_QUOTES: Record<NotifLang, Record<string, string[]>> = {
-    english: {
-        fajr:    [
-            '📖 "Indeed, the recitation of dawn is ever witnessed [by the angels]." (17:78)',
-            '📖 "Glorify your Lord before the rising of the sun." (20:130)',
-            '🕌 The Prophet ﷺ said: "The two rak\'ahs of Fajr are better than the world and all it contains." (Muslim)',
-            '🕌 The Prophet ﷺ said: "Whoever prays Fajr is under the protection of Allah." (Muslim)',
-        ],
-        dhuhr:   [
-            '📖 "Maintain with care the obligatory prayers and stand before Allah, devoutly obedient." (2:238)',
-            '📖 "Recite what has been revealed to you of the Book and establish prayer." (29:45)',
-            '🕌 The Prophet ﷺ said: "The gates of Heaven are opened at noon." (Abu Dawud)',
-            '📖 "Indeed, prayer has been enjoined on the believers at fixed times." (4:103)',
-        ],
-        asr:     [
-            '📖 "Guard strictly the prayers, especially the middle prayer." (2:238)',
-            '📖 "Exalt Allah before the rising of the sun and before its setting." (50:39)',
-            '🕌 The Prophet ﷺ said: "Whoever misses Asr, it is as if he has lost his family and wealth." (Bukhari)',
-            '🕌 The Prophet ﷺ said: "Angels assemble together at Asr and Fajr." (Bukhari)',
-        ],
-        maghrib: [
-            '📖 "Glorify Allah when you reach the evening and when you reach the morning." (30:17)',
-            '📖 "Establish prayer at the decline of the sun till the darkness of the night." (17:78)',
-            '🕌 The Prophet ﷺ said: "My nation will remain upon goodness as long as they hasten to break the fast." (Bukhari)',
-            '🕌 The Prophet ﷺ said: "Do not delay three things — prayer when its time comes." (Tirmidhi)',
-        ],
-        isha:    [
-            '📖 "Prostrate to Him in the night and glorify Him a long part of the night." (76:26)',
-            '📖 "From the night, pray as additional worship for you." (17:79)',
-            '🕌 The Prophet ﷺ said: "The most burdensome prayers for hypocrites are Isha and Fajr — if they knew what is in them, they would come even crawling." (Bukhari)',
-            '🕌 The Prophet ﷺ said: "Whoever prays Isha in congregation is as if he prayed half the night." (Muslim)',
-        ],
-    },
-    urdu: {
-        fajr:    [
-            '📖 "بیشک فجر کی قرأت میں فرشتے حاضر ہوتے ہیں۔" (17:78)',
-            '📖 "سورج طلوع ہونے سے پہلے اپنے رب کی تسبیح کرو۔" (20:130)',
-            '🕌 نبی ﷺ نے فرمایا: "فجر کی دو رکعتیں دنیا اور اس کی ہر چیز سے بہتر ہیں۔" (مسلم)',
-            '🕌 نبی ﷺ نے فرمایا: "جو فجر کی نماز پڑھے وہ اللہ کی حفاظت میں ہے۔" (مسلم)',
-        ],
-        dhuhr:   [
-            '📖 "نمازوں کی حفاظت کرو اور درمیانی نماز کی بھی۔" (2:238)',
-            '📖 "کتاب میں سے جو تم پر وحی کی گئی ہے اسے پڑھو اور نماز قائم کرو۔" (29:45)',
-            '🕌 نبی ﷺ نے فرمایا: "ظہر کے وقت جنت کے دروازے کھلتے ہیں۔" (ابو داود)',
-            '📖 "بے شک نماز مومنوں پر مقررہ اوقات میں فرض ہے۔" (4:103)',
-        ],
-        asr:     [
-            '📖 "نمازوں کی حفاظت کرو اور خاص طور پر درمیانی نماز کی۔" (2:238)',
-            '📖 "سورج غروب ہونے سے پہلے اپنے رب کی تسبیح کرو۔" (50:39)',
-            '🕌 نبی ﷺ نے فرمایا: "جس نے عصر کی نماز چھوڑی اس کا عمل اکارت ہو گیا۔" (بخاری)',
-            '🕌 نبی ﷺ نے فرمایا: "فرشتے عصر اور فجر میں اکٹھے ہوتے ہیں۔" (بخاری)',
-        ],
-        maghrib: [
-            '📖 "اللہ کی تسبیح کرو شام کو اور صبح کو۔" (30:17)',
-            '📖 "سورج کے ڈھلنے سے رات کی تاریکی تک نماز قائم کرو۔" (17:78)',
-            '🕌 نبی ﷺ نے فرمایا: "میری امت اس وقت تک خیر پر رہے گی جب تک افطار میں جلدی کرتی رہے۔" (بخاری)',
-            '🕌 نبی ﷺ نے فرمایا: "تین چیزوں میں دیر نہ کرو — نماز جب اس کا وقت آ جائے۔" (ترمذی)',
-        ],
-        isha:    [
-            '📖 "رات کے ایک حصے میں اسے سجدہ کرو اور رات کو اس کی تسبیح کرو۔" (76:26)',
-            '📖 "رات کے ایک حصے میں اضافی عبادت کے طور پر نماز پڑھو۔" (17:79)',
-            '🕌 نبی ﷺ نے فرمایا: "منافقوں پر سب سے بھاری نمازیں عشاء اور فجر ہیں — اگر انہیں معلوم ہوتا تو گھٹنوں کے بل چل کر آتے۔" (بخاری)',
-            '🕌 نبی ﷺ نے فرمایا: "جو عشاء کی نماز جماعت سے پڑھے، اسے آدھی رات کے قیام کا ثواب ملتا ہے۔" (مسلم)',
-        ],
-    },
-    indonesian: {
-        fajr:    [
-            '📖 "Sesungguhnya shalat Subuh itu disaksikan oleh para malaikat." (17:78)',
-            '📖 "Bertasbihlah memuji Tuhanmu sebelum matahari terbit." (20:130)',
-            '🕌 Nabi ﷺ bersabda: "Dua rakaat Subuh lebih baik dari dunia dan seisinya." (Muslim)',
-            '🕌 Nabi ﷺ bersabda: "Siapa yang shalat Subuh maka ia dalam perlindungan Allah." (Muslim)',
-        ],
-        dhuhr:   [
-            '📖 "Peliharalah semua shalat dan shalat wustha, dan berdirilah karena Allah dengan khusyu." (2:238)',
-            '📖 "Bacalah apa yang telah diwahyukan kepadamu dan dirikanlah shalat." (29:45)',
-            '🕌 Nabi ﷺ bersabda: "Pintu-pintu surga dibuka pada tengah hari." (Abu Dawud)',
-            '📖 "Sesungguhnya shalat itu kewajiban atas orang mukmin pada waktu yang ditentukan." (4:103)',
-        ],
-        asr:     [
-            '📖 "Peliharalah semua shalat, terutama shalat wustha (Asar)." (2:238)',
-            '📖 "Bertasbihlah memuji Tuhanmu sebelum matahari terbenam." (50:39)',
-            '🕌 Nabi ﷺ bersabda: "Siapa yang meninggalkan Asar, amalannya akan terhapus." (Bukhari)',
-            '🕌 Nabi ﷺ bersabda: "Para malaikat berkumpul pada shalat Asar dan Subuh." (Bukhari)',
-        ],
-        maghrib: [
-            '📖 "Bertasbihlah kepada Allah pada waktu sore dan pagi hari." (30:17)',
-            '📖 "Dirikanlah shalat sejak matahari tergelincir hingga gelap malam." (17:78)',
-            '🕌 Nabi ﷺ bersabda: "Umatku dalam kebaikan selama menyegerakan berbuka puasa." (Bukhari)',
-            '🕌 Nabi ﷺ bersabda: "Jangan menunda tiga hal — shalat ketika waktunya tiba." (Tirmidzi)',
-        ],
-        isha:    [
-            '📖 "Sujudlah kepada-Nya pada sebagian malam dan sucikanlah Dia waktu yang panjang." (76:26)',
-            '📖 "Shalatlah pada sebagian malam sebagai ibadah tambahan bagimu." (17:79)',
-            '🕌 Nabi ﷺ bersabda: "Shalat paling berat bagi munafik adalah Isya dan Subuh — jika mereka tahu pahalanya, mereka datang meskipun merangkak." (Bukhari)',
-            '🕌 Nabi ﷺ bersabda: "Siapa yang shalat Isya berjamaah, seolah ia shalat separuh malam." (Muslim)',
-        ],
-    },
-    french: {
-        fajr:    [
-            '📖 "Certes, la récitation de l\'aube est attestée par les anges." (17:78)',
-            '📖 "Glorifie ton Seigneur avant le lever du soleil." (20:130)',
-            '🕌 Le Prophète ﷺ a dit : "Les deux rak\'as de Fajr valent mieux que le monde entier." (Muslim)',
-            '🕌 Le Prophète ﷺ a dit : "Quiconque prie Fajr est sous la protection d\'Allah." (Muslim)',
-        ],
-        dhuhr:   [
-            '📖 "Observez scrupuleusement les prières et tenez-vous debout devant Allah avec dévotion." (2:238)',
-            '📖 "Récite ce qui t\'a été révélé du Livre et accomplis la prière." (29:45)',
-            '🕌 Le Prophète ﷺ a dit : "Les portes du Paradis s\'ouvrent à l\'heure de midi." (Abu Dawud)',
-            '📖 "La prière est une obligation à des horaires déterminés pour les croyants." (4:103)',
-        ],
-        asr:     [
-            '📖 "Observez scrupuleusement les prières, surtout la prière du milieu." (2:238)',
-            '📖 "Glorifie ton Seigneur avant le coucher du soleil." (50:39)',
-            '🕌 Le Prophète ﷺ a dit : "Celui qui manque Asr est comme s\'il avait perdu sa famille et ses biens." (Bukhari)',
-            '🕌 Le Prophète ﷺ a dit : "Les anges se rassemblent lors de Asr et Fajr." (Bukhari)',
-        ],
-        maghrib: [
-            '📖 "Glorifiez Allah le soir et le matin." (30:17)',
-            '📖 "Accomplissez la prière depuis le déclin du soleil jusqu\'à l\'obscurité de la nuit." (17:78)',
-            '🕌 Le Prophète ﷺ a dit : "Ma communauté restera dans le bien tant qu\'elle s\'empresse de rompre le jeûne." (Bukhari)',
-            '🕌 Le Prophète ﷺ a dit : "Ne tardez pas pour la prière quand son heure arrive." (Tirmidhi)',
-        ],
-        isha:    [
-            '📖 "Prosterne-toi devant Lui une partie de la nuit et glorifie-Le longuement." (76:26)',
-            '📖 "Prie une partie de la nuit comme adoration supplémentaire pour toi." (17:79)',
-            '🕌 Le Prophète ﷺ a dit : "Les prières les plus lourdes pour les hypocrites sont Isha et Fajr — s\'ils savaient, ils viendraient en rampant." (Bukhari)',
-            '🕌 Le Prophète ﷺ a dit : "Celui qui prie Isha en congrégation est comme s\'il avait prié la moitié de la nuit." (Muslim)',
-        ],
-    },
-    bengali: {
-        fajr:    [
-            '📖 "নিশ্চয়ই ফজরের কুরআন পাঠ সাক্ষ্য হয় — ফেরেশতারা তাতে উপস্থিত থাকে।" (17:78)',
-            '📖 "সূর্যোদয়ের পূর্বে তোমার রবের প্রশংসাসহ তাসবিহ করো।" (20:130)',
-            '🕌 নবী ﷺ বলেছেন: "ফজরের দুই রাকাত দুনিয়া ও তার সব কিছুর চেয়ে উত্তম।" (মুসলিম)',
-            '🕌 নবী ﷺ বলেছেন: "যে ফজর নামাজ আদায় করে, সে আল্লাহর হেফাজতে থাকে।" (মুসলিম)',
-        ],
-        dhuhr:   [
-            '📖 "সকল নামাজ এবং মধ্যবর্তী নামাজ যত্নসহকারে আদায় করো।" (2:238)',
-            '📖 "তোমার প্রতি যা ওহী করা হয়েছে তা পাঠ করো এবং নামাজ কায়েম করো।" (29:45)',
-            '🕌 নবী ﷺ বলেছেন: "দুপুরে জান্নাতের দরজাগুলো খুলে দেওয়া হয়।" (আবু দাউদ)',
-            '📖 "নিশ্চয়ই নামাজ মুমিনদের উপর নির্ধারিত সময়ে ফরজ।" (4:103)',
-        ],
-        asr:     [
-            '📖 "সকল নামাজ বিশেষত মধ্যবর্তী নামাজ যত্নসহকারে আদায় করো।" (2:238)',
-            '📖 "সূর্যাস্তের পূর্বে তোমার রবের তাসবিহ করো।" (50:39)',
-            '🕌 নবী ﷺ বলেছেন: "যে আসরের নামাজ বাদ দিল, তার আমল বিনষ্ট হয়ে গেল।" (বুখারী)',
-            '🕌 নবী ﷺ বলেছেন: "ফেরেশতারা আসর ও ফজরে একত্রিত হয়।" (বুখারী)',
-        ],
-        maghrib: [
-            '📖 "সন্ধ্যায় ও সকালে আল্লাহর তাসবিহ করো।" (30:17)',
-            '📖 "সূর্য ঢলে পড়ার সময় থেকে রাতের অন্ধকার পর্যন্ত নামাজ কায়েম করো।" (17:78)',
-            '🕌 নবী ﷺ বলেছেন: "আমার উম্মত ততক্ষণ কল্যাণে থাকবে যতক্ষণ ইফতারে তাড়াহুড়া করবে।" (বুখারী)',
-            '🕌 নবী ﷺ বলেছেন: "তিনটি বিষয়ে বিলম্ব করো না — নামাজের সময় হলে নামাজ।" (তিরমিযী)',
-        ],
-        isha:    [
-            '📖 "রাতের একাংশে তাঁকে সিজদা করো এবং দীর্ঘ রজনীতে তাঁর তাসবিহ করো।" (76:26)',
-            '📖 "রাতের কিছু অংশে অতিরিক্ত ইবাদত হিসেবে নামাজ আদায় করো।" (17:79)',
-            '🕌 নবী ﷺ বলেছেন: "মুনাফিকদের জন্য সবচেয়ে ভারী নামাজ এশা ও ফজর — যদি তারা জানত, হামাগুড়ি দিয়ে হলেও আসত।" (বুখারী)',
-            '🕌 নবী ﷺ বলেছেন: "যে জামাতে এশা পড়ে, সে যেন অর্ধেক রাত কিয়াম করল।" (মুসলিম)',
-        ],
-    },
-    turkish: {
-        fajr:    [
-            '📖 "Sabah namazının kılınması, şüphesiz melekler tarafından şahit olunan bir ibadettir." (17:78)',
-            '📖 "Güneş doğmadan önce Rabbini övgüyle tesbih et." (20:130)',
-            '🕌 Hz. Peygamber ﷺ buyurdu: "Sabah namazının iki rekatı, dünya ve içindekilerden daha hayırlıdır." (Müslim)',
-            '🕌 Hz. Peygamber ﷺ buyurdu: "Kim sabah namazını kılarsa Allah\'ın koruması altındadır." (Müslim)',
-        ],
-        dhuhr:   [
-            '📖 "Namazlara, özellikle orta namaza devam edin ve Allah\'a gönülden boyun eğerek durun." (2:238)',
-            '📖 "Sana Kitap\'tan vahyedileni oku ve namazı kıl." (29:45)',
-            '🕌 Hz. Peygamber ﷺ buyurdu: "Öğle vaktinde cennetin kapıları açılır." (Ebu Davud)',
-            '📖 "Şüphesiz namaz, müminlere belirli vakitlerde farz kılınmıştır." (4:103)',
-        ],
-        asr:     [
-            '📖 "Namazlara ve özellikle orta namaza (İkindi) devam edin." (2:238)',
-            '📖 "Güneş batmadan önce Rabbini övgüyle tesbih et." (50:39)',
-            '🕌 Hz. Peygamber ﷺ buyurdu: "İkindi namazını terk eden ailesi ve malını kaybetmiş gibidir." (Buhari)',
-            '🕌 Hz. Peygamber ﷺ buyurdu: "Melekler İkindi ve Sabah namazlarında bir araya gelir." (Buhari)',
-        ],
-        maghrib: [
-            '📖 "Allah\'ı akşam ve sabah vakti tesbih edin." (30:17)',
-            '📖 "Güneşin kaymasından gecenin karanlığına kadar namaz kılın." (17:78)',
-            '🕌 Hz. Peygamber ﷺ buyurdu: "Ümmetim iftar etmekte aceleci oldukça hayır üzere olacaktır." (Buhari)',
-            '🕌 Hz. Peygamber ﷺ buyurdu: "Üç şeyi geciktirmeyin — vakti gelince namazı." (Tirmizi)',
-        ],
-        isha:    [
-            '📖 "Gecenin bir bölümünde O\'na secde et ve O\'nu uzun uzun tesbih et." (76:26)',
-            '📖 "Gecenin bir kısmında sana özgü nafile bir namaz kıl." (17:79)',
-            '🕌 Hz. Peygamber ﷺ buyurdu: "Münafıklara en ağır gelen namaz Yatsı ve Sabah\'tır — kıymetini bilselerdi emekleyerek bile gelirlerdi." (Buhari)',
-            '🕌 Hz. Peygamber ﷺ buyurdu: "Yatsı namazını cemaatle kılan, gecenin yarısını namazla geçirmiş gibidir." (Müslim)',
-        ],
-    },
-};
-
-const getPrayerQuote = (prayerId: string, lang: NotifLang): string => {
-    const langQuotes = PRAYER_QUOTES[lang] ?? PRAYER_QUOTES['english'];
-    const quotes = langQuotes[prayerId] ?? langQuotes['fajr'];
-    return quotes[Math.floor(Math.random() * quotes.length)];
-};
-
-const buildNotifContent = (prayerId: string, lang: NotifLang) => {
-    const ui = NOTIF_UI[lang] ?? NOTIF_UI['english'];
-    const name = (PRAYER_DISPLAY_NAMES[lang] ?? PRAYER_DISPLAY_NAMES['english'])[prayerId] ?? prayerId;
-    const quote = getPrayerQuote(prayerId, lang);
-    return {
-        title: ui.title.replace('{name}', name),
-        body: `${ui.body.replace('{name}', name)}\n\n${quote}`,
-    };
-};
-
-const buildFajrRiseContent = (lang: NotifLang) => {
-    const ui = NOTIF_UI[lang] ?? NOTIF_UI['english'];
-    const quote = getPrayerQuote('fajr', lang);
-    return {
-        title: (NOTIF_UI[lang] ?? NOTIF_UI['english']).title.replace('{name}', (PRAYER_DISPLAY_NAMES[lang] ?? PRAYER_DISPLAY_NAMES['english'])['fajr']),
-        body: `${ui.fajrRise}\n\n${quote}`,
-    };
-};
-
-// Stable notification identifiers — used so the language-change listener can cancel/replace
-// prayer notifications without clobbering Ramadan ones (and vice versa).
-const PRAYER_NOTIF_IDS = {
-    fajr:         'falah-prayer-fajr',
-    dhuhr:        'falah-prayer-dhuhr',
-    asr:          'falah-prayer-asr',
-    maghrib:      'falah-prayer-maghrib',
-    isha:         'falah-prayer-isha',
-    fajrTomorrow: 'falah-prayer-fajr-tomorrow',
-} as const;
-
-// ─── Daily Ayah notification ─────────────────────────────────────────────────
-const DAILY_AYA_NOTIF_KEY = '@noor/daily_aya_notif';
-const DEFAULT_DAILY_AYA_PREFS = { enabled: true, hour: 9, minute: 0 };
-// Pre-schedule 7 days forward so users still get alerts if they don't open the app
-// for a few days. Each mount re-schedules, wiping stale entries.
-const DAILY_AYA_NOTIF_IDS = Array.from({ length: 7 }, (_, i) => `noor-daily-aya-${i}`);
-
-const DAILY_AYA_TITLES: Record<string, string> = {
-    english:    "📖 Today's Ayah",
-    urdu:       '📖 آج کی آیت',
-    indonesian: '📖 Ayat Hari Ini',
-    french:     '📖 Verset du Jour',
-    bengali:    '📖 আজকের আয়াত',
-    turkish:    '📖 Günün Ayeti',
-};
-
-const translationColumnForLanguage = (lang: string): string => {
-    switch (lang) {
-        case 'urdu':       return 'text_urdu';
-        case 'indonesian': return 'text_ind';
-        case 'french':     return 'text_fra';
-        case 'bengali':    return 'text_ben';
-        case 'turkish':    return 'text_tur';
-        default:           return 'text_english';
-    }
-};
-
-async function cancelDailyAyaNotifications() {
-    for (const id of DAILY_AYA_NOTIF_IDS) {
-        await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
-    }
-}
-
-async function scheduleDailyAyaNotifications(
-    db: import('expo-sqlite').SQLiteDatabase,
-    hour: number,
-    minute: number,
-    lang: string,
-) {
-    const { status } = await Notifications.getPermissionsAsync();
-    if (status !== 'granted') return;
-
-    await cancelDailyAyaNotifications();
-
-    const baseTitle = DAILY_AYA_TITLES[lang] ?? DAILY_AYA_TITLES.english;
-    const translationCol = translationColumnForLanguage(lang);
-    const androidChannel = Platform.OS === 'android' ? { channelId: 'adhan' } : {};
-    const now = new Date();
-
-    for (let offset = 0; offset < DAILY_AYA_NOTIF_IDS.length; offset++) {
-        const fireAt = new Date(now);
-        fireAt.setDate(fireAt.getDate() + offset);
-        fireAt.setHours(hour, minute, 0, 0);
-        if (fireAt.getTime() <= now.getTime()) continue;
-
-        // Hijri-month-themed selection: pick a verse whose subject matches the month.
-        // Falls through to Al-Fatiha 1 only if the lookup somehow returns no row.
-        const { surah, ayah, monthName } = getDailyVerseForDate(fireAt);
-        const row = await db.getFirstAsync(
-            `SELECT a.surah_number, a.ayah_number, a.text_arabic, a.${translationCol} AS translation, a.text_english, s.name_english
-             FROM ayahs a JOIN surahs s ON s.number = a.surah_number
-             WHERE a.surah_number = ? AND a.ayah_number = ?
-             LIMIT 1`,
-            [surah, ayah]
-        ).catch(() => null) as any;
-        if (!row) continue;
-
-        const translation = row.translation || row.text_english || '';
-        const arabic = sanitizeArabicText(row.text_arabic || '');
-        const title = monthName ? `${baseTitle} · ${monthName}` : baseTitle;
-        const body = `${arabic}\n\n${translation}\n\n— ${row.name_english} ${row.surah_number}:${row.ayah_number}`;
-
-        try {
-            await Notifications.scheduleNotificationAsync({
-                identifier: DAILY_AYA_NOTIF_IDS[offset],
-                content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
-                trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireAt },
-            });
-        } catch { /* ignore */ }
-    }
-}
-
-// ─── Friday Surah al-Kahf reminder ───────────────────────────────────────────
-// The Prophet ﷺ encouraged reciting Surah al-Kahf every Friday. We pre-schedule
-// the next 4 Fridays at the user-set time so the reminder still fires even if
-// the app isn't opened weekly. Each app launch refreshes the queue.
-const FRIDAY_KAHF_NOTIF_KEY = '@noor/friday_kahf_notif';
-const DEFAULT_FRIDAY_KAHF_PREFS = { enabled: true, hour: 7, minute: 0 };
-const FRIDAY_KAHF_NOTIF_IDS = Array.from({ length: 4 }, (_, i) => `noor-friday-kahf-${i}`);
-
-const FRIDAY_KAHF_STRINGS: Record<string, { title: string; body: string }> = {
-    english:    { title: '🕌 Jumuʿah Mubarak',     body: 'It is Friday — recite Surah al-Kahf for blessings between this Friday and the next.' },
-    urdu:       { title: '🕌 جمعہ مبارک',           body: 'آج جمعہ ہے — اس جمعہ سے اگلے جمعہ تک کی برکتوں کے لیے سورۃ الکہف پڑھیں۔' },
-    indonesian: { title: '🕌 Jumʿah Mubarak',       body: 'Hari Jumat — bacalah Surah al-Kahfi untuk keberkahan hingga Jumat berikutnya.' },
-    french:     { title: '🕌 Joumouʿah Moubarak',   body: "C'est vendredi — récitez Sourate al-Kahf pour les bénédictions jusqu'à vendredi prochain." },
-    bengali:    { title: '🕌 জুমু’আহ মুবারক',         body: 'আজ শুক্রবার — পরবর্তী শুক্রবার পর্যন্ত বরকতের জন্য সূরা আল-কাহফ তিলাওয়াত করুন।' },
-    turkish:    { title: '🕌 Cuma Mübarek',         body: 'Bugün Cuma — bu Cumadan diğerine kadar bereket için Kehf Suresi’ni okuyun.' },
-};
-
-async function cancelFridayKahfNotifications() {
-    for (const id of FRIDAY_KAHF_NOTIF_IDS) {
-        await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
-    }
-}
-
-async function scheduleFridayKahfNotifications(hour: number, minute: number, lang: string) {
-    const { status } = await Notifications.getPermissionsAsync();
-    if (status !== 'granted') return;
-
-    await cancelFridayKahfNotifications();
-
-    const strings = FRIDAY_KAHF_STRINGS[lang] ?? FRIDAY_KAHF_STRINGS.english;
-    const androidChannel = Platform.OS === 'android' ? { channelId: 'adhan' } : {};
-    const now = new Date();
-
-    let next = nextFridayAt(hour, minute, now);
-    for (let i = 0; i < FRIDAY_KAHF_NOTIF_IDS.length; i++) {
-        try {
-            await Notifications.scheduleNotificationAsync({
-                identifier: FRIDAY_KAHF_NOTIF_IDS[i],
-                content: { title: strings.title, body: strings.body, sound: true, color: '#C9A84C', ...androidChannel },
-                trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: next },
-            });
-        } catch { /* ignore */ }
-        next = new Date(next);
-        next.setDate(next.getDate() + 7);
-    }
-}
-
-/**
- * Cancels all prayer-scoped notifications (by identifier) and reschedules
- * them with the given language. Safe to call whenever the set of prayers,
- * prefs, or language changes — does not touch Ramadan/other identifiers.
- */
-async function schedulePrayerNotifications(
-    prayers: { id: string; date: Date }[],
-    prefs: Record<string, boolean>,
-    tomorrowFajr: Date | null,
-    lang: NotifLang,
-) {
-    // Cancel only prayer-scoped IDs, not everything
-    for (const id of Object.values(PRAYER_NOTIF_IDS)) {
-        await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
-    }
-
-    const nowMs = Date.now();
-    const androidChannel = Platform.OS === 'android' ? { channelId: 'adhan' } : {};
-
-    for (const prayer of prayers) {
-        if (!prefs[prayer.id]) continue;
-        if (prayer.date.getTime() <= nowMs) continue;
-        const identifier = (PRAYER_NOTIF_IDS as Record<string, string>)[prayer.id];
-        if (!identifier) continue;
-        try {
-            const { title, body } = buildNotifContent(prayer.id, lang);
-            await Notifications.scheduleNotificationAsync({
-                identifier,
-                content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
-                trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: prayer.date },
-            });
-        } catch { }
-    }
-
-    if (prefs['fajr'] && tomorrowFajr && tomorrowFajr.getTime() > nowMs) {
-        try {
-            const { title, body } = buildFajrRiseContent(lang);
-            await Notifications.scheduleNotificationAsync({
-                identifier: PRAYER_NOTIF_IDS.fajrTomorrow,
-                content: { title, body, sound: true, color: '#C9A84C', ...androidChannel },
-                trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: tomorrowFajr },
-            });
-        } catch { }
-    }
-}
+// ─── Prayer / Daily-Ayah / Friday-Kahf notification scheduling lives in
+// utils/notifications.ts. Per-language strings, identifiers, and pref defaults
+// are imported above. Keep notification call sites in this screen thin.
 
 // ─── Quick actions with fixed Islamic-themed gradients ────────────────────────
 const QUICK_ACTIONS = [
@@ -620,8 +208,13 @@ export default function HomeScreen() {
     const [showNotifModal, setShowNotifModal] = useState(false);
     const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>(DEFAULT_NOTIF_PREFS);
     const [notifPermDenied, setNotifPermDenied] = useState(false);
-    const [dailyAyaPrefs, setDailyAyaPrefs] = useState(DEFAULT_DAILY_AYA_PREFS);
-    const [fridayKahfPrefs, setFridayKahfPrefs] = useState(DEFAULT_FRIDAY_KAHF_PREFS);
+    const [dailyAyaPrefs, setDailyAyaPrefs] = useState<DailyAyaPrefs>(DEFAULT_DAILY_AYA_PREFS);
+    const [fridayKahfPrefs, setFridayKahfPrefs] = useState<FridayKahfPrefs>(DEFAULT_FRIDAY_KAHF_PREFS);
+    // Gates the daily-ayah / friday-kahf schedule effects so they don't fire with
+    // defaults during the brief window before AsyncStorage resolves. Without this,
+    // a user who disabled the reminder would briefly see 7 default-time alerts
+    // queued if they killed the app before AsyncStorage loaded.
+    const [notifPrefsLoaded, setNotifPrefsLoaded] = useState(false);
 
     // IANA timezone for the prayer location (e.g. "America/Los_Angeles").
     // Comes from AlAdhan API meta.timezone — includes DST, unlike a raw longitude offset.
@@ -648,35 +241,35 @@ export default function HomeScreen() {
     useEffect(() => {
         if (!didMountRef.current) { didMountRef.current = true; return; }
         if (prayers.length === 0) return;
-        (async () => {
-            const { status } = await Notifications.getPermissionsAsync();
-            if (status !== 'granted') return;
-            const notifLang = (language as NotifLang) in NOTIF_UI ? (language as NotifLang) : 'english';
-            await schedulePrayerNotifications(prayers, notifPrefs, tomorrowFajrRef.current, notifLang);
-        })();
+        schedulePrayerNotifications(prayers, notifPrefs, tomorrowFajrRef.current, language)
+            .catch(() => {});
     }, [language]);
 
     // Daily ayah notifications — independent of prayer notifs. Re-runs when the
     // pref, time, or language changes. Schedules the next 7 days forward so alerts
     // still fire if the app isn't opened every day; each mount refreshes the queue.
+    // Gated on notifPrefsLoaded so we never schedule with defaults before the
+    // user's saved prefs come back from AsyncStorage.
     useEffect(() => {
-        if (!db) return;
+        if (!db || !notifPrefsLoaded) return;
         if (!dailyAyaPrefs.enabled) {
             cancelDailyAyaNotifications();
             return;
         }
         scheduleDailyAyaNotifications(db, dailyAyaPrefs.hour, dailyAyaPrefs.minute, language);
-    }, [db, dailyAyaPrefs.enabled, dailyAyaPrefs.hour, dailyAyaPrefs.minute, language]);
+    }, [db, notifPrefsLoaded, dailyAyaPrefs.enabled, dailyAyaPrefs.hour, dailyAyaPrefs.minute, language]);
 
     // Friday Surah al-Kahf reminder — pre-schedules the next 4 Fridays so the alert
-    // still fires even if the app sits closed for a few weeks.
+    // still fires even if the app sits closed for a few weeks. Same prefsLoaded
+    // gate as Daily Ayah above.
     useEffect(() => {
+        if (!notifPrefsLoaded) return;
         if (!fridayKahfPrefs.enabled) {
             cancelFridayKahfNotifications();
             return;
         }
         scheduleFridayKahfNotifications(fridayKahfPrefs.hour, fridayKahfPrefs.minute, language);
-    }, [fridayKahfPrefs.enabled, fridayKahfPrefs.hour, fridayKahfPrefs.minute, language]);
+    }, [notifPrefsLoaded, fridayKahfPrefs.enabled, fridayKahfPrefs.hour, fridayKahfPrefs.minute, language]);
 
     // ── Daily Aya: SQLite-backed, language-aware, cache-per-(date,language) ────
     useEffect(() => {
@@ -695,10 +288,10 @@ export default function HomeScreen() {
                 }
                 const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000);
                 const globalAyahIdx = (dayOfYear % 6236) + 1;
-                const translationCol = translationColumnForLanguage(language);
+                const transCol = translationCol(language as Language);
                 const row = await db.getFirstAsync(
                     `SELECT a.surah_number, a.ayah_number, a.text_arabic,
-                            a.${translationCol} AS translation, a.text_english,
+                            a.${transCol} AS translation, a.text_english,
                             s.name_english
                      FROM ayahs a JOIN surahs s ON s.number = a.surah_number
                      ORDER BY a.surah_number ASC, a.ayah_number ASC
@@ -1082,9 +675,8 @@ export default function HomeScreen() {
             } catch { }
             // Read language via ref — loadPrayers' useCallback has [] deps so `language`
             // closure-captured here would otherwise go stale on language switch.
-            const notifLang = (languageRef.current as NotifLang) in NOTIF_UI
-                ? (languageRef.current as NotifLang) : 'english';
-            await schedulePrayerNotifications(list, prefs, tomorrowFajr, notifLang);
+            // The util handles language-fallback (any unknown lang → english) internally.
+            await schedulePrayerNotifications(list, prefs, tomorrowFajr, languageRef.current);
         }
 
         // ── Countdown timer ───────────────────────────────────────────────────
@@ -1165,7 +757,10 @@ export default function HomeScreen() {
             ])
         ).start();
 
-        // Load notification prefs
+        // Load notification prefs in parallel. Once daily-ayah + friday-kahf have
+        // resolved (regardless of success), flip notifPrefsLoaded so the schedule
+        // effects can fire — gates against scheduling with defaults during the
+        // brief load window. Prayer notif prefs are independent and don't gate.
         AsyncStorage.getItem(NOTIF_PREFS_KEY).then(saved => {
             if (!mounted || !saved) return;
             try { setNotifPrefs(JSON.parse(saved)); } catch {
@@ -1173,21 +768,24 @@ export default function HomeScreen() {
             }
         }).catch(() => { });
 
-        // Load daily ayah notification pref
-        AsyncStorage.getItem(DAILY_AYA_NOTIF_KEY).then(saved => {
-            if (!mounted || !saved) return;
-            try { setDailyAyaPrefs({ ...DEFAULT_DAILY_AYA_PREFS, ...JSON.parse(saved) }); } catch {
-                AsyncStorage.removeItem(DAILY_AYA_NOTIF_KEY).catch(() => {});
-            }
-        }).catch(() => { });
-
-        // Load Friday Surah al-Kahf reminder pref
-        AsyncStorage.getItem(FRIDAY_KAHF_NOTIF_KEY).then(saved => {
-            if (!mounted || !saved) return;
-            try { setFridayKahfPrefs({ ...DEFAULT_FRIDAY_KAHF_PREFS, ...JSON.parse(saved) }); } catch {
-                AsyncStorage.removeItem(FRIDAY_KAHF_NOTIF_KEY).catch(() => {});
-            }
-        }).catch(() => { });
+        Promise.all([
+            AsyncStorage.getItem(DAILY_AYA_NOTIF_KEY)
+                .then(saved => {
+                    if (!mounted || !saved) return;
+                    try { setDailyAyaPrefs(sanitizeDailyAyaPrefs(JSON.parse(saved))); } catch {
+                        AsyncStorage.removeItem(DAILY_AYA_NOTIF_KEY).catch(() => {});
+                    }
+                })
+                .catch(() => {}),
+            AsyncStorage.getItem(FRIDAY_KAHF_NOTIF_KEY)
+                .then(saved => {
+                    if (!mounted || !saved) return;
+                    try { setFridayKahfPrefs(sanitizeFridayKahfPrefs(JSON.parse(saved))); } catch {
+                        AsyncStorage.removeItem(FRIDAY_KAHF_NOTIF_KEY).catch(() => {});
+                    }
+                })
+                .catch(() => {}),
+        ]).finally(() => { if (mounted) setNotifPrefsLoaded(true); });
 
         // Location + prayer loading
         (async () => {
@@ -1293,9 +891,6 @@ export default function HomeScreen() {
         loadPrayers(lat, lng, effectiveMethod, effectiveSchool);
     };
 
-    const currentNotifLang = (): NotifLang =>
-        (language as NotifLang) in NOTIF_UI ? (language as NotifLang) : 'english';
-
     const toggleNotif = async (id: string) => {
         const newPrefs = { ...notifPrefs, [id]: !notifPrefs[id] };
         setNotifPrefs(newPrefs);
@@ -1304,7 +899,7 @@ export default function HomeScreen() {
         const { status } = await Notifications.getPermissionsAsync();
         if (status !== 'granted') { setNotifPermDenied(true); return; }
         setNotifPermDenied(false);
-        await schedulePrayerNotifications(prayers, newPrefs, tomorrowFajrRef.current, currentNotifLang());
+        await schedulePrayerNotifications(prayers, newPrefs, tomorrowFajrRef.current, language);
     };
 
     // Master toggle — turns ALL prayers on or off in one tap
@@ -1319,7 +914,7 @@ export default function HomeScreen() {
         const { status } = await Notifications.getPermissionsAsync();
         if (status !== 'granted') { setNotifPermDenied(true); return; }
         setNotifPermDenied(false);
-        await schedulePrayerNotifications(prayers, newPrefs, tomorrowFajrRef.current, currentNotifLang());
+        await schedulePrayerNotifications(prayers, newPrefs, tomorrowFajrRef.current, language);
     };
 
     const toggleDailyAyaNotif = async () => {
