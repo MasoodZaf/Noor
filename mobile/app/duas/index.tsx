@@ -186,10 +186,47 @@ export default function DuasScreen() {
                     )}
                 </View>
 
+                {/* Featured: Quranic Duas (Mustanad) — hidden while searching */}
+                {!isSearching && (
+                    <TouchableOpacity
+                        style={styles.quranicBanner}
+                        activeOpacity={0.9}
+                        onPress={() => router.push('/duas/quranic' as any)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Open Quranic Duas — 16 authentic duas from the Quran"
+                    >
+                        <LinearGradient
+                            colors={['#2E5340', '#1F3D2E']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.quranicBannerGradient}
+                        >
+                            <View style={styles.quranicBannerContent}>
+                                <View style={styles.quranicBannerLeft}>
+                                    <View style={styles.quranicBannerBadge}>
+                                        <Text style={styles.quranicBannerBadgeText}>MUSTANAD</Text>
+                                    </View>
+                                    <Text style={styles.quranicBannerTitle}>Quranic Duas</Text>
+                                    <Text style={styles.quranicBannerSubtitle}>
+                                        17 authentic duas · 5 categories
+                                    </Text>
+                                    <View style={styles.quranicBannerCta}>
+                                        <Text style={styles.quranicBannerCtaText}>Browse</Text>
+                                        <Feather name="arrow-right" size={14} color="#F5E6B8" />
+                                    </View>
+                                </View>
+                                <View style={styles.quranicBannerArabic}>
+                                    <Text style={styles.quranicBannerArabicText}>دعاء</Text>
+                                </View>
+                            </View>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                )}
+
                 {/* Categories — hidden while searching */}
                 {!isSearching && (
                     <>
-                        <View style={styles.sectionHeader}>
+                        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
                             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Categories</Text>
                         </View>
 
@@ -425,4 +462,69 @@ const styles = StyleSheet.create({
     duaFooter: { flexDirection: 'row', alignItems: 'center' },
     duaTag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
     duaTagText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+    quranicBanner: {
+        borderRadius: 22,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        elevation: 4,
+    },
+    quranicBannerGradient: { padding: 20 },
+    quranicBannerContent: { flexDirection: 'row', alignItems: 'center' },
+    quranicBannerLeft: { flex: 1, paddingRight: 12 },
+    quranicBannerBadge: {
+        alignSelf: 'flex-start',
+        backgroundColor: 'rgba(245,230,184,0.18)',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 999,
+        marginBottom: 10,
+    },
+    quranicBannerBadgeText: {
+        color: '#F5E6B8',
+        fontSize: 10.5,
+        fontWeight: '800',
+        letterSpacing: 1.2,
+    },
+    quranicBannerTitle: {
+        color: '#FFFFFF',
+        fontSize: 22,
+        fontFamily: fonts.serifBold,
+        letterSpacing: -0.3,
+        marginBottom: 4,
+    },
+    quranicBannerSubtitle: {
+        color: 'rgba(255,255,255,0.78)',
+        fontSize: 13,
+        fontWeight: '500',
+        marginBottom: 12,
+    },
+    quranicBannerCta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    quranicBannerCtaText: {
+        color: '#F5E6B8',
+        fontSize: 13,
+        fontWeight: '700',
+        letterSpacing: 0.2,
+    },
+    quranicBannerArabic: {
+        width: 78,
+        height: 78,
+        borderRadius: 39,
+        backgroundColor: 'rgba(245,230,184,0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    quranicBannerArabicText: {
+        color: '#F5E6B8',
+        fontSize: 34,
+        fontFamily: fonts.arabic,
+        includeFontPadding: false,
+        marginTop: Platform.OS === 'ios' ? 2 : 0,
+    },
 });

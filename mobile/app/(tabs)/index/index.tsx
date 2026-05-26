@@ -100,6 +100,7 @@ const MANUAL_LOCATION_KEY = '@noor/manual_location';
 // id: -1 = Auto (country-based), others map to AlAdhan method IDs
 const CALC_METHODS = [
     { id: -1,  name: 'Auto (location-based)',    region: 'Recommended' },
+    { id: 15,  name: 'Moonsighting Committee',    region: 'UK / Europe / High latitude' },
     { id: 3,   name: 'Muslim World League',       region: 'Global / Default' },
     { id: 1,   name: 'Univ. of Karachi',          region: 'South Asia' },
     { id: 2,   name: 'ISNA',                      region: 'North America' },
@@ -108,6 +109,33 @@ const CALC_METHODS = [
     { id: 7,   name: 'Tehran',                     region: 'Iran' },
     { id: 16,  name: 'Jafari / Shia',              region: 'Shia Muslims' },
 ];
+
+// Display-only labels for every AlAdhan method we may auto-resolve to.
+// Keeps the prayer-card chip honest when COUNTRY_METHODS picks an id that
+// isn't exposed in the picker (e.g. 13 Diyanet, 21 Morocco, etc.).
+const METHOD_LABELS: Record<number, string> = {
+    1: 'Univ. of Karachi',
+    2: 'ISNA',
+    3: 'Muslim World League',
+    4: 'Umm Al-Qura, Makkah',
+    5: 'Egyptian Authority',
+    7: 'Tehran',
+    8: 'Gulf Region',
+    9: 'Kuwait',
+    10: 'Qatar',
+    11: 'Singapore',
+    12: 'UOIF (France)',
+    13: 'Diyanet (Turkey)',
+    14: 'Spiritual Admin. Russia',
+    15: 'Moonsighting Committee',
+    16: 'Jafari / Shia',
+    17: 'JAKIM (Malaysia)',
+    18: 'Tunisia',
+    19: 'Algeria',
+    20: 'KEMENAG (Indonesia)',
+    21: 'Morocco',
+    23: 'Jordan',
+};
 
 // ─── BigDataCloud Reverse Geocoding ──────────────────────────────────────────
 const reverseGeocode = async (lat: number, lon: number): Promise<{ locality: string; countryCode: string }> => {
@@ -1027,9 +1055,11 @@ export default function HomeScreen() {
     // Denied permission now silently falls back to a default city (Makkah) and the user
     // can change it via the location pill / city picker without ever leaving the app.
 
-    const currentMethodName = prayerSettings.method === -1
-        ? `Auto · ${CALC_METHODS.find(m => m.id === autoMethodRef.current.method)?.name ?? 'MWL'}`
-        : CALC_METHODS.find(m => m.id === prayerSettings.method)?.name ?? 'Custom';
+    const effectiveMethodId = prayerSettings.method === -1 ? autoMethodRef.current.method : prayerSettings.method;
+    const effectiveSchoolId = prayerSettings.method === -1 ? autoMethodRef.current.school : prayerSettings.school;
+    const methodLabel = METHOD_LABELS[effectiveMethodId] ?? `Method ${effectiveMethodId}`;
+    const madhabLabel = effectiveSchoolId === 1 ? 'Hanafi' : 'Standard';
+    const currentMethodName = `${prayerSettings.method === -1 ? 'Auto · ' : ''}${methodLabel} · ${madhabLabel}`;
 
     return (
         <View style={[styles.container, { backgroundColor: theme.bg }]}>
