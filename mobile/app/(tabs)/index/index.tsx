@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, TouchableOpacity, Animated, Easing, Modal, Switch, Linking, Image, Alert, TextInput, Share } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, TouchableOpacity, Animated, Easing, Modal, Switch, Linking, Image, Alert, TextInput, Share, AppState } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -219,6 +219,9 @@ export default function HomeScreen() {
     const [themeSubTextColor, setThemeSubTextColor] = useState('rgba(255,255,255,0.8)');
     const [dayAya, setDayAya] = useState<{ arabic: string; translation: string; surahName: string; surahNumber: number; numberInSurah: number } | null>(null);
     const [dayAyaBookmarked, setDayAyaBookmarked] = useState(false);
+    // Local YYYY-MM-DD; bumped on AppState→active / at midnight so daily content
+    // (Verse of the Day, Daily Inspiration) refreshes without an app restart.
+    const [todayKey, setTodayKey] = useState(() => new Date().toLocaleDateString('en-CA'));
 
     // Prayer settings — { method: -1 means Auto, school: 0=Standard 1=Hanafi }
     const [prayerSettings, setPrayerSettings] = useState<{ method: number; school: number }>({ method: -1, school: 0 });
@@ -299,12 +302,27 @@ export default function HomeScreen() {
         scheduleFridayKahfNotifications(fridayKahfPrefs.hour, fridayKahfPrefs.minute, language);
     }, [notifPrefsLoaded, fridayKahfPrefs.enabled, fridayKahfPrefs.hour, fridayKahfPrefs.minute, language]);
 
+    // Roll `todayKey` over on AppState→active and at midnight, so the day-of-year
+    // derived content (Daily Aya, Daily Inspiration) refreshes without a relaunch.
+    useEffect(() => {
+        const sync = () => {
+            const next = new Date().toLocaleDateString('en-CA');
+            setTodayKey(prev => (prev === next ? prev : next));
+        };
+        const sub = AppState.addEventListener('change', s => { if (s === 'active') sync(); });
+        const now = new Date();
+        const midnight = new Date(now);
+        midnight.setHours(24, 0, 5, 0);
+        const timeout = setTimeout(sync, Math.max(1000, midnight.getTime() - now.getTime()));
+        return () => { sub.remove(); clearTimeout(timeout); };
+    }, [todayKey]);
+
     // ── Daily Aya: SQLite-backed, language-aware, cache-per-(date,language) ────
     useEffect(() => {
         if (!db) return;
         let mounted = true;
         (async () => {
-            const dateStr = new Date().toLocaleDateString('en-CA');
+            const dateStr = todayKey;
             const ayaKey = `@noor/daily_aya_${dateStr}_${language}`;
             try {
                 const cached = await AsyncStorage.getItem(ayaKey);
@@ -339,7 +357,7 @@ export default function HomeScreen() {
             } catch {}
         })();
         return () => { mounted = false; };
-    }, [db, language]);
+    }, [db, language, todayKey]);
 
     // ── Daily Aya bookmark state — reuses the global Quran bookmark store ──────
     const QURAN_BOOKMARK_KEY = '@noor/quran_bookmarks';
@@ -397,8 +415,9 @@ export default function HomeScreen() {
     }, [dayAya]);
 
     // Daily Inspiration — deterministic by day-of-year so it changes daily but
-    // is stable across reloads on the same date.
-    const dayInspiration = useMemo(() => getDailyInspiration(), []);
+    // is stable across reloads on the same date. Keyed on `todayKey` so the
+    // pick rolls over at midnight without requiring an app relaunch.
+    const dayInspiration = useMemo(() => getDailyInspiration(), [todayKey]);
     const inspirationTranslation = dayInspiration.translations[language as InspirationLang]
         ?? dayInspiration.translations.english;
 
