@@ -5,9 +5,9 @@
  * Discover screens before consolidation.
  */
 
-export type Language = 'english' | 'urdu' | 'indonesian' | 'french' | 'bengali' | 'turkish';
+export type Language = 'english' | 'urdu' | 'indonesian' | 'french' | 'bengali' | 'turkish' | 'malay';
 
-export const LANGUAGES: readonly Language[] = ['english', 'urdu', 'indonesian', 'french', 'bengali', 'turkish'];
+export const LANGUAGES: readonly Language[] = ['english', 'urdu', 'indonesian', 'french', 'bengali', 'turkish', 'malay'];
 
 export const LANGUAGE_DISPLAY: Record<Language, string> = {
     english: 'English',
@@ -16,11 +16,15 @@ export const LANGUAGE_DISPLAY: Record<Language, string> = {
     french: 'Français',
     bengali: 'Bengali (বাংলা)',
     turkish: 'Türkçe',
+    malay: 'Malay (Bahasa Melayu)',
 };
 
 /**
  * SQLite column on `ayahs` / `hadith` tables that holds the translation for
  * each language. English is the default fallback.
+ *
+ * Malay has no SQLite column — translations are fetched live from Fawaz CDN
+ * (Quran) and English is used as fallback for hadith offline.
  */
 export function translationCol(lang: Language): string {
     switch (lang) {
@@ -41,6 +45,7 @@ export function quranApiLang(lang: Language): string {
         case 'french':     return 'fr';
         case 'bengali':    return 'bn';
         case 'turkish':    return 'tr';
+        case 'malay':      return 'ms';
         default:           return 'en';
     }
 }
@@ -53,6 +58,7 @@ export function fawazLangCode(lang: Language): string {
         case 'french':     return 'fra';
         case 'bengali':    return 'ben';
         case 'turkish':    return 'tur';
+        case 'malay':      return 'msa';
         default:           return 'eng';
     }
 }

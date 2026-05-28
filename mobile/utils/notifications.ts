@@ -15,7 +15,7 @@ import { getDailyVerseForDate, nextFridayAt } from './hijriContent';
 import { translationCol, type Language } from './language';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-export type NotifLang = 'english' | 'urdu' | 'indonesian' | 'french' | 'bengali' | 'turkish';
+export type NotifLang = 'english' | 'urdu' | 'indonesian' | 'french' | 'bengali' | 'turkish' | 'malay';
 
 export type DailyAyaPrefs = { enabled: boolean; hour: number; minute: number };
 export type FridayKahfPrefs = { enabled: boolean; hour: number; minute: number };
@@ -57,6 +57,7 @@ const PRAYER_DISPLAY_NAMES: Record<NotifLang, Record<string, string>> = {
     french:     { fajr: 'Fajr',  dhuhr: 'Dhuhr',  asr: 'Asr',    maghrib: 'Maghrib', isha: 'Isha'   },
     bengali:    { fajr: 'ফজর',   dhuhr: 'যোহর',   asr: 'আসর',    maghrib: 'মাগরিব',  isha: 'এশা'    },
     turkish:    { fajr: 'Sabah', dhuhr: 'Öğle',   asr: 'İkindi', maghrib: 'Akşam',   isha: 'Yatsı'  },
+    malay:      { fajr: 'Subuh', dhuhr: 'Zohor',  asr: 'Asar',   maghrib: 'Maghrib', isha: 'Isyak'  },
 };
 
 const NOTIF_UI: Record<NotifLang, { title: string; body: string; fajrRise: string }> = {
@@ -66,6 +67,7 @@ const NOTIF_UI: Record<NotifLang, { title: string; body: string; fajrRise: strin
     french:     { title: "🕌 L'heure de {name}",         body: "Il est l'heure de prier {name}.",               fajrRise: "Levez-vous pour la prière de l'aube."   },
     bengali:    { title: '🕌 {name} এর সময়',            body: '{name} নামাজের সময় হয়েছে।',                    fajrRise: 'ফজরের নামাজের জন্য উঠুন।'              },
     turkish:    { title: '🕌 {name} Vakti',              body: '{name} namazı için vakit girdi.',                fajrRise: 'Sabah namazı için kalkın.'              },
+    malay:      { title: '🕌 Waktu Solat {name}',        body: 'Sudah masuk waktu solat {name}.',                fajrRise: 'Bangunlah untuk solat Subuh.'           },
 };
 
 const PRAYER_QUOTES: Record<NotifLang, Record<string, string[]>> = {
@@ -261,6 +263,38 @@ const PRAYER_QUOTES: Record<NotifLang, Record<string, string[]>> = {
             '🕌 Hz. Peygamber ﷺ buyurdu: "Yatsı namazını cemaatle kılan, gecenin yarısını namazla geçirmiş gibidir." (Müslim)',
         ],
     },
+    malay: {
+        fajr:    [
+            '📖 "Sesungguhnya bacaan al-Quran di waktu Subuh disaksikan (oleh malaikat)." (17:78)',
+            '📖 "Bertasbihlah memuji Tuhanmu sebelum terbit matahari." (20:130)',
+            '🕌 Nabi ﷺ bersabda: "Dua rakaat sunat Subuh lebih baik daripada dunia dan segala isinya." (Muslim)',
+            '🕌 Nabi ﷺ bersabda: "Sesiapa yang menunaikan solat Subuh, dia berada di dalam perlindungan Allah." (Muslim)',
+        ],
+        dhuhr:   [
+            '📖 "Peliharalah segala solat fardu dan solat pertengahan, dan berdirilah kerana Allah dengan khusyuk." (2:238)',
+            '📖 "Bacalah apa yang diwahyukan kepadamu daripada Kitab dan dirikanlah solat." (29:45)',
+            '🕌 Nabi ﷺ bersabda: "Pintu-pintu langit dibuka pada waktu tengah hari." (Abu Dawud)',
+            '📖 "Sesungguhnya solat itu adalah kewajipan yang ditetapkan waktunya ke atas orang-orang beriman." (4:103)',
+        ],
+        asr:     [
+            '📖 "Peliharalah segala solat, terutamanya solat pertengahan (Asar)." (2:238)',
+            '📖 "Bertasbihlah memuji Tuhanmu sebelum terbenam matahari." (50:39)',
+            '🕌 Nabi ﷺ bersabda: "Sesiapa yang meninggalkan solat Asar, sesungguhnya terhapuslah amalannya." (Bukhari)',
+            '🕌 Nabi ﷺ bersabda: "Para malaikat berhimpun pada waktu Asar dan Subuh." (Bukhari)',
+        ],
+        maghrib: [
+            '📖 "Maka bertasbihlah kepada Allah pada petang dan pagi hari." (30:17)',
+            '📖 "Dirikanlah solat dari gelincir matahari sehingga gelap malam." (17:78)',
+            '🕌 Nabi ﷺ bersabda: "Umatku sentiasa berada dalam kebaikan selagi mereka menyegerakan berbuka puasa." (Bukhari)',
+            '🕌 Nabi ﷺ bersabda: "Janganlah kamu menangguhkan tiga perkara — solat apabila telah masuk waktunya." (Tirmidzi)',
+        ],
+        isha:    [
+            '📖 "Dan sujudlah kepada-Nya pada sebahagian malam dan bertasbihlah memuji-Nya pada waktu malam yang panjang." (76:26)',
+            '📖 "Dan pada sebahagian malam, dirikanlah solat tahajud sebagai ibadat tambahan bagimu." (17:79)',
+            '🕌 Nabi ﷺ bersabda: "Solat yang paling berat bagi orang munafik ialah Isyak dan Subuh — jika mereka tahu pahalanya, nescaya mereka akan datang walaupun merangkak." (Bukhari)',
+            '🕌 Nabi ﷺ bersabda: "Sesiapa yang menunaikan solat Isyak secara berjemaah, seolah-olah dia telah qiamullail separuh malam." (Muslim)',
+        ],
+    },
 };
 
 const DAILY_AYA_TITLES: Record<string, string> = {
@@ -270,6 +304,7 @@ const DAILY_AYA_TITLES: Record<string, string> = {
     french:     '📖 Verset du Jour',
     bengali:    '📖 আজকের আয়াত',
     turkish:    '📖 Günün Ayeti',
+    malay:      '📖 Ayat Hari Ini',
 };
 
 const FRIDAY_KAHF_STRINGS: Record<string, { title: string; body: string }> = {
@@ -279,6 +314,7 @@ const FRIDAY_KAHF_STRINGS: Record<string, { title: string; body: string }> = {
     french:     { title: '🕌 Joumouʿah Moubarak',   body: "C'est vendredi — récitez Sourate al-Kahf pour les bénédictions jusqu'à vendredi prochain." },
     bengali:    { title: '🕌 জুমু’আহ মুবারক',         body: 'আজ শুক্রবার — পরবর্তী শুক্রবার পর্যন্ত বরকতের জন্য সূরা আল-কাহফ তিলাওয়াত করুন।' },
     turkish:    { title: '🕌 Cuma Mübarek',         body: 'Bugün Cuma — bu Cumadan diğerine kadar bereket için Kehf Suresi’ni okuyun.' },
+    malay:      { title: '🕌 Jumaat Mubarak',       body: 'Hari ini Jumaat — bacalah Surah al-Kahfi untuk keberkatan dari Jumaat ini ke Jumaat berikutnya.' },
 };
 
 const RAMADAN_STRINGS: Record<string, { sehriTitle: string; sehriBody: string; iftarTitle: string; iftarBody: string }> = {
@@ -288,6 +324,7 @@ const RAMADAN_STRINGS: Record<string, { sehriTitle: string; sehriBody: string; i
     french:     { sehriTitle: '🌙 Fin du Suhoor',           sehriBody: 'Le Fajr approche. Arrêtez de manger et préparez-vous à prier.',   iftarTitle: '🌅 Heure de l\'Iftar',    iftarBody: 'Allahu Akbar ! Il est temps de rompre le jeûne. Bismillah.'        },
     bengali:    { sehriTitle: '🌙 সেহরির সময় শেষ হচ্ছে',   sehriBody: 'ফজর আসছে। খাওয়া বন্ধ করুন এবং নামাজের প্রস্তুতি নিন।',        iftarTitle: '🌅 ইফতারের সময়',         iftarBody: 'আল্লাহু আকবর! রোজা ভাঙার সময় হয়েছে। বিসমিল্লাহ।'              },
     turkish:    { sehriTitle: '🌙 Sahur Vakti Bitiyor',      sehriBody: 'Sabah ezanı yaklaşıyor. Yemeği bırakın ve namaza hazırlanın.',    iftarTitle: '🌅 İftar Vakti',          iftarBody: 'Allahu Ekber! Orucunuzu açma vakti geldi. Bismillah.'              },
+    malay:      { sehriTitle: '🌙 Waktu Sahur Hampir Tamat', sehriBody: 'Subuh menjelang. Berhentilah makan dan bersiaplah untuk solat.',  iftarTitle: '🌅 Waktu Berbuka',        iftarBody: 'Allahu Akbar! Tibalah waktu berbuka puasa. Bismillah.'             },
 };
 
 // ─── Pref sanitization ───────────────────────────────────────────────────────

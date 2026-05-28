@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type Language = 'english' | 'urdu' | 'indonesian' | 'french' | 'bengali' | 'turkish';
+type Language = 'english' | 'urdu' | 'indonesian' | 'french' | 'bengali' | 'turkish' | 'malay';
 
 interface LanguageContextType {
     language: Language;
@@ -20,7 +20,7 @@ export const LanguageProvider = ({ children }: { children: React.ReactNode }) =>
 
     useEffect(() => {
         AsyncStorage.getItem('@noor/translation_language').then(val => {
-            if (val === 'urdu' || val === 'english' || val === 'indonesian' || val === 'french' || val === 'bengali' || val === 'turkish') {
+            if (val === 'urdu' || val === 'english' || val === 'indonesian' || val === 'french' || val === 'bengali' || val === 'turkish' || val === 'malay') {
                 setLanguageState(val as Language);
             }
         });

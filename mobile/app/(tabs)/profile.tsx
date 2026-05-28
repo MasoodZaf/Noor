@@ -57,14 +57,15 @@ export default function ProfileScreen() {
         else router.replace('/(tabs)' as any);
     };
 
-    const LANGUAGES = ['english', 'urdu', 'indonesian', 'french', 'bengali', 'turkish'] as const;
+    const LANGUAGES = ['english', 'urdu', 'indonesian', 'french', 'bengali', 'turkish', 'malay'] as const;
     const LANGUAGE_DISPLAY = {
         'english': 'English',
         'urdu': 'Urdu (اردو)',
         'indonesian': 'Indonesian',
         'french': 'Français',
         'bengali': 'Bengali (বাংলা)',
-        'turkish': 'Türkçe'
+        'turkish': 'Türkçe',
+        'malay': 'Malay (Bahasa Melayu)'
     };
 
     const [showLanguagePicker, setShowLanguagePicker] = useState(false);

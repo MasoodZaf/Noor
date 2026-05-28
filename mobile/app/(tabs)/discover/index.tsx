@@ -63,9 +63,10 @@ async function fetchHadithTranslations(
 }
 
 // ─── Language helpers ─────────────────────────────────────────────────────────
-type Language = 'english' | 'urdu' | 'indonesian' | 'french' | 'bengali' | 'turkish';
+type Language = 'english' | 'urdu' | 'indonesian' | 'french' | 'bengali' | 'turkish' | 'malay';
 
 // Maps app language → SQLite ayahs column for translation
+// Malay has no SQLite column — falls back to English; live translation comes from Fawaz CDN.
 function translationCol(lang: Language): string {
     switch (lang) {
         case 'urdu':       return 'text_urdu';
@@ -85,6 +86,7 @@ function quranApiLang(lang: Language): string {
         case 'french':     return 'fr';
         case 'bengali':    return 'bn';
         case 'turkish':    return 'tr';
+        case 'malay':      return 'ms';
         default:           return 'en';
     }
 }

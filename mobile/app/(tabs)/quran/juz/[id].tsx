@@ -34,6 +34,7 @@ const FAWAZ_EDITIONS: Record<string, string> = {
     french:     'fra-muhammadhameedu',
     bengali:    'ben-muhiuddinkhan',
     turkish:    'tur-diyanetisleri',
+    malay:      'msa_abdullahmuhamma',
 };
 
 const ALQURAN_EDITIONS: Record<string, string> = {

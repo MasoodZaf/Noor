@@ -32,6 +32,7 @@ const FAWAZ_EDITIONS: Record<string, string> = {
     french: 'fra-muhammadhameedu',
     bengali: 'ben-muhiuddinkhan',
     turkish: 'tur-diyanetisleri',
+    malay: 'msa_abdullahmuhamma',
 };
 
 const ALQURAN_EDITIONS: Record<string, string> = {
@@ -89,9 +90,9 @@ const ARABIC_FONTS: { id: string; name: string; family: string | undefined; fiel
 // IDs verified against api.quran.com/api/v4/recitations
 const RECITERS = [
     { id: 7,  name: 'Mishary Al-Afasy',        label: 'Mishary Al-Afasy',        country: 'Kuwait 🇰🇼' },
-    { id: 1,  name: 'Abdul Basit (Murattal)',   label: 'Abdul Basit Abd Samad',   country: 'Egypt 🇪🇬' },
+    { id: 2,  name: 'Abdul Basit (Murattal)',   label: 'Abdul Basit Abd Samad',   country: 'Egypt 🇪🇬' },
     { id: 3,  name: 'Abdur-Rahman Al-Sudais',   label: 'Abdur-Rahman Al-Sudais',  country: 'Saudi Arabia 🇸🇦' },
-    { id: 5,  name: 'Abu Bakr Al-Shatri',       label: 'Abu Bakr Al-Shatri',      country: 'Saudi Arabia 🇸🇦' },
+    { id: 4,  name: 'Abu Bakr Al-Shatri',       label: 'Abu Bakr Al-Shatri',      country: 'Saudi Arabia 🇸🇦' },
 ];
 
 // ─── Tajweed ───────────────────────────────────────────────────────────────────

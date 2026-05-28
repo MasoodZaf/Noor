@@ -4,7 +4,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Quran.com recitation IDs — mirrored in quran/[id].tsx so both stay in sync.
 // Keep only the IDs the global Tweaks picker exposes. Full list still lives
 // in the Quran reader for power-user selection.
-export type ReciterId = 1 | 3 | 5 | 7;
+// IDs verified against api.quran.com/api/v4/resources/recitations:
+//   2 = AbdulBaset (Murattal), 3 = Sudais, 4 = Shatri, 7 = Mishary
+export type ReciterId = 2 | 3 | 4 | 7;
 export type Reciter = {
     id: ReciterId;
     name: string;
@@ -14,9 +16,9 @@ export type Reciter = {
 
 export const RECITERS: Reciter[] = [
     { id: 7, name: 'Mishary Al-Afasy',       label: 'Al-ʿAfāsy',         country: 'Kuwait 🇰🇼' },
-    { id: 1, name: 'Abdul Basit Abd Samad',  label: 'Abdul Basit',        country: 'Egypt 🇪🇬' },
+    { id: 2, name: 'Abdul Basit Abd Samad',  label: 'Abdul Basit',        country: 'Egypt 🇪🇬' },
     { id: 3, name: 'Abdur-Rahman Al-Sudais', label: 'As-Sudais',          country: 'Saudi Arabia 🇸🇦' },
-    { id: 5, name: 'Abu Bakr Al-Shatri',     label: 'Al-Shatri',          country: 'Saudi Arabia 🇸🇦' },
+    { id: 4, name: 'Abu Bakr Al-Shatri',     label: 'Al-Shatri',          country: 'Saudi Arabia 🇸🇦' },
 ];
 
 const STORAGE_KEY = '@noor/reciter';
@@ -39,9 +41,15 @@ export const ReciterProvider = ({ children }: { children: React.ReactNode }) => 
     useEffect(() => {
         AsyncStorage.getItem(STORAGE_KEY).then(raw => {
             if (!raw) return;
-            const id = parseInt(raw, 10);
+            let id = parseInt(raw, 10);
+            // Migrate legacy IDs from before reciter-ID correction: 1 (Mujawwad) → 2 (Murattal), 5 (Rifai) → 4 (Shatri)
+            if (id === 1) id = 2;
+            else if (id === 5) id = 4;
             const match = RECITERS.find(r => r.id === id);
-            if (match) setReciterState(match);
+            if (match) {
+                setReciterState(match);
+                if (String(match.id) !== raw) AsyncStorage.setItem(STORAGE_KEY, String(match.id)).catch(() => {});
+            }
         }).catch(() => {});
     }, []);
 

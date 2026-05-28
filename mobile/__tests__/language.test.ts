@@ -9,14 +9,15 @@ import {
 } from '../utils/language';
 
 describe('LANGUAGES', () => {
-    it('contains exactly the 6 supported languages', () => {
-        expect(LANGUAGES).toHaveLength(6);
+    it('contains exactly the 7 supported languages', () => {
+        expect(LANGUAGES).toHaveLength(7);
         expect(LANGUAGES).toContain('english');
         expect(LANGUAGES).toContain('urdu');
         expect(LANGUAGES).toContain('indonesian');
         expect(LANGUAGES).toContain('french');
         expect(LANGUAGES).toContain('bengali');
         expect(LANGUAGES).toContain('turkish');
+        expect(LANGUAGES).toContain('malay');
     });
 
     it('every language has a display label', () => {
@@ -39,6 +40,7 @@ describe('translationCol', () => {
         expect(translationCol('french')).toBe('text_fra');
         expect(translationCol('bengali')).toBe('text_ben');
         expect(translationCol('turkish')).toBe('text_tur');
+        expect(translationCol('malay')).toBe('text_english');
     });
 
     it('falls back to text_english for unknown languages (defensive)', () => {
@@ -54,6 +56,7 @@ describe('quranApiLang', () => {
         expect(quranApiLang('french')).toBe('fr');
         expect(quranApiLang('bengali')).toBe('bn');
         expect(quranApiLang('turkish')).toBe('tr');
+        expect(quranApiLang('malay')).toBe('ms');
     });
 });
 
@@ -65,6 +68,7 @@ describe('fawazLangCode', () => {
         expect(fawazLangCode('french')).toBe('fra');
         expect(fawazLangCode('bengali')).toBe('ben');
         expect(fawazLangCode('turkish')).toBe('tur');
+        expect(fawazLangCode('malay')).toBe('msa');
     });
 
     it('all codes are exactly 3 characters', () => {
@@ -85,5 +89,6 @@ describe('isRtl', () => {
         expect(isRtl('french')).toBe(false);
         expect(isRtl('bengali')).toBe(false);
         expect(isRtl('turkish')).toBe(false);
+        expect(isRtl('malay')).toBe(false);
     });
 });

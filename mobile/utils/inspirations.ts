@@ -3,7 +3,7 @@
 // Picked deterministically by day-of-year so it changes daily and is stable
 // per-day across reloads.
 
-export type InspirationLang = 'english' | 'urdu' | 'indonesian' | 'french' | 'bengali' | 'turkish';
+export type InspirationLang = 'english' | 'urdu' | 'indonesian' | 'french' | 'bengali' | 'turkish' | 'malay';
 
 export interface Inspiration {
     type: 'hadith' | 'quran';
@@ -24,6 +24,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'En vérité, avec la difficulté il y a une facilité.',
             bengali: 'নিশ্চয়ই কষ্টের সঙ্গে স্বস্তি আছে।',
             turkish: 'Şüphesiz güçlükle beraber bir kolaylık vardır.',
+            malay: 'Sesungguhnya bersama kesukaran itu ada kemudahan.',
         },
     },
     {
@@ -37,6 +38,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'Les meilleurs d’entre vous sont ceux qui ont les meilleurs caractères.',
             bengali: 'তোমাদের মধ্যে সর্বোত্তম সে, যার চরিত্র সর্বোত্তম।',
             turkish: 'Sizin en hayırlınız, ahlakı en güzel olanınızdır.',
+            malay: 'Sebaik-baik kamu adalah yang paling baik akhlaknya.',
         },
     },
     {
@@ -50,6 +52,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'Quiconque craint Allah, Il lui donnera une issue.',
             bengali: 'যে কেউ আল্লাহকে ভয় করে, আল্লাহ তার জন্য নিষ্কৃতির পথ করে দেন।',
             turkish: 'Kim Allah’tan korkarsa, Allah ona bir çıkış yolu yaratır.',
+            malay: 'Sesiapa yang bertakwa kepada Allah, nescaya Dia akan mengadakan baginya jalan keluar.',
         },
     },
     {
@@ -63,6 +66,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'Aucun d’entre vous ne sera vraiment croyant tant qu’il n’aimera pas pour son frère ce qu’il aime pour lui-même.',
             bengali: 'তোমাদের কেউ ততক্ষণ পর্যন্ত পূর্ণ মুমিন হতে পারবে না, যতক্ষণ না সে তার ভাইয়ের জন্য তা পছন্দ করে যা সে নিজের জন্য পছন্দ করে।',
             turkish: 'Sizden biriniz, kendisi için sevdiğini kardeşi için de sevmedikçe (gerçek anlamda) iman etmiş olmaz.',
+            malay: 'Tidak sempurna iman seseorang di antara kamu sehingga dia mengasihi saudaranya seperti dia mengasihi dirinya sendiri.',
         },
     },
     {
@@ -76,6 +80,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'C’est dans le rappel d’Allah que les cœurs trouvent leur quiétude.',
             bengali: 'জেনে রাখো, আল্লাহর স্মরণেই হৃদয় প্রশান্তি লাভ করে।',
             turkish: 'Bilesiniz ki, kalpler ancak Allah’ın zikriyle huzur bulur.',
+            malay: 'Ketahuilah, hanya dengan mengingati Allah hati menjadi tenang.',
         },
     },
     {
@@ -89,6 +94,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'Ton sourire envers ton frère est une aumône.',
             bengali: 'তোমার ভাইয়ের সামনে হাসা সদকা।',
             turkish: 'Kardeşinin yüzüne tebessüm etmen sadakadır.',
+            malay: 'Senyumanmu kepada saudaramu adalah sedekah.',
         },
     },
     {
@@ -102,6 +108,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'Allah n’impose à aucune âme une charge supérieure à sa capacité.',
             bengali: 'আল্লাহ কাউকেই তার সাধ্যের অতিরিক্ত দায়িত্ব দেন না।',
             turkish: 'Allah, hiç kimseye gücünün üstünde bir şey yüklemez.',
+            malay: 'Allah tidak membebani seseorang melainkan sesuai dengan kesanggupannya.',
         },
     },
     {
@@ -115,6 +122,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'Le fort n’est pas celui qui terrasse les autres, mais celui qui se domine lorsqu’il est en colère.',
             bengali: 'শক্তিশালী সে নয় যে কুস্তিতে অন্যকে পরাজিত করে, বরং শক্তিশালী সে যে রাগের সময় নিজেকে নিয়ন্ত্রণ করতে পারে।',
             turkish: 'Yiğit, güreşte rakibini yenen değildir; asıl yiğit, öfkelendiği zaman kendine hâkim olandır.',
+            malay: 'Orang yang kuat bukanlah yang dapat mengalahkan orang lain dalam pergelutan, tetapi yang dapat mengawal dirinya ketika marah.',
         },
     },
     {
@@ -128,6 +136,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'En vérité, Allah est avec les patients.',
             bengali: 'নিশ্চয়ই আল্লাহ ধৈর্যশীলদের সঙ্গে আছেন।',
             turkish: 'Şüphesiz Allah, sabredenlerle beraberdir.',
+            malay: 'Sesungguhnya Allah beserta orang-orang yang sabar.',
         },
     },
     {
@@ -141,6 +150,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'Celui qui n’est pas miséricordieux ne recevra pas de miséricorde.',
             bengali: 'যে দয়া করে না, তাকে দয়া করা হয় না।',
             turkish: 'Merhamet etmeyene merhamet edilmez.',
+            malay: 'Sesiapa yang tidak menyayangi, tidak akan disayangi.',
         },
     },
     {
@@ -154,6 +164,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'Il t’a trouvé égaré, et Il t’a guidé.',
             bengali: 'এবং তিনি তোমাকে পথহারা পেয়েছেন, অতঃপর পথ দেখিয়েছেন।',
             turkish: 'Seni yol bilmez bulup doğru yola iletmedi mi?',
+            malay: 'Dan Dia mendapati engkau dalam keadaan kebingungan, lalu Dia memberikan petunjuk.',
         },
     },
     {
@@ -167,6 +178,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'Allah est doux et aime la douceur en toutes choses.',
             bengali: 'নিশ্চয়ই আল্লাহ কোমল, তিনি সকল বিষয়ে কোমলতা পছন্দ করেন।',
             turkish: 'Allah Refîk’tir (yumuşak davranandır), her işte yumuşaklığı sever.',
+            malay: 'Sesungguhnya Allah Maha Lembut, Dia menyukai kelembutan dalam segala urusan.',
         },
     },
     {
@@ -180,6 +192,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'Souvenez-vous de Moi, donc, Je Me souviendrai de vous.',
             bengali: 'অতএব তোমরা আমাকে স্মরণ করো, আমিও তোমাদেরকে স্মরণ করব।',
             turkish: 'Beni anın, ben de sizi anayım.',
+            malay: 'Maka ingatlah Aku, nescaya Aku ingat kepada kamu.',
         },
     },
     {
@@ -193,6 +206,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'Celui qui soulage un croyant d’une difficulté de ce monde, Allah le soulagera d’une difficulté du Jour du Jugement.',
             bengali: 'যে ব্যক্তি কোনো মুমিনের দুনিয়ার কোনো একটি দুঃখ দূর করে, আল্লাহ কিয়ামতের দিনের দুঃখ থেকে তার একটি দুঃখ দূর করবেন।',
             turkish: 'Kim bir mümin kardeşinin dünya sıkıntılarından birini giderirse, Allah da kıyamet günü sıkıntılarından birini ondan giderir.',
+            malay: 'Sesiapa yang melapangkan satu kesusahan dunia daripada seorang mukmin, Allah akan melapangkan satu kesusahannya pada hari Kiamat.',
         },
     },
     {
@@ -206,6 +220,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'Quiconque place sa confiance en Allah, Il lui suffit.',
             bengali: 'এবং যে আল্লাহর উপর ভরসা করে, তার জন্য তিনিই যথেষ্ট।',
             turkish: 'Kim Allah’a tevekkül ederse, O, ona yeter.',
+            malay: 'Sesiapa yang bertawakal kepada Allah, maka cukuplah Dia baginya.',
         },
     },
     {
@@ -219,6 +234,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'Celui qui croit en Allah et au Jour Dernier qu’il dise du bien ou qu’il se taise.',
             bengali: 'যে আল্লাহ ও শেষ দিনে বিশ্বাস করে, সে যেন ভালো কথা বলে অথবা চুপ থাকে।',
             turkish: 'Allah’a ve ahiret gününe iman eden kimse, ya hayır söylesin ya da sussun.',
+            malay: 'Sesiapa yang beriman kepada Allah dan hari akhirat, hendaklah dia berkata yang baik atau diam.',
         },
     },
     {
@@ -232,6 +248,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'Et Ma miséricorde embrasse toute chose.',
             bengali: 'এবং আমার রহমত সকল কিছুকে পরিবেষ্টন করে রেখেছে।',
             turkish: 'Rahmetim her şeyi kuşatmıştır.',
+            malay: 'Dan rahmat-Ku meliputi segala sesuatu.',
         },
     },
     {
@@ -245,6 +262,7 @@ export const INSPIRATIONS: Inspiration[] = [
             french: 'Les œuvres les plus aimées d’Allah sont les plus constantes, même si elles sont petites.',
             bengali: 'আল্লাহর কাছে সবচেয়ে প্রিয় আমল হলো সেগুলো যা নিয়মিতভাবে করা হয়, যদিও তা কম হয়।',
             turkish: 'Amellerin Allah’a en sevimli olanı, az da olsa devamlı yapılanıdır.',
+            malay: 'Amalan yang paling dicintai oleh Allah ialah yang berterusan walaupun sedikit.',
         },
     },
 ];

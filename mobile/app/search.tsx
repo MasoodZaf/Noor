@@ -87,7 +87,8 @@ async function fetchHadithTranslations(
 }
 
 // ─── Language helpers ─────────────────────────────────────────────────────────
-type Language = 'english' | 'urdu' | 'indonesian' | 'french' | 'bengali' | 'turkish';
+// No Malay hadith editions on Fawaz CDN — falls back to English per line ~66.
+type Language = 'english' | 'urdu' | 'indonesian' | 'french' | 'bengali' | 'turkish' | 'malay';
 
 function translationCol(lang: Language): string {
     switch (lang) {
@@ -107,6 +108,7 @@ function quranApiLang(lang: Language): string {
         case 'french':     return 'fr';
         case 'bengali':    return 'bn';
         case 'turkish':    return 'tr';
+        case 'malay':      return 'ms';
         default:           return 'en';
     }
 }

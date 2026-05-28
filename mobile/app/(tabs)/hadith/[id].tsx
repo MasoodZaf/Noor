@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Platform, Share } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Platform, Share, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -136,6 +136,9 @@ export default function HadithCollectionScreen() {
     const [langSwitchFailed, setLangSwitchFailed] = useState(false);
     const [bookmarks, setBookmarks] = useState<HadithItem[]>([]);
     const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<HadithItem[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
 
     // Load bookmarks on mount
     useEffect(() => {
@@ -326,6 +329,73 @@ export default function HadithCollectionScreen() {
         }
     }, [language, usingApi]);
 
+    // ── In-collection search (debounced) ──────────────────────────────────────
+    // API mode: filter in-memory full collection. DB mode: FTS5 with LIKE fallback.
+    useEffect(() => {
+        const trimmed = searchQuery.trim();
+        if (trimmed.length < 2) { setSearchResults([]); return; }
+
+        let cancelled = false;
+        const timer = setTimeout(async () => {
+            setIsSearching(true);
+            try {
+                if (usingApi && allHadithsRef.current.length > 0) {
+                    const needle = trimmed.toLowerCase();
+                    const filtered = allHadithsRef.current.filter(h =>
+                        (h.text_translation && h.text_translation.toLowerCase().includes(needle)) ||
+                        (h.text_arabic && h.text_arabic.includes(trimmed)) ||
+                        String(h.hadith_number) === trimmed
+                    ).slice(0, 100);
+                    if (!cancelled) setSearchResults(filtered);
+                } else if (db) {
+                    const clean = trimmed.replace(/['"*^()[\]{}|!]/g, ' ').trim();
+                    const ftsParam = clean.split(/\s+/).filter(Boolean).map(w => `"${w}"*`).join(' ');
+                    let rows: any[] = [];
+                    try {
+                        rows = await db.getAllAsync(
+                            `SELECT h.collection_slug AS book_slug, h.hadith_number,
+                                    h.arabic_text AS text_arabic, h.english_text AS text_english,
+                                    h.narrator_chain AS narrator, h.grade
+                             FROM hadiths_fts fts
+                             JOIN hadiths h ON h.id = fts.rowid
+                             WHERE hadiths_fts MATCH ? AND h.collection_slug = ?
+                             ORDER BY rank
+                             LIMIT 100`,
+                            [ftsParam, collectionId]
+                        ) as any[];
+                    } catch {
+                        rows = await db.getAllAsync(
+                            `SELECT collection_slug AS book_slug, hadith_number,
+                                    arabic_text AS text_arabic, english_text AS text_english,
+                                    narrator_chain AS narrator, grade
+                             FROM hadiths
+                             WHERE collection_slug = ? AND english_text LIKE ?
+                             LIMIT 100`,
+                            [collectionId, `%${trimmed}%`]
+                        ) as any[];
+                    }
+                    if (cancelled) return;
+                    const mapped: HadithItem[] = rows.map(r => ({
+                        id: `${r.book_slug}-${r.hadith_number}`,
+                        hadith_number: Number(r.hadith_number),
+                        book_slug: r.book_slug ?? collectionId,
+                        text_arabic: r.text_arabic ?? '',
+                        text_translation: r.text_english ?? '',
+                        grade: r.grade ?? '',
+                        section: '',
+                    }));
+                    setSearchResults(mapped);
+                }
+            } catch {
+                if (!cancelled) setSearchResults([]);
+            } finally {
+                if (!cancelled) setIsSearching(false);
+            }
+        }, 350);
+
+        return () => { cancelled = true; clearTimeout(timer); };
+    }, [searchQuery, usingApi, db, collectionId]);
+
     // ── In-memory pagination (API mode) / DB pagination (offline mode) ─────────
     const handleLoadMore = () => {
         if (loadingMore || !hasMore || loading) return;
@@ -464,6 +534,37 @@ export default function HadithCollectionScreen() {
                 </TouchableOpacity>
             </View>
 
+            {/* Search bar */}
+            {!loading && (
+                <View style={styles.searchContainer}>
+                    <View style={[styles.searchInputWrapper, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+                        <Feather name="search" size={18} color={searchQuery ? meta.color : theme.textSecondary} style={{ marginRight: 10 }} />
+                        <TextInput
+                            style={[styles.searchInput, { color: theme.textPrimary }]}
+                            placeholder={`Search in ${meta.title}…`}
+                            placeholderTextColor={theme.textSecondary}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            autoCorrect={false}
+                            returnKeyType="search"
+                            clearButtonMode="while-editing"
+                            accessibilityLabel={`Search in ${meta.title}`}
+                        />
+                        {isSearching && <ActivityIndicator size="small" color={meta.color} style={{ marginLeft: 6 }} />}
+                        {!isSearching && searchQuery.length > 0 && Platform.OS !== 'ios' && (
+                            <TouchableOpacity
+                                onPress={() => setSearchQuery('')}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                accessibilityRole="button"
+                                accessibilityLabel="Clear search"
+                            >
+                                <Feather name="x" size={18} color={theme.textSecondary} />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                </View>
+            )}
+
             {loading ? (
                 <View style={styles.loaderContainer}>
                     <ActivityIndicator size="large" color={meta.color} />
@@ -483,16 +584,40 @@ export default function HadithCollectionScreen() {
                         </View>
                     )}
                     <FlatList
-                        data={showBookmarkedOnly ? hadiths.filter(isBookmarked) : hadiths}
+                        data={
+                            searchQuery.trim().length >= 2
+                                ? searchResults
+                                : showBookmarkedOnly ? hadiths.filter(isBookmarked) : hadiths
+                        }
                         keyExtractor={(item, i) => `${item.id}-${i}`}
                         renderItem={renderHadith}
                         contentContainerStyle={styles.listContent}
                         showsVerticalScrollIndicator={false}
-                        onEndReached={showBookmarkedOnly ? undefined : handleLoadMore}
+                        keyboardShouldPersistTaps="handled"
+                        onEndReached={(searchQuery.trim().length >= 2 || showBookmarkedOnly) ? undefined : handleLoadMore}
                         onEndReachedThreshold={0.5}
-                        ListFooterComponent={showBookmarkedOnly ? null : renderFooter}
+                        ListHeaderComponent={
+                            searchQuery.trim().length >= 2 && !isSearching && searchResults.length > 0 ? (
+                                <Text style={[styles.resultCount, { color: theme.textSecondary }]}>
+                                    {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{searchQuery.trim()}"
+                                </Text>
+                            ) : null
+                        }
+                        ListFooterComponent={(searchQuery.trim().length >= 2 || showBookmarkedOnly) ? null : renderFooter}
                         ListEmptyComponent={
-                            showBookmarkedOnly ? (
+                            searchQuery.trim().length >= 2 ? (
+                                isSearching ? null : (
+                                    <View style={{ alignItems: 'center', paddingTop: 60 }}>
+                                        <Feather name="search" size={32} color={theme.textTertiary} />
+                                        <Text style={{ color: theme.textPrimary, marginTop: 12, fontSize: 16, fontWeight: '600' }}>
+                                            No results found
+                                        </Text>
+                                        <Text style={{ color: theme.textSecondary, marginTop: 4, fontSize: 13 }}>
+                                            Try a different keyword or hadith number
+                                        </Text>
+                                    </View>
+                                )
+                            ) : showBookmarkedOnly ? (
                                 <View style={{ alignItems: 'center', paddingTop: 60 }}>
                                     <Feather name="bookmark" size={32} color={theme.textTertiary} />
                                     <Text style={{ color: theme.textSecondary, marginTop: 12, fontSize: 14 }}>
@@ -523,6 +648,17 @@ const styles = StyleSheet.create({
         fontSize: 12, marginTop: 4,
         letterSpacing: 0.5, textTransform: 'uppercase',
     },
+    searchContainer: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+    searchInputWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 14,
+        paddingHorizontal: 14,
+        height: 46,
+        borderWidth: 1,
+    },
+    searchInput: { flex: 1, fontSize: 15, height: '100%' },
+    resultCount: { fontSize: 13, fontWeight: '600', marginBottom: 12, letterSpacing: 0.3 },
     loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     loadingText:    { marginTop: 16, fontSize: 15 },
     loadingSubtext: { marginTop: 6, fontSize: 12 },
