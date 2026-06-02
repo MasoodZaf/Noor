@@ -133,16 +133,19 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
                 const qCheck = await database.getFirstAsync<{ count: number }>('SELECT count(*) as count FROM qaida_lessons');
                 if (__DEV__) console.log("[Database] Sanity check:", check?.count || 0, "surahs and", qCheck?.count || 0, "qaida lessons");
 
-                // One-time upgrade housekeeping — runs before the UI mounts so no
-                // screen can read a stale (and potentially malformed) cache on first
-                // paint. Both are best-effort and never block readiness on failure.
-                await purgeStaleCachesOnUpgrade(dbVersion);
-                await cleanupOldDatabases(dbDirectory, dbName);
-
                 if (isMounted) {
                     setDb(database);
                     setIsReady(true);
                 }
+
+                // Upgrade housekeeping runs AFTER first paint (fire-and-forget) so it
+                // never adds to the cold-launch critical path. Heavy first-launch work
+                // (59 MB DB copy + orphan delete) was pushing cold start past the iOS
+                // launch-watchdog budget; deferring it keeps first paint fast. The
+                // length-cap guard on Home protects the brief window before the cache
+                // is refreshed.
+                purgeStaleCachesOnUpgrade(dbVersion);
+                cleanupOldDatabases(dbDirectory, dbName);
             } catch (error: any) {
                 if (__DEV__) console.error("[Database] CRITICAL ERROR:", error);
                 if (isMounted) {
@@ -151,9 +154,9 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
             }
         };
 
-        setTimeout(() => {
-            initDb();
-        }, 500); // Give the RN environment half a second to fully boot
+        // Start immediately. The prior 500ms delay only postponed readiness and
+        // pushed cold-launch work later, increasing iOS launch-watchdog risk.
+        initDb();
 
         return () => {
             isMounted = false;
