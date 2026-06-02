@@ -80,7 +80,7 @@ const DUA_DATABASE: Record<string, { title: string, icon: string, desc: string, 
             {
                 id: 'd1',
                 arabic: 'بِسْمِ اللَّهِ، تَوَكَّلْتُ عَلَى اللَّهِ',
-                transliteration: 'Bismillahi, tawakkaltu AAalallahi',
+                transliteration: "Bismillahi, tawakkaltu 'alallah",
                 translation: '"In the Name of Allah, I have placed my trust in Allah, there is no might and no power except by Allah."',
                 reference: 'Leaving Home (Abu Dawud)',
                 benefit: 'You shall be guided, defended and protected.'
@@ -88,7 +88,7 @@ const DUA_DATABASE: Record<string, { title: string, icon: string, desc: string, 
             {
                 id: 'd2',
                 arabic: 'الْحَمْدُ لِلَّهِ الَّذِي أَطْعَمَنِي هَذَا',
-                transliteration: 'Alhamdu lillahil-ladhi atAAamani hadha',
+                transliteration: "Alhamdu lillahil-ladhi at'amani hadha",
                 translation: '"All praise is to Allah Who has fed me this..."',
                 reference: 'After Eating (Tirmidhi)',
                 benefit: 'Forgiveness for previous minor sins.'
