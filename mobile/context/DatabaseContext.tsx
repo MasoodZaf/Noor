@@ -3,6 +3,60 @@ import * as SQLite from 'expo-sqlite';
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Asset } from 'expo-asset';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// ─── Upgrade housekeeping ───────────────────────────────────────────────────────
+// Derived caches written by a previous build can carry over across an app update
+// (a fresh install wipes them, an update does not). A malformed cached value
+// rendered on first paint — e.g. an over-long string fed into a single <Text> —
+// can block the main thread long enough for iOS to watchdog-kill the app at
+// launch (0x8BADF00D), which presents as an endless "loading" loop on update
+// while fresh installs are fine. We purge these caches once per dbVersion.
+//
+// IMPORTANT: every prefix below is a CACHE that regenerates (API re-fetch or
+// re-derivation). User data — bookmarks, settings, tasbih counts, hifz entries,
+// reciter, language, Ramadan streak — is deliberately excluded and preserved.
+const STALE_CACHE_PREFIXES = [
+    '@noor/daily_aya_',   // Verse of the Day (renders Arabic on Home)
+    '@noor/prayer_v2_',   // prayer-time cache
+    '@noor/hijri_cal_',   // Hijri calendar cache
+    '@noor/qibla_',       // Qibla bearing cache
+    '@noor/geocode_',     // reverse-geocode cache
+    '@ramadan_timings_',  // sehri/iftar cache
+];
+const CACHE_PURGE_MARKER = '@noor/cache_purged_for';
+
+async function purgeStaleCachesOnUpgrade(version: string) {
+    try {
+        const marker = await AsyncStorage.getItem(CACHE_PURGE_MARKER);
+        if (marker === version) return; // already purged for this version
+        const keys = await AsyncStorage.getAllKeys();
+        const stale = keys.filter(k => STALE_CACHE_PREFIXES.some(p => k.startsWith(p)));
+        if (stale.length) await AsyncStorage.multiRemove(stale);
+        await AsyncStorage.setItem(CACHE_PURGE_MARKER, version);
+        if (__DEV__) console.log(`[Database] Upgrade purge (${version}): removed ${stale.length} stale cache key(s).`);
+    } catch (e) {
+        if (__DEV__) console.warn('[Database] Cache purge skipped:', e);
+    }
+}
+
+// Remove orphaned DB copies from previous dbVersions so they don't leak ~59 MB
+// of disk every time the bundled database is bumped.
+async function cleanupOldDatabases(dbDirectory: string, currentDbName: string) {
+    try {
+        const entries = await FileSystem.readDirectoryAsync(dbDirectory);
+        const orphans = entries.filter(f => f.startsWith('noor_') && f.endsWith('.db') && f !== currentDbName);
+        for (const f of orphans) {
+            // Drop the DB plus any SQLite sidecar files (-wal/-shm/-journal)
+            for (const suffix of ['', '-wal', '-shm', '-journal']) {
+                await FileSystem.deleteAsync(`${dbDirectory}${f}${suffix}`, { idempotent: true }).catch(() => {});
+            }
+        }
+        if (__DEV__ && orphans.length) console.log(`[Database] Removed ${orphans.length} orphaned DB file(s).`);
+    } catch (e) {
+        if (__DEV__) console.warn('[Database] Old-DB cleanup skipped:', e);
+    }
+}
 
 interface DatabaseContextType {
     db: SQLite.SQLiteDatabase | null;
@@ -29,7 +83,10 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
 
         const initDb = async () => {
             try {
-                const dbVersion = 'v20';
+                // Bumped v20 → v21: forces carried-over databases to be replaced with
+                // the current clean copy on update (the copy only runs when the file is
+                // absent, so the version string is what triggers a refresh).
+                const dbVersion = 'v21';
                 const dbName = `noor_${dbVersion}.db`;
                 // SQLite on Expo looks for dbs in the 'SQLite' folder of documentDirectory
                 const dbDirectory = `${FileSystem.documentDirectory}SQLite/`;
@@ -75,6 +132,12 @@ export const DatabaseProvider = ({ children }: { children: React.ReactNode }) =>
                 const check = await database.getFirstAsync<{ count: number }>('SELECT count(*) as count FROM surahs');
                 const qCheck = await database.getFirstAsync<{ count: number }>('SELECT count(*) as count FROM qaida_lessons');
                 if (__DEV__) console.log("[Database] Sanity check:", check?.count || 0, "surahs and", qCheck?.count || 0, "qaida lessons");
+
+                // One-time upgrade housekeeping — runs before the UI mounts so no
+                // screen can read a stale (and potentially malformed) cache on first
+                // paint. Both are best-effort and never block readiness on failure.
+                await purgeStaleCachesOnUpgrade(dbVersion);
+                await cleanupOldDatabases(dbDirectory, dbName);
 
                 if (isMounted) {
                     setDb(database);

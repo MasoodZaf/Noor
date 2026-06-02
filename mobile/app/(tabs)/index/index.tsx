@@ -38,6 +38,12 @@ import { getDailyInspiration, type InspirationLang } from '../../../utils/inspir
 // ─── AlAdhan API ──────────────────────────────────────────────────────────────
 const ALADHAN_API = 'https://api.aladhan.com/v1';
 
+// Defensive cap on Arabic strings rendered in a single <Text>. The longest real
+// verse (Al-Baqarah 2:282) is 1213 chars, so this never truncates legitimate
+// content — it only bounds a malformed/over-long value that could otherwise
+// stall CoreText layout on the main thread and trip the iOS launch watchdog.
+const ARABIC_TEXT_CAP = 2000;
+
 // ─── Prayer settings persistence ─────────────────────────────────────────────
 const PRAYER_SETTINGS_KEY = '@noor/prayer_settings';
 const NOTIF_PREFS_KEY = '@noor/notif_prefs';
@@ -1350,7 +1356,7 @@ export default function HomeScreen() {
                             <Text style={[
                                 styles.verseArabicText,
                                 { color: theme.textPrimary, fontSize: 26 * theme.arabicScale, lineHeight: 46 * theme.arabicScale },
-                            ]}>{dayAya.arabic}</Text>
+                            ]}>{dayAya.arabic.slice(0, ARABIC_TEXT_CAP)}</Text>
                             <Text style={[styles.verseText, { color: theme.textSecondary }]}>"{dayAya.translation}"</Text>
                             <View style={[styles.verseFooter, { borderTopColor: theme.border }]}>
                                 <Text style={[styles.verseRef, { color: theme.accent }]}>
@@ -1398,7 +1404,7 @@ export default function HomeScreen() {
                         <Text style={[
                             styles.verseArabicText,
                             { color: theme.textPrimary, fontSize: 24 * theme.arabicScale, lineHeight: 44 * theme.arabicScale, marginTop: 16, marginBottom: 16 },
-                        ]}>{dayInspiration.arabic}</Text>
+                        ]}>{dayInspiration.arabic.slice(0, ARABIC_TEXT_CAP)}</Text>
                         <Text style={[styles.verseText, { color: theme.textSecondary, marginBottom: 20 }]}>
                             "{inspirationTranslation}"
                         </Text>
