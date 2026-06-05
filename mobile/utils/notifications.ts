@@ -51,13 +51,13 @@ export const RAMADAN_NOTIF_IDS = {
 
 // ─── Per-language strings ────────────────────────────────────────────────────
 const PRAYER_DISPLAY_NAMES: Record<NotifLang, Record<string, string>> = {
-    english:    { fajr: 'Fajr',  dhuhr: 'Dhuhr',  asr: 'Asr',    maghrib: 'Maghrib', isha: 'Isha'   },
-    urdu:       { fajr: 'فجر',   dhuhr: 'ظہر',    asr: 'عصر',    maghrib: 'مغرب',    isha: 'عشاء'   },
-    indonesian: { fajr: 'Subuh', dhuhr: 'Zuhur',  asr: 'Asar',   maghrib: 'Magrib',  isha: 'Isya'   },
-    french:     { fajr: 'Fajr',  dhuhr: 'Dhuhr',  asr: 'Asr',    maghrib: 'Maghrib', isha: 'Isha'   },
-    bengali:    { fajr: 'ফজর',   dhuhr: 'যোহর',   asr: 'আসর',    maghrib: 'মাগরিব',  isha: 'এশা'    },
-    turkish:    { fajr: 'Sabah', dhuhr: 'Öğle',   asr: 'İkindi', maghrib: 'Akşam',   isha: 'Yatsı'  },
-    malay:      { fajr: 'Subuh', dhuhr: 'Zohor',  asr: 'Asar',   maghrib: 'Maghrib', isha: 'Isyak'  },
+    english:    { fajr: 'Fajr',  dhuhr: 'Dhuhr',  asr: 'Asr',    maghrib: 'Maghrib', isha: 'Isha',   jumuah: 'Jumuʿah'    },
+    urdu:       { fajr: 'فجر',   dhuhr: 'ظہر',    asr: 'عصر',    maghrib: 'مغرب',    isha: 'عشاء',   jumuah: 'نمازِ جمعہ' },
+    indonesian: { fajr: 'Subuh', dhuhr: 'Zuhur',  asr: 'Asar',   maghrib: 'Magrib',  isha: 'Isya',   jumuah: 'Jumat'      },
+    french:     { fajr: 'Fajr',  dhuhr: 'Dhuhr',  asr: 'Asr',    maghrib: 'Maghrib', isha: 'Isha',   jumuah: 'Joumouʿah'  },
+    bengali:    { fajr: 'ফজর',   dhuhr: 'যোহর',   asr: 'আসর',    maghrib: 'মাগরিব',  isha: 'এশা',    jumuah: 'জুমুআ'      },
+    turkish:    { fajr: 'Sabah', dhuhr: 'Öğle',   asr: 'İkindi', maghrib: 'Akşam',   isha: 'Yatsı',  jumuah: 'Cuma'       },
+    malay:      { fajr: 'Subuh', dhuhr: 'Zohor',  asr: 'Asar',   maghrib: 'Maghrib', isha: 'Isyak',  jumuah: 'Jumaat'     },
 };
 
 const NOTIF_UI: Record<NotifLang, { title: string; body: string; fajrRise: string }> = {
@@ -102,6 +102,12 @@ const PRAYER_QUOTES: Record<NotifLang, Record<string, string[]>> = {
             '🕌 The Prophet ﷺ said: "The most burdensome prayers for hypocrites are Isha and Fajr — if they knew what is in them, they would come even crawling." (Bukhari)',
             '🕌 The Prophet ﷺ said: "Whoever prays Isha in congregation is as if he prayed half the night." (Muslim)',
         ],
+        jumuah:  [
+            '📖 "O you who believe! When the call is made for prayer on Friday, hasten to the remembrance of Allah and leave off trade." (62:9)',
+            '🕌 The Prophet ﷺ said: "The best day on which the sun rises is Friday." (Muslim)',
+            '🕌 The Prophet ﷺ said: "From one Jumuʿah to the next is an expiation for the sins between them." (Muslim)',
+            '🕌 The Prophet ﷺ said: "Whoever goes early to Jumuʿah, for every step is the reward of a year of fasting and praying." (Tirmidhi)',
+        ],
     },
     urdu: {
         fajr:    [
@@ -133,6 +139,12 @@ const PRAYER_QUOTES: Record<NotifLang, Record<string, string[]>> = {
             '📖 "رات کے ایک حصے میں اضافی عبادت کے طور پر نماز پڑھو۔" (17:79)',
             '🕌 نبی ﷺ نے فرمایا: "منافقوں پر سب سے بھاری نمازیں عشاء اور فجر ہیں — اگر انہیں معلوم ہوتا تو گھٹنوں کے بل چل کر آتے۔" (بخاری)',
             '🕌 نبی ﷺ نے فرمایا: "جو عشاء کی نماز جماعت سے پڑھے، اسے آدھی رات کے قیام کا ثواب ملتا ہے۔" (مسلم)',
+        ],
+        jumuah:  [
+            '📖 "اے ایمان والو! جب جمعہ کے دن نماز کے لیے اذان دی جائے تو اللہ کے ذکر کی طرف دوڑو اور خرید و فروخت چھوڑ دو۔" (62:9)',
+            '🕌 نبی ﷺ نے فرمایا: "بہترین دن جس میں سورج طلوع ہوتا ہے، جمعہ کا دن ہے۔" (مسلم)',
+            '🕌 نبی ﷺ نے فرمایا: "ایک جمعہ سے دوسرے جمعہ تک درمیانی گناہوں کا کفارہ ہو جاتا ہے۔" (مسلم)',
+            '🕌 نبی ﷺ نے فرمایا: "جو جمعہ کے لیے سویرے جائے، اس کے ہر قدم پر سال بھر کے روزے اور قیام کا ثواب ہے۔" (ترمذی)',
         ],
     },
     indonesian: {
@@ -166,6 +178,12 @@ const PRAYER_QUOTES: Record<NotifLang, Record<string, string[]>> = {
             '🕌 Nabi ﷺ bersabda: "Shalat paling berat bagi munafik adalah Isya dan Subuh — jika mereka tahu pahalanya, mereka datang meskipun merangkak." (Bukhari)',
             '🕌 Nabi ﷺ bersabda: "Siapa yang shalat Isya berjamaah, seolah ia shalat separuh malam." (Muslim)',
         ],
+        jumuah:  [
+            '📖 "Wahai orang-orang beriman! Apabila diseru untuk shalat pada hari Jumat, bersegeralah mengingat Allah dan tinggalkanlah jual beli." (62:9)',
+            '🕌 Nabi ﷺ bersabda: "Sebaik-baik hari saat matahari terbit adalah hari Jumat." (Muslim)',
+            '🕌 Nabi ﷺ bersabda: "Antara satu Jumat ke Jumat berikutnya adalah penghapus dosa di antara keduanya." (Muslim)',
+            '🕌 Nabi ﷺ bersabda: "Siapa yang berangkat lebih awal ke shalat Jumat, setiap langkahnya bagai pahala puasa dan shalat setahun." (Tirmidzi)',
+        ],
     },
     french: {
         fajr:    [
@@ -197,6 +215,12 @@ const PRAYER_QUOTES: Record<NotifLang, Record<string, string[]>> = {
             '📖 "Prie une partie de la nuit comme adoration supplémentaire pour toi." (17:79)',
             '🕌 Le Prophète ﷺ a dit : "Les prières les plus lourdes pour les hypocrites sont Isha et Fajr — s\'ils savaient, ils viendraient en rampant." (Bukhari)',
             '🕌 Le Prophète ﷺ a dit : "Celui qui prie Isha en congrégation est comme s\'il avait prié la moitié de la nuit." (Muslim)',
+        ],
+        jumuah:  [
+            '📖 "Ô croyants ! Quand on appelle à la prière du vendredi, accourez à l\'invocation d\'Allah et laissez tout négoce." (62:9)',
+            '🕌 Le Prophète ﷺ a dit : "Le meilleur jour où le soleil se lève est le vendredi." (Muslim)',
+            '🕌 Le Prophète ﷺ a dit : "D\'un vendredi à l\'autre, les péchés commis entre les deux sont expiés." (Muslim)',
+            '🕌 Le Prophète ﷺ a dit : "Quiconque se rend tôt à la prière du vendredi, chaque pas lui vaut le jeûne et la prière d\'une année." (Tirmidhi)',
         ],
     },
     bengali: {
@@ -230,6 +254,12 @@ const PRAYER_QUOTES: Record<NotifLang, Record<string, string[]>> = {
             '🕌 নবী ﷺ বলেছেন: "মুনাফিকদের জন্য সবচেয়ে ভারী নামাজ এশা ও ফজর — যদি তারা জানত, হামাগুড়ি দিয়ে হলেও আসত।" (বুখারী)',
             '🕌 নবী ﷺ বলেছেন: "যে জামাতে এশা পড়ে, সে যেন অর্ধেক রাত কিয়াম করল।" (মুসলিম)',
         ],
+        jumuah:  [
+            '📖 "হে ঈমানদারগণ! জুমআর দিনে নামাজের জন্য আহ্বান করা হলে আল্লাহর স্মরণে দ্রুত এগিয়ে যাও এবং বেচাকেনা ছেড়ে দাও।" (62:9)',
+            '🕌 নবী ﷺ বলেছেন: "যেদিন সূর্য উদিত হয় তার মধ্যে শ্রেষ্ঠ দিন হলো জুমআ।" (মুসলিম)',
+            '🕌 নবী ﷺ বলেছেন: "এক জুমআ থেকে পরবর্তী জুমআ পর্যন্ত মধ্যবর্তী গুনাহের কাফফারা।" (মুসলিম)',
+            '🕌 নবী ﷺ বলেছেন: "যে জুমআর জন্য সকাল-সকাল রওনা হয়, তার প্রতি কদমে এক বছরের রোজা ও নামাজের সওয়াব।" (তিরমিযী)',
+        ],
     },
     turkish: {
         fajr:    [
@@ -262,6 +292,12 @@ const PRAYER_QUOTES: Record<NotifLang, Record<string, string[]>> = {
             '🕌 Hz. Peygamber ﷺ buyurdu: "Münafıklara en ağır gelen namaz Yatsı ve Sabah\'tır — kıymetini bilselerdi emekleyerek bile gelirlerdi." (Buhari)',
             '🕌 Hz. Peygamber ﷺ buyurdu: "Yatsı namazını cemaatle kılan, gecenin yarısını namazla geçirmiş gibidir." (Müslim)',
         ],
+        jumuah:  [
+            '📖 "Ey iman edenler! Cuma günü namaz için çağrı yapıldığında Allah\'ı anmaya koşun ve alışverişi bırakın." (62:9)',
+            '🕌 Hz. Peygamber ﷺ buyurdu: "Güneşin doğduğu en hayırlı gün Cuma günüdür." (Müslim)',
+            '🕌 Hz. Peygamber ﷺ buyurdu: "Bir Cumadan diğer Cumaya kadar, aralarındaki günahlara kefarettir." (Müslim)',
+            '🕌 Hz. Peygamber ﷺ buyurdu: "Cumaya erkenden giden kimsenin her adımına bir yıllık oruç ve namaz sevabı vardır." (Tirmizi)',
+        ],
     },
     malay: {
         fajr:    [
@@ -293,6 +329,12 @@ const PRAYER_QUOTES: Record<NotifLang, Record<string, string[]>> = {
             '📖 "Dan pada sebahagian malam, dirikanlah solat tahajud sebagai ibadat tambahan bagimu." (17:79)',
             '🕌 Nabi ﷺ bersabda: "Solat yang paling berat bagi orang munafik ialah Isyak dan Subuh — jika mereka tahu pahalanya, nescaya mereka akan datang walaupun merangkak." (Bukhari)',
             '🕌 Nabi ﷺ bersabda: "Sesiapa yang menunaikan solat Isyak secara berjemaah, seolah-olah dia telah qiamullail separuh malam." (Muslim)',
+        ],
+        jumuah:  [
+            '📖 "Wahai orang beriman! Apabila diserukan azan untuk solat pada hari Jumaat, segeralah kamu mengingati Allah dan tinggalkanlah jual beli." (62:9)',
+            '🕌 Nabi ﷺ bersabda: "Sebaik-baik hari yang matahari terbit padanya ialah hari Jumaat." (Muslim)',
+            '🕌 Nabi ﷺ bersabda: "Dari satu Jumaat ke Jumaat berikutnya menjadi penghapus dosa di antara keduanya." (Muslim)',
+            '🕌 Nabi ﷺ bersabda: "Sesiapa yang awal pergi ke solat Jumaat, setiap langkahnya seumpama pahala puasa dan solat setahun." (Tirmizi)',
         ],
     },
 };
@@ -441,7 +483,11 @@ export async function schedulePrayerNotifications(
         if (prayer.date.getTime() <= nowMs) continue;
         const identifier = (PRAYER_NOTIF_IDS as Record<string, string>)[prayer.id];
         if (!identifier) continue;
-        const { title, body } = buildPrayerContent(prayer.id, notifLang);
+        // On Fridays, Dhuhr is replaced by the Jumuʿah (Friday Prayer) reminder —
+        // same time slot, Friday-specific title and quotes (getDay() === 5 is Friday).
+        const contentId =
+            prayer.id === 'dhuhr' && prayer.date.getDay() === 5 ? 'jumuah' : prayer.id;
+        const { title, body } = buildPrayerContent(contentId, notifLang);
         await Notifications.scheduleNotificationAsync({
             identifier,
             content: { title, body, sound: true, color: '#C9A84C', ...channel },
